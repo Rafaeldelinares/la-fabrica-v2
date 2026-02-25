@@ -1,0 +1,55 @@
+# [SYS] .CONTINUERULES — CONTEXTO PARA QWEN EN VS CODE
+
+**Versión:** 3.0
+**Aplicable a:** Continue.dev (Qwen en LM Studio)
+**Última actualización:** 2025-02-25
+
+---
+
+## RAÍZ DE CONOCIMIENTO
+
+@knowledge /opt/fabrica/knowledge
+
+Cuando Continue arranca, carga automáticamente desde `/opt/fabrica/knowledge/`:
+
+### ARQUITECTURA CORPORATIVA
+- 01_arquitectura/constitucion_maestra.md (Identidad, dominios)
+- 01_arquitectura/arquitectura_datos.md (Topología DBs, puertos)
+- 01_arquitectura/linea_montaje.md (Proyectos activos)
+
+### ESTÁNDARES PARA CÓDIGO
+- 03_estandares/navy_industrial.md (Colores, tipografía, componentes React)
+- Nomenclatura: snake_case para tablas, UPPER_CASE para constantes
+
+### MCP SERVERS
+
+#### n8n Workflows
+- URL: http://localhost:5678
+- API Key: ${N8N_API_KEY}
+- Config: 05_skills_y_mcp/mcp-n8n/config.json
+
+#### PostgreSQL
+- Host: localhost:5432
+- DBs: fabrica | crm_bybusiness | chathub_bybusiness
+- Config: 05_skills_y_mcp/mcp-postgres/config.json
+
+---
+
+## REGLAS OBLIGATORIAS PARA QWEN
+
+### React Components
+- PROHIBIDO: spinners, rounded-xl, blanco puro
+- OBLIGATORIO: Navy Industrial (bg-slate-950, paneles bg-slate-900/90)
+- OBLIGATORIO: Skeleton Screens para carga
+- MÁXIMO: 150 líneas por componente
+
+### SQL
+- snake_case, id SERIAL PRIMARY KEY, created_at TIMESTAMPTZ
+- OBLIGATORIO: IF NOT EXISTS
+- OBLIGATORIO: índices en columnas de búsqueda
+
+### n8n Workflows
+- Nomenclatura: [PROYECTO]_[MODULO]_[ACCION]
+- OBLIGATORIO: Fail-Safe (timeout → asumir válido)
+- MÁXIMO: 8 nodos para tarea simple
+

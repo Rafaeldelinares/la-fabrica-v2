@@ -1,0 +1,56 @@
+{
+  "name": "PostgreSQL MCP Server",
+  "description": "Conector para PostgreSQL — todas las DBs de La Fábrica",
+  "version": "1.0",
+
+  "connections": {
+    "fabrica": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "fabrica",
+      "user": "postgres",
+      "password": "${POSTGRES_PASSWORD}",
+      "ssl": false,
+      "schemas": {
+        "fabrica_core": "Bitácora, métricas, usuarios",
+        "infraestructura": "Contenedores, proyectos",
+        "public": "Tablas internas de n8n"
+      }
+    },
+
+    "crm_bybusiness": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "crm_bybusiness",
+      "user": "postgres",
+      "password": "${POSTGRES_PASSWORD}",
+      "ssl": false,
+      "schemas": {
+        "crm_bybusiness": "Leads, pagos, productos",
+        "marketing": "Leads cualificados",
+        "operaciones": "Tablas de barrido",
+        "rrhh": "Candidatos, procesos",
+        "social": "Posts, DMs"
+      }
+    },
+
+    "chathub_bybusiness": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "chathub_bybusiness",
+      "user": "postgres",
+      "password": "${POSTGRES_PASSWORD}",
+      "ssl": false,
+      "schemas": {
+        "chathub": "Configuración Waha",
+        "chathub_bybusiness": "Agentes IA, sesiones"
+      }
+    }
+  },
+
+  "safety": {
+    "read_only_by_default": false,
+    "require_confirmation_for": ["DELETE", "DROP"],
+    "audit_all_operations": true
+  }
+}

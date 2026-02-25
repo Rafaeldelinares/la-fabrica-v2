@@ -1,0 +1,43 @@
+{
+  "project": "La Fábrica IA",
+  "knowledge_base": "/opt/fabrica/knowledge",
+  "project_root": "/opt/fabrica",
+  
+  "description": "IDE de orquestación para n8n workflows + PostgreSQL en vivo",
+  
+  "active_projects": [
+    "CRM_ByBusiness",
+    "Escaparate_ES",
+    "Monitor_Reputacion"
+  ],
+
+  "documentation_refs": {
+    "constitution": "knowledge/01_arquitectura/constitucion_maestra.md",
+    "data_architecture": "knowledge/01_arquitectura/arquitectura_datos.md",
+    "visual_standards": "knowledge/03_estandares/navy_industrial.md",
+    "workflow_method": "knowledge/04_metodos/memoria_operativa.md"
+  },
+
+  "mcp_servers": {
+    "n8n": {
+      "name": "n8n Workflows Engine",
+      "url": "http://localhost:5678",
+      "port": 5678,
+      "api_key_env": "N8N_API_KEY",
+      "config_file": "knowledge/05_skills_y_mcp/mcp-n8n/config.json"
+    },
+
+    "postgresql": {
+      "name": "PostgreSQL Client",
+      "host": "localhost",
+      "port": 5432,
+      "config_file": "knowledge/05_skills_y_mcp/mcp-postgres/config.json"
+    }
+  },
+
+  "environment": {
+    "node_env": "development",
+    "vite_api_url": "http://localhost:5678",
+    "vite_app_domain": "ia-bybusiness.es"
+  }
+}

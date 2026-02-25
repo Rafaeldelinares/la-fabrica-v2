@@ -1,0 +1,44 @@
+{
+  "name": "n8n MCP Server",
+  "description": "Conector para n8n workflows API",
+  "version": "1.0",
+  
+  "connection": {
+    "base_url": "http://localhost:5678",
+    "api_version": "v1",
+    "timeout_seconds": 30,
+    "retry_attempts": 3
+  },
+
+  "authentication": {
+    "type": "api_key",
+    "header_name": "X-N8N-API-KEY",
+    "key_source": "environment_variable",
+    "key_var_name": "N8N_API_KEY"
+  },
+
+  "resources": {
+    "workflows": {
+      "endpoint": "/api/v1/workflows",
+      "methods": ["GET", "POST", "PATCH", "DELETE"],
+      "operations": {
+        "list": "GET /api/v1/workflows",
+        "get": "GET /api/v1/workflows/{id}",
+        "create": "POST /api/v1/workflows",
+        "update": "PATCH /api/v1/workflows/{id}",
+        "delete": "DELETE /api/v1/workflows/{id}",
+        "execute": "POST /api/v1/workflows/{id}/execute"
+      }
+    },
+
+    "executions": {
+      "endpoint": "/api/v1/executions",
+      "methods": ["GET", "POST"],
+      "operations": {
+        "list": "GET /api/v1/executions",
+        "get": "GET /api/v1/executions/{id}",
+        "cancel": "DELETE /api/v1/executions/{id}"
+      }
+    }
+  }
+}
