@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Infraestructura Dashboard | La Fábrica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="assets/styles.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: {
+                            900: '#020617', // slate-950
+                            800: '#0f172a', // slate-900
+                            700: '#1e293b', // slate-800
+                        },
+                        bybusiness: '#d00000'
+                    },
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-navy-900 text-slate-300 font-mono min-h-screen p-6">
+    <header class="flex justify-between items-center mb-8 border-b border-navy-700 pb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-white flex items-center">
+                <span class="w-3 h-3 bg-bybusiness mr-3 rounded-sm animate-pulse"></span>
+                VPS Dashboard [72.60.191.179]
+            </h1>
+            <p class="text-xs text-slate-500 mt-1 uppercase tracking-wider">LA FÁBRICA :: INFRASTRUCTURE MONITOR</p>
+        </div>
+        <div>
+            <button id="btn-sync"
+                class="bg-navy-800 border border-bybusiness text-bybusiness px-4 py-2 rounded-sm text-sm hover:bg-bybusiness hover:text-white transition-colors flex items-center shadow-[0_0_10px_rgba(208,0,0,0.2)]">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                    </path>
+                </svg>
+                FORZAR SYNC
+            </button>
+        </div>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <!-- Recursos Panel -->
+        <section class="lg:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+            <!-- RAM -->
+            <div
+                class="bg-navy-800/90 border border-slate-800 rounded-sm p-4 relative overflow-hidden group hover:border-slate-600 transition-colors">
+                <div class="absolute top-0 right-0 p-2 opacity-10">
+                    <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M4 4h16v16H4V4zm2 2v12h12V6H6zM8 8h2v2H8V8zm4 0h2v2h-2V8zm4 0h2v2h-2V8zm-8 4h2v2H8v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z">
+                        </path>
+                    </svg>
+                </div>
+                <h2 class="text-xs text-slate-500 uppercase mb-4 tracking-wider">MEMORIA RAM</h2>
+                <div id="ram-loading" class="skeleton h-8 w-24 mb-2"></div>
+                <div id="ram-content" class="hidden">
+                    <div class="text-3xl font-bold text-white" id="ram-usado">--.--<span
+                            class="text-sm font-normal text-slate-500">GB</span></div>
+                    <div class="flex items-center justify-between mt-4">
+                        <span class="text-xs text-slate-400" id="ram-total">Total: --.-- GB</span>
+                        <span class="text-xs font-bold" id="ram-percent">--%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1 mt-2 rounded-full overflow-hidden">
+                        <div id="ram-bar" class="h-full bg-bybusiness" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CPU/Load -->
+            <div
+                class="bg-navy-800/90 border border-slate-800 rounded-sm p-4 relative overflow-hidden group hover:border-slate-600 transition-colors">
+                <h2 class="text-xs text-slate-500 uppercase mb-4 tracking-wider">SISTEMA CPU LOAD</h2>
+                <div id="cpu-loading" class="skeleton h-8 w-24 mb-2"></div>
+                <div id="cpu-content" class="hidden">
+                    <div class="text-3xl font-bold text-white" id="cpu-load">--.--</div>
+                    <div class="mt-4">
+                        <span class="text-xs text-slate-400 block mb-1">Uptime</span>
+                        <span class="text-xs text-slate-200" id="sys-uptime">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disco -->
+            <div
+                class="bg-navy-800/90 border border-slate-800 rounded-sm p-4 relative overflow-hidden group hover:border-slate-600 transition-colors">
+                <h2 class="text-xs text-slate-500 uppercase mb-4 tracking-wider">ALMACENAMIENTO</h2>
+                <div id="disk-loading" class="skeleton h-8 w-24 mb-2"></div>
+                <div id="disk-content" class="hidden">
+                    <div class="text-3xl font-bold text-white" id="disco-usado">--.--<span
+                            class="text-sm font-normal text-slate-500">GB</span></div>
+                    <div class="flex items-center justify-between mt-4">
+                        <span class="text-xs text-slate-400" id="disco-total">Total: --.-- GB</span>
+                        <span class="text-xs font-bold" id="disco-percent">--%</span>
+                    </div>
+                    <div class="w-full bg-slate-800 h-1 mt-2 rounded-full overflow-hidden">
+                        <div id="disco-bar" class="h-full bg-bybusiness" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contenedores -->
+        <section class="lg:col-span-3 bg-navy-800/90 border border-slate-800 rounded-sm p-5 flex flex-col h-[500px]">
+            <h2
+                class="text-sm text-slate-400 uppercase tracking-widest border-b border-navy-700 pb-3 mb-4 flex justify-between">
+                <span>CONTENEDORES ACTIVOS</span>
+                <span id="cont-count" class="bg-slate-800 text-white px-2 py-0.5 rounded-sm text-xs">0</span>
+            </h2>
+            <div class="overflow-y-auto flex-1 custom-scrollbar pr-2">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs uppercase bg-navy-900/50 text-slate-500 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-3 font-medium">STATUS</th>
+                            <th class="px-4 py-3 font-medium">NOMBRE</th>
+                            <th class="px-4 py-3 font-medium">IMAGEN</th>
+                            <th class="px-4 py-3 font-medium hidden md:table-cell">PUERTOS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="cont-tbody" class="divide-y divide-navy-700/50">
+                        <tr>
+                            <td colspan="4" class="px-4 py-8 text-center text-slate-500">Cargando datos...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Sidebar (Endpoints & Images) -->
+        <section class="lg:col-span-1 flex flex-col gap-6">
+            <!-- Endpoints -->
+            <div class="bg-navy-800/90 border border-slate-800 rounded-sm p-5 flex-1 max-h-[240px] flex flex-col">
+                <h2 class="text-xs text-slate-400 uppercase tracking-widest border-b border-navy-700 pb-3 mb-4">
+                    ENDPOINTS</h2>
+                <div id="endpoints-list" class="overflow-y-auto flex-1 custom-scrollbar space-y-3 pr-2">
+                    <div class="text-xs text-slate-500">Buscando endpoints...</div>
+                </div>
+            </div>
+
+            <!-- Workflows n8n -->
+            <div class="bg-navy-800/90 border border-slate-800 rounded-sm p-5 flex-1 max-h-[240px] flex flex-col">
+                <h2 class="text-xs text-slate-400 uppercase tracking-widest border-b border-navy-700 pb-3 mb-4">⚙️
+                    WORKFLOWS N8N</h2>
+                <div id="workflows-container" class="overflow-y-auto flex-1 custom-scrollbar space-y-3 pr-2">
+                    <div class="text-xs text-slate-500">Cargando workflows...</div>
+                </div>
+            </div>
+
+            <!-- Imágenes -->
+            <div class="bg-navy-800/90 border border-slate-800 rounded-sm p-5 flex-1 max-h-[235px] flex flex-col">
+                <h2 class="text-xs text-slate-400 uppercase tracking-widest border-b border-navy-700 pb-3 mb-4">IMÁGENES
+                    LOC.</h2>
+                <div id="images-list" class="overflow-y-auto flex-1 custom-scrollbar space-y-2 pr-2">
+                    <div class="text-xs text-slate-500">Cargando imágenes...</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast"
+        class="fixed bottom-4 right-4 bg-slate-800 border-l-4 border-bybusiness text-white px-4 py-3 rounded shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50">
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2 text-bybusiness" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span id="toast-msg" class="text-sm">Notificación</span>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>

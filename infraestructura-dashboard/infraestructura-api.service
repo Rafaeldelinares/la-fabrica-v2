@@ -1,0 +1,18 @@
+[Unit]
+Description=Infraestructura Dashboard API
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=rafael
+WorkingDirectory=/opt/fabrica/infraestructura-dashboard
+Environment="PATH=/opt/fabrica/infraestructura-dashboard/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/opt/fabrica/infraestructura-dashboard/venv/bin/python backend/api.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
