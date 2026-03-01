@@ -1,0 +1,14 @@
+# Gentleman Guardian Angel - La Fábrica IA
+PROVIDER="claude"
+
+# Cubrir todos los lenguajes de La Fábrica
+FILE_PATTERNS="*.go,*.js,*.jsx,*.tsx,*.ts,*.php,*.sql,*.sh"
+
+# Excluir dependencias y builds
+EXCLUDE_PATTERNS="node_modules,vendor,.git,dist,build,*.test.go,*.spec.js,*.d.ts"
+
+# Estándares de La Fábrica
+RULES_FILE="AGENTS.md"
+
+STRICT_MODE="true"
+TIMEOUT="60"

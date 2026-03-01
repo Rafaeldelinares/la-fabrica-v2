@@ -17,6 +17,7 @@
 | 2026-03-01 | Tool `monitor_reputacion` configurada y documentada para n8n | Tools / Escaparate COM |
 | 2026-03-01 | **Crear frontend Monitor Reputación V2 con Antigravity** | Monitor Reputación V2 |
 | 2026-03-01 | **Instalar Engram y configurar memoria persistente** | Infraestructura / Tools |
+| 2026-03-01 | **Instalar GGA y proteger calidad de código (pre-commit hook)** | Infraestructura / Tools |
 
 ---
 
@@ -45,6 +46,16 @@
 | 🟢 BAJA | **React Router DOM** | Toda la navegación es condicional en `App.jsx`. Para URLs absolutas como `/auditoria/ferreteria-malaga`, integrar React Router | `src/App.jsx` |
 
 **Docs completos del frontend:** `02_proyectos/monitor-reputacion-frontend-v2.md`
+
+---
+
+## GGA — SEGUIMIENTO POST-INSTALACIÓN
+
+| Prioridad | Tarea | Notas |
+|---|---|---|
+| 🟡 MEDIA | **Revisar violaciones de GGA semanalmente y actualizar AGENTS.md** | Si un commit legítimo queda bloqueado, ajustar la regla en `/opt/fabrica/AGENTS.md` |
+| 🟡 MEDIA | Probar GGA desde terminal (fuera de Claude Code) | `cd /opt/fabrica && git add <archivo> && git commit` |
+| 🟢 BAJA | Evaluar añadir reglas específicas por proyecto (Go vs React vs PHP) | Actualmente AGENTS.md es global para todo el monorepo |
 
 ---
 
