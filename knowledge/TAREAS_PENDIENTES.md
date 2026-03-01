@@ -18,6 +18,7 @@
 | 2026-03-01 | **Crear frontend Monitor Reputación V2 con Antigravity** | Monitor Reputación V2 |
 | 2026-03-01 | **Instalar Engram y configurar memoria persistente** | Infraestructura / Tools |
 | 2026-03-01 | **Instalar GGA y proteger calidad de código (pre-commit hook)** | Infraestructura / Tools |
+| 2026-03-01 | **Instalar Agent Teams Lite para desarrollo multi-agente** | Infraestructura / Tools |
 
 ---
 
@@ -46,6 +47,16 @@
 | 🟢 BAJA | **React Router DOM** | Toda la navegación es condicional en `App.jsx`. Para URLs absolutas como `/auditoria/ferreteria-malaga`, integrar React Router | `src/App.jsx` |
 
 **Docs completos del frontend:** `02_proyectos/monitor-reputacion-frontend-v2.md`
+
+---
+
+## AGENT TEAMS LITE — PRIMER USO
+
+| Prioridad | Tarea | Notas |
+|---|---|---|
+| 🔴 ALTA | **Usar SDD para integrar tool monitor_reputacion en Agente Sofía** | Primer proyecto grande real con Agent Teams Lite. Ver ejemplo en `agent-teams-ejemplo.md` |
+| 🟡 MEDIA | Usar Agent Teams Lite en próximo proyecto grande (>10 archivos) | Trigger: `/sdd-new nombre-del-cambio` |
+| 🟢 BAJA | Evaluar si SDD mejora calidad vs desarrollo directo tras 1 mes | Comparar: tiempo, bugs post-entrega, documentación generada |
 
 ---
 
