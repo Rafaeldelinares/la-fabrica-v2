@@ -115,11 +115,39 @@ Boot
 
 ---
 
+## FRONTEND
+
+**Estado:** ✅ COMPLETADO — Entregado por Antigravity (2026-03-01)
+**Ruta:** `/opt/fabrica/monitor-reputacion-frontend/`
+**Docs completos:** `02_proyectos/monitor-reputacion-frontend-v2.md`
+
+Stack: React 19 + Vite + Tailwind + Recharts + Lucide. SPA cockpit sin scroll global.
+Funcionalidades entregadas: búsqueda real, precarga inteligente, paginación, drill-down,
+historial localStorage, indicador tiempo IA, modales de contacto y legal.
+
+**Ajustes pendientes** (ver `TAREAS_PENDIENTES.md`):
+- Exportar PDF (`AuditReport.jsx`) — requiere `jspdf` o endpoint backend
+- Conectar formularios modales a webhooks n8n
+- Indicador tiempo en caché (mostrar "CACHÉ" si `cached=true` en lugar de <0.5s)
+
+---
+
+## ESTADO GLOBAL DEL PROYECTO
+
+| Capa | Estado |
+|---|---|
+| Backend (Motor Go + Scrapers + Caché) | ✅ PRODUCCIÓN COMPLETA |
+| Infraestructura (systemd + Docker + Túnel) | ✅ PRODUCCIÓN COMPLETA |
+| Frontend React | ✅ COMPLETADO (ajustes menores pendientes) |
+| Tool n8n `monitor_reputacion` | 🔜 Pendiente integrar en Escaparate COM |
+
+---
+
 ## PRÓXIMOS PASOS
 
-- [ ] Frontend React (Recharts + Lucide) — en desarrollo por Antigravity
+- [x] Frontend React (Recharts + Lucide) — COMPLETADO por Antigravity (2026-03-01)
 - [ ] Integrar tool `monitor_reputacion` en Escaparate COM (Agente Sofía)
-- [ ] Docs frontend: `Monitor_Reputacion/monitor-reputacion-frontend-v2.md`
+- [ ] Ajustes finales frontend (PDF, formularios n8n, indicador caché)
 
 ---
 
