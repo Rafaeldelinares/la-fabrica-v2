@@ -16,6 +16,7 @@
 | 2026-03-01 | Test producción validado: 19 ferreterías reales de Málaga | Monitor Reputación V2 |
 | 2026-03-01 | Tool `monitor_reputacion` configurada y documentada para n8n | Tools / Escaparate COM |
 | 2026-03-01 | **Crear frontend Monitor Reputación V2 con Antigravity** | Monitor Reputación V2 |
+| 2026-03-01 | **Instalar Engram y configurar memoria persistente** | Infraestructura / Tools |
 
 ---
 
@@ -44,6 +45,17 @@
 | 🟢 BAJA | **React Router DOM** | Toda la navegación es condicional en `App.jsx`. Para URLs absolutas como `/auditoria/ferreteria-malaga`, integrar React Router | `src/App.jsx` |
 
 **Docs completos del frontend:** `02_proyectos/monitor-reputacion-frontend-v2.md`
+
+---
+
+## ENGRAM — SEGUIMIENTO POST-INSTALACIÓN
+
+| Prioridad | Tarea | Notas |
+|---|---|---|
+| 🟡 MEDIA | **Probar Engram durante 1 semana y documentar mejoras** | Evaluar si `mem_context` al inicio de sesión aporta valor real. Actualizar `engram.md` con hallazgos |
+| 🟡 MEDIA | Guardar primera memoria CRM ByBusiness en Engram | `engram save "CRM ByBusiness - Arquitectura" "..." --project crm-bybusiness` |
+| 🟡 MEDIA | Guardar primera memoria Escaparate COM en Engram | `engram save "Escaparate COM - Agente Sofía" "..." --project escaparate-com` |
+| 🟢 BAJA | Evaluar sync de `.engram/` en Git para compartir entre máquinas | `engram sync --project fabrica-core` |
 
 ---
 
