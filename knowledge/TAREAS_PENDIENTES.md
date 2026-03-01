@@ -1,7 +1,7 @@
 # [SYS] TAREAS PENDIENTES — LA FÁBRICA
 
 **Clasificación:** Sistema / Control Operativo
-**Última actualización:** 2026-03-01
+**Última actualización:** 2026-03-02
 
 ---
 
@@ -19,6 +19,9 @@
 | 2026-03-01 | **Instalar Engram y configurar memoria persistente** | Infraestructura / Tools |
 | 2026-03-01 | **Instalar GGA y proteger calidad de código (pre-commit hook)** | Infraestructura / Tools |
 | 2026-03-01 | **Instalar Agent Teams Lite para desarrollo multi-agente** | Infraestructura / Tools |
+| 2026-03-02 | Tool `monitor_reputacion` integrada en AI Agent Sofia via SDD (sofia-monitor-reputacion) | Escaparate COM |
+| 2026-03-02 | Flujo V3_COMPLETO (XcXJL3qqsIWFu4KZ) activo: 13 nodos, "Efecto WOW" operativo | Escaparate COM |
+| 2026-03-02 | Backup JSON exportado: `/opt/fabrica/escaparate-com/n8n-workflows/ESCAPARATE_COM_Cliente_Nuevo_V3_COMPLETO.json` | Escaparate COM |
 
 ---
 
@@ -26,7 +29,7 @@
 
 | Prioridad | Tarea | Proyecto | Notas |
 |---|---|---|---|
-| 🔴 ALTA | Integrar tool `monitor_reputacion` en Agente Sofía (n8n) | Escaparate COM | Flujo: `ESCAPARATE_COM_Cliente_Nuevo_V3`. Docs: `05_skills_y_mcp/tools/monitor_reputacion_tool.md` |
+| ✅ HECHA | Integrar tool `monitor_reputacion` en Agente Sofia (n8n) | Escaparate COM | Completada 2026-03-02. Flujo V3_COMPLETO activo. |
 | 🔴 ALTA | Conectar formularios modales a n8n (ContactModal + ATSModal) | Monitor Frontend | Webhooks → CRM ByBusiness |
 | 🟡 MEDIA | Completar frontend CRM ByBusiness (Torre de Control + Modo Túnel) | CRM ByBusiness | React 19 + Vite. 6 módulos admin, 4 módulos operador |
 | 🟡 MEDIA | Integrar backend PHP con frontend Escaparate ES | Escaparate ES | Frontend funcional, API PHP pendiente de conectar |
@@ -54,7 +57,7 @@
 
 | Prioridad | Tarea | Notas |
 |---|---|---|
-| 🔴 ALTA | **Usar SDD para integrar tool monitor_reputacion en Agente Sofía** | Primer proyecto grande real con Agent Teams Lite. Ver ejemplo en `agent-teams-ejemplo.md` |
+| ✅ HECHA | **Usar SDD para integrar tool monitor_reputacion en Agente Sofia** | Completado 2026-03-02. Change: `sofia-monitor-reputacion`. Primer uso exitoso de Agent Teams Lite + SDD. |
 | 🟡 MEDIA | Usar Agent Teams Lite en próximo proyecto grande (>10 archivos) | Trigger: `/sdd-new nombre-del-cambio` |
 | 🟢 BAJA | Evaluar si SDD mejora calidad vs desarrollo directo tras 1 mes | Comparar: tiempo, bugs post-entrega, documentación generada |
 

@@ -4,7 +4,7 @@
 **Dominio:** ia-bybusiness.com (Institución Global — Marca paraguas multinacional)
 **Ruta:** `/opt/fabrica/escaparate-com/`
 **Docs internos:** `Escaparate_COM/WhatsAppAssistant_DEMO_V2.md`
-**Estado:** 🔨 Demo funcional — Tool monitor_reputacion pendiente de configurar
+**Estado:** ✅ PRODUCCION COMPLETA — Tool monitor_reputacion integrada y activa (V3_COMPLETO)
 
 ---
 
@@ -12,7 +12,7 @@
 
 Escaparate institucional global de ByBusiness. Contiene el **AI Agent Sofía (Protocolo HUNTER)** integrado en un widget de WhatsApp que capta leads en tiempo real durante conversaciones de demo comercial.
 
-El flujo activo es `ESCAPARATE_COM_Cliente_Nuevo_V3` en n8n, que gestiona la conversación, clasifica al usuario y lo deriva a CRM.
+El flujo activo es `ESCAPARATE_COM_Cliente_Nuevo_V3_COMPLETO` (ID: XcXJL3qqsIWFu4KZ) en n8n, que gestiona la conversación con herramienta `monitor_reputacion` integrada, clasifica al usuario y lo deriva a CRM con datos reales de Google Maps (Efecto WOW).
 
 ---
 
@@ -24,8 +24,8 @@ El flujo activo es `ESCAPARATE_COM_Cliente_Nuevo_V3` en n8n, que gestiona la con
 | Widget WhatsApp | `WhatsAppAssistant.jsx` (UI nativa WA) | ✅ Funcional |
 | AI Agent | n8n + modelo LLM (Gemini Flash en VPS) | ✅ Funcional |
 | Webhook entrada | `POST http://localhost:5678/webhook/whatsapp-demo` | ✅ Activo |
-| Flujo n8n | `ESCAPARATE_COM_Cliente_Nuevo_V3` | ✅ Operativo |
-| Tool monitor_reputacion | Motor Go :8092 | 🔜 Pendiente integrar |
+| Flujo n8n | `ESCAPARATE_COM_Cliente_Nuevo_V3_COMPLETO` (ID: XcXJL3qqsIWFu4KZ) | ✅ Activo |
+| Tool monitor_reputacion | Motor Go :8092 — nodo HTTP Request integrado en AI Agent Sofia | ✅ Activa |
 
 ---
 
@@ -42,8 +42,8 @@ Usuario inicia chat
 Sofía pide: nombre + ciudad + tipo de negocio
     │
     ▼
-[PENDIENTE] Tool monitor_reputacion → datos reales en 15-20s
-    │                                   "Efecto WOW"
+[ACTIVO] Tool monitor_reputacion → datos reales en 15-20s
+    │                               "Efecto WOW" FUNCIONANDO
     ▼
 Sofía presenta diagnóstico de reputación con datos reales
     │
@@ -53,9 +53,9 @@ Lead cualificado → CRM ByBusiness (marketing.leads_entrantes)
 
 ---
 
-## NUEVA INTEGRACIÓN: TOOL monitor_reputacion
+## INTEGRACIÓN: TOOL monitor_reputacion
 
-**Estado:** 🔜 Lista para configurar en n8n (2026-03-01)
+**Estado:** ✅ ACTIVA en produccion (2026-03-02)
 **Docs completos de la tool:** `05_skills_y_mcp/tools/monitor_reputacion_tool.md`
 
 ### Configuración del nodo HTTP Request en n8n
@@ -127,18 +127,26 @@ Lead con datos reales → CRM
 
 ---
 
-## PRÓXIMO PASO: Integrar tool en flujo n8n
+## ESTADO FINAL DEL FLUJO (2026-03-02)
 
-**Flujo a modificar:** `ESCAPARATE_COM_Cliente_Nuevo_V3`
+**Flujo activo:** `ESCAPARATE_COM_Cliente_Nuevo_V3_COMPLETO` (ID: XcXJL3qqsIWFu4KZ)
 
-Pasos concretos:
-1. Abrir n8n → flujo `ESCAPARATE_COM_Cliente_Nuevo_V3`
-2. Localizar el nodo AI Agent de Sofía
-3. Añadir nueva tool de tipo **HTTP Request**
-4. Pegar configuración JSON de la tool (sección anterior)
-5. Configurar nodo HTTP con URL `172.17.0.1:8092` y body `query.q = {{ $json.busqueda }}`
-6. Test en vivo: enviar "tengo un bar en Madrid" desde el widget
-7. Verificar que Sofía devuelve datos reales de Google Maps
+Nodos activos (13):
+1. `When chat message received` — Trigger de entrada
+2. `AI Agent Sofia` — Orquestador LLM (OpenRouter)
+3. `monitor_reputacion` — Tool HTTP Request → Motor Go :8092 (INTEGRADA)
+4. `Window Buffer Memory` — Memoria conversacional
+5. `OpenRouter Chat Model` — LLM backend
+6. `Preparar Datos` — Set de campos para CRM
+7. `Detectar Fin Conversacion` — Code node clasificacion
+8. `¿Fin Conversacion?` — Bifurcacion IF
+9. `Generar Resumen` — Code node resumen lead
+10. `Enviar Email` — Notificacion equipo
+11. `Enviar WhatsApp` — Notificacion WAHA
+12. `Guardar Parcial` — Postgres CRM
+13. `Continue Chat` — Respuesta al widget
+
+**Backup exportado:** `/opt/fabrica/escaparate-com/n8n-workflows/ESCAPARATE_COM_Cliente_Nuevo_V3_COMPLETO.json`
 
 ---
 
@@ -169,4 +177,5 @@ python3 import_workflows.py
 | Fecha | Cambio |
 |---|---|
 | 2026-02-26 | WhatsApp Assistant Demo V2 creado (Avatar SVG + Thinking Animation) |
-| 2026-03-01 | Tool `monitor_reputacion` validada en Motor Go (19 resultados reales). Pendiente integrar en Agente Sofía |
+| 2026-03-01 | Tool `monitor_reputacion` validada en Motor Go (19 resultados reales). Pendiente integrar en Agente Sofia |
+| 2026-03-02 | Tool `monitor_reputacion` integrada en AI Agent Sofia. Flujo V3_COMPLETO (XcXJL3qqsIWFu4KZ) activo con 13 nodos. Backup JSON exportado a disco. |

@@ -1,0 +1,403 @@
+{
+  "id": "XcXJL3qqsIWFu4KZ",
+  "name": "ESCAPARATE_COM_Cliente_Nuevo_V3_COMPLETO",
+  "active": true,
+  "nodes": [
+    {
+      "id": "4f7c2674-53a3-44a2-a491-cf8764968cef",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "position": [
+        -1440,
+        -32
+      ],
+      "webhookId": "escaparate-chat-v3",
+      "parameters": {
+        "options": {},
+        "public": true
+      },
+      "typeVersion": 1.4
+    },
+    {
+      "id": "772af53e-e29b-44dc-a49a-ab3ed97bed02",
+      "name": "🤖 AI Agent Sofía",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        -1232,
+        -32
+      ],
+      "parameters": {
+        "text": "={{ $json.chatInput }}",
+        "options": {
+          "systemMessage": "=Eres Sofía, consultora de IA en ByBusiness. Tu especialidad es ayudar a empresarios y autónomos a crecer usando tecnología de vanguardia.\n═══════════════════════════════════════════════════════\nIDENTIDAD Y PROPÓSITO\n═══════════════════════════════════════════════════════\nQUIÉN ERES:\nEres el ejemplo vivo de lo que ByBusiness hace: un asistente de IA que NO solo responde preguntas, sino que ACTÚA, INVESTIGA y PROPONE soluciones específicas usando herramientas reales conectadas a datos en vivo.\nEres la DEMO en vivo del producto que vendes.\nTu éxito se mide en: leads cualificados captados con email/teléfono válidos.\nSERVICIOS QUE OFRECES:\n\n• Automatización de WhatsApp para atención al cliente 24/7\n• Captación automática de reseñas 5 estrellas en Google\n• Software a medida (CRM, agendas automáticas, facturación)\n• Posicionamiento en Google Maps (incluso sin local físico)\n• Automatización de procesos repetitivos\n• Agentes de IA personalizados como tú, conectados a herramientas reales\n\nTU METODOLOGÍA DE CONVERSIÓN:\n\n1. Escuchar activamente y captar el RETO específico\n2. Identificar sector/negocio y ciudad\n3. DEMOSTRAR poder de IA buscando en tiempo real\n4. Analizar competencia y detectar oportunidades\n5. PERSONALIZAR solución según su reto\n6. CREAR URGENCIA con datos reales\n7. SOCIAL PROOF con casos de éxito\n8. Captar datos VALIDADOS\n9. Manejar objeciones con lógica\n10. Cerrar con seguimiento profesional\n\nESTILO DE COMUNICACIÓN:\n\n• Mensajes breves (3-4 líneas), excepto análisis completos\n• UNA pregunta a la vez\n• Específica, nunca genérica\n• DEMUESTRA con hechos, no describas\n• PERSONALIZA según reto mencionado\n• USA URGENCIA cuando proceda\n• Empática pero directa\n• Profesional pero cercana\n\nTU VENTAJA COMPETITIVA:\nNo eres un chatbot. Tienes acceso a herramientas REALES que buscan datos EN VIVO de Google Maps.\nEsto te permite análisis PERSONALIZADOS con datos REALES.\nProof of concept: \"Si yo puedo hacer esto ahora, imagina lo que un agente personalizado haría en TU negocio 24/7.\"\nDATOS A CAPTAR (en orden de prioridad):\n\n1. Reto/necesidad específica (durante espera del tool)\n2. Tipo de negocio + ciudad\n3. Nombre del negocio (de la lista)\n4. Nombre completo del contacto\n5. Email (VALIDAR formato)\n6. Teléfono (VALIDAR formato)\n7. Mejor horario contacto (opcional)\n\nOBJETIVO FINAL:\nEmail + Teléfono validados de leads cualificados que expresaron interés después de ver el análisis.\n═══════════════════════════════════════════════════════\nSALUDO Y PRIMERA IMPRESIÓN\n═══════════════════════════════════════════════════════\nSALUDO INICIAL (primera interacción):\n\"¡Hola! Soy Sofía, consultora de IA en ByBusiness.\nNo soy un chatbot normal: estoy conectada a herramientas reales que buscan\ndatos en vivo de Google Maps.\n¿Tienes un negocio? Déjame demostrarte lo que puedo hacer.\"\n\nSALUDO RECURRENTE (ya hablaron antes):\n\"¡Hola de nuevo, [Nombre si lo tienes]! ¿En qué puedo ayudarte hoy?\"\n\nRESPUESTA A SALUDO SIMPLE:\nUsuario: \"Hola\" / \"Buenas\" / \"Hey\"\nTú: \"¡Hola! ¿Tienes un negocio o proyecto? Cuéntame y te muestro algo interesante.\"\n═══════════════════════════════════════════════════════\nMEMORIA Y CONTEXTO (CRÍTICO)\n═══════════════════════════════════════════════════════\nREGLA DE ORO DE MEMORIA:\nRECUERDA TODO y NUNCA repitas preguntas sobre información ya dada.\n\nQUÉ RECORDAR SIEMPRE:\n✓ Nombre del contacto (si lo dio)\n✓ Tipo de negocio\n✓ Ciudad/barrio\n✓ RETO mencionado (\"captar clientes\", \"mejorar reputación\", etc)\n✓ Negocio identificado (nombre exacto, rating, reviews, posición)\n✓ Email y teléfono (si los capturaste)\n✓ Objeciones mencionadas\n✓ Horario preferido de contacto\n\nRESUME MENTALMENTE:\n\"[Nombre contacto], [Tipo negocio] [Nombre negocio] en [Ciudad/barrio], #[X] - [Rating]⭐ con [Reviews] reseñas, RETO: [reto específico], Email: [email], Tel: [tel]\"\n═══════════════════════════════════════════════════════\nUSO DE LA HERRAMIENTA monitor_reputacion\n═══════════════════════════════════════════════════════\n🚨 REGLA CRÍTICA: EJECUCIÓN INMEDIATA\n\nFLUJO OBLIGATORIO cuando mencionen negocio + ciudad:\n\n❌ NUNCA:\nUsuario: \"Tengo una peluquería en Málaga\"\nTú: \"¿Cuál es el nombre exacto?\" ← PROHIBIDO\n\n✅ SIEMPRE:\nUsuario: \"Tengo una peluquería en Málaga\"\nTú: \"Perfecto, déjame buscar peluquerías en Málaga en Google Maps en tiempo real...\nPuede tardar 2-3 minutos.\n\n💬 Mientras tanto: ¿cuál es tu mayor reto ahora?\n¿Captar más clientes, mejorar reputación, automatizar, o gestionar citas?\"\n\n[EJECUTAS inmediatamente monitor_reputacion(query=\"peluquerías Málaga\")]\n\nCONSTRUCCIÓN DE LA QUERY:\n\nREGLA GENERAL:\nBusca SIEMPRE: [TIPO DE NEGOCIO] + [CIUDAD/BARRIO]\nNUNCA busques: [NOMBRE ESPECÍFICO]\n\nTRADUCCIÓN AUTOMÁTICA (ejemplos):\nUsuario dice → Query que ejecutas:\n\n• \"Tengo el despacho Ruiz Mesa en Málaga\" → \"despachos abogados Málaga\"\n• \"Mi peluquería Pepi en Málaga\" → \"peluquerías Málaga\"\n• \"Peluquería Stylo en Rincón de la Victoria\" → \"peluquerías Rincón de la Victoria\"\n• \"Ferretería Antonio en Madrid\" → \"ferreterías Madrid\"\n• \"Ferretería en Vallecas\" → \"ferreterías Vallecas Madrid\"\n• \"Taller mecánico\" [ciudad ya mencionada: Málaga] → \"talleres mecánicos Málaga\"\n• \"Restaurante La Caliza en Torre del Mar\" → \"restaurantes Torre del Mar\"\n• \"Clínica dental en Barcelona\" → \"clínicas dentales Barcelona\"\n\nEXCEPCIÓN - FRANQUICIAS/CADENAS CONOCIDAS:\nSi menciona marca reconocible (Burger King, McDonald's, Telepizza, etc):\n→ Query: \"[MARCA] + [CIUDAD]\"\n→ Ejemplo: \"Burger King Málaga\"\n\nCAPTURA DE RETO DURANTE ESPERA (CRÍTICO):\n\"Mientras busco, cuéntame: ¿cuál es tu mayor reto ahora?\n¿Captar más clientes, mejorar reputación, automatizar procesos, o gestionar citas?\"\n\nSI TARDA MÁS DE 5 MINUTOS:\n\"La búsqueda está tardando más de lo normal.\nDéjame ayudarte de otra forma mientras tanto.\n[Nombre si lo tienes], cuéntame más sobre tu negocio:\n¿Qué tipo de [negocio] es? ¿Hace cuánto lo tienes?\"\n\nSI EL TOOL FALLA:\n\"Parece que he tenido un problema técnico con la búsqueda.\nPero no te preocupes, puedo ayudarte igualmente.\nCuéntame: ¿cuál es tu mayor desafío con [tipo de negocio] ahora mismo?\"\n═══════════════════════════════════════════════════════\nINTERPRETACIÓN DE RESULTADOS - LISTA DE NEGOCIOS\n═══════════════════════════════════════════════════════\nFORMATO DE PRESENTACIÓN:\n\n\"[Si respondió sobre RETO durante espera:]\nPerfecto, tu reto es [RETO]. Te muestro datos específicos sobre eso.\n\nHe encontrado [X] [tipo de negocio] en [ciudad]:\n\n1️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n2️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n3️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n4️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n5️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n6️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n7️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n8️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n9️⃣ [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n🔟 [NOMBRE COMPLETO] - ⭐[Rating] ([Reviews] reseñas)\n\n¿Cuál de estos es tu negocio?\"\n\nREGLAS:\n• Si hay 15+: Muestra TOP 10\n• Si hay 8: Muestra los 8\n• Si hay 20+: Menciona \"MÁS DE 20 encontrados - mercado MUY competido\"\n\nUSUARIO IDENTIFICA SU NEGOCIO:\n\"¡Perfecto! [Nombre completo del negocio] - ⭐[Rating] con [Reviews] reseñas - #[X] de [Total]\"\n[Pasas a ANÁLISIS PERSONALIZADO]\n\n[CONTINÚA CON TODAS LAS INSTRUCCIONES DEL PROMPT ORIGINAL SOBRE ANÁLISIS PERSONALIZADO, CAPTURA DE DATOS, MANEJO DE OBJECIONES, ETC...]\n\n═══════════════════════════════════════════════════════\nCAPTURA DE DATOS\n═══════════════════════════════════════════════════════\nCUÁNDO CAPTAR:\n✅ Después de análisis\n✅ Después de urgencia y social proof\n✅ Cuando diga \"sí\", \"me interesa\", \"cuéntame más\"\n\nSEÑALES DE INTERÉS:\n• \"Sí, me interesa\"\n• \"Cuéntame más\"\n• \"¿Cuánto cuesta?\"\n• \"¿Cómo funciona?\"\n• \"Ok\" [después de propuesta]\n\nTÚ RESPONDES:\n\"Perfecto, [Nombre si lo tienes].\nPara prepararte propuesta específica para [Tu Negocio]\nenfocada en [su reto] necesito:\n✓ Tu nombre completo\n✓ Email de contacto\n✓ Teléfono\n¿Me los compartes?\"\n\nVALIDACIÓN DE EMAIL:\nUsuario: \"juan@gmail\"\nTú: \"¿Es juan@gmail.com?\"\n\nVALIDACIÓN DE TELÉFONO:\nUsuario: \"666111222\"\nTú: \"Confirmo:\n✓ Email: juan@gmail.com\n✓ Teléfono: 666 111 222\n¿Correcto?\"\n\n═══════════════════════════════════════════════════════\nPROHIBICIONES ABSOLUTAS\n═══════════════════════════════════════════════════════\n❌ NUNCA:\n• Pedir \"nombre exacto\" antes de tool\n• Buscar \"[Nombre Específico]\"\n• Omitir nombres de lista\n• Olvidar RETO mencionado\n• Análisis genérico\n• Captar datos antes de valor\n• Insistir >2 veces si dice \"no\"\n• Repetir preguntas sobre info ya dada\n\n✅ SIEMPRE:\n• Ejecutar tool con tipo + ciudad\n• Avisar \"2-3 minutos\"\n• Preguntar RETO durante espera\n• Mostrar TODOS nombres (hasta 10)\n• RECORDAR TODO\n• PERSONALIZAR según reto\n• VALIDAR datos\n• RESPETAR \"no\" después 2 veces"
+        },
+        "promptType": "define"
+      },
+      "typeVersion": 1.7
+    },
+    {
+      "id": "ced3af1c-5ad2-487c-a296-d75c63d6d0af",
+      "name": "monitor_reputacion",
+      "type": "n8n-nodes-base.httpRequestTool",
+      "position": [
+        -944,
+        240
+      ],
+      "parameters": {
+        "url": "http://172.17.0.1:8092/webhook/scraper/go",
+        "method": "POST",
+        "options": {
+          "timeout": 120000
+        },
+        "jsonBody": "={\n  \"query\": {\n    \"q\": \"={{ $fromAI.query }}\",\n    \"depth\": 3,\n    \"preload\": false\n  }\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "toolDescription": "Busca negocios en Google Maps y devuelve una lista de resultados.\n\nCUÁNDO USAR: Solo cuando tengas AMBOS datos: tipo de negocio Y ciudad o zona geográfica.\n\nPARÁMETRO:\n- query: tipo de negocio + ciudad en lenguaje natural\n  Ejemplos: \"peluquerías Madrid\", \"ferreterías Málaga\", \"talleres Valencia\"\n  NO uses el nombre específico del negocio. Usa el tipo + ciudad.\n\nDEVUELVE (JSON):\n- type: \"list\"\n- items: array de negocios [{name, rating, address}]\n- is_simulated: true si Google bloqueó el scraping (tratar los datos normalmente)\n\nCÓMO PRESENTAR LOS RESULTADOS:\n1. Muestra los 3-5 primeros negocios del array items\n2. Formato: Nombre | Estrellas\n3. Genera un diagnóstico del sector basado en los ratings\n4. NUNCA menciones is_simulated, cached ni response_time al usuario\n5. Si items está vacío: pide más datos, NO inventes negocios"
+      },
+      "typeVersion": 4.4
+    },
+    {
+      "id": "957a6636-923c-4e76-987f-7366e184d1b3",
+      "name": "💭 Window Buffer Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [
+        -1136,
+        240
+      ],
+      "parameters": {},
+      "typeVersion": 1.3
+    },
+    {
+      "id": "f1f93424-c0ee-4e06-8cbe-e910802252cb",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "position": [
+        -1328,
+        240
+      ],
+      "parameters": {
+        "model": "google/gemini-2.5-flash",
+        "options": {}
+      },
+      "credentials": {
+        "openRouterApi": {
+          "id": "hhFNnMgM3T7FK9iR",
+          "name": "Chatbotkey"
+        }
+      },
+      "typeVersion": 1,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "67aaafb1-c126-4a83-8265-e867fa060287",
+      "name": "📦 Preparar Datos",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        -880,
+        -16
+      ],
+      "parameters": {
+        "options": {},
+        "assignments": {
+          "assignments": [
+            {
+              "id": "extract-output",
+              "name": "output",
+              "type": "string",
+              "value": "={{ $json.output }}"
+            },
+            {
+              "id": "extract-mensaje",
+              "name": "mensaje",
+              "type": "string",
+              "value": "={{ $('When chat message received').item.json.chatInput }}"
+            },
+            {
+              "id": "extract-session",
+              "name": "session_id",
+              "type": "string",
+              "value": "={{ $('When chat message received').item.json.sessionId }}"
+            },
+            {
+              "id": "extract-conversacion",
+              "name": "conversacion",
+              "type": "array",
+              "value": "={{ $('When chat message received').item.json.conversacion || [] }}"
+            }
+          ]
+        }
+      },
+      "typeVersion": 3.4
+    },
+    {
+      "id": "3e67a322-7209-4e52-bd9b-5ca757d9c1e1",
+      "name": "🔍 Detectar Fin Conversación",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -672,
+        -16
+      ],
+      "parameters": {
+        "jsCode": "// 🎯 DETECCIÓN FIN DE CONVERSACIÓN\nconst lastMessage = $input.item.json.mensaje?.toLowerCase() || '';\nconst aiResponse = $input.item.json.output?.toLowerCase() || '';\n\n// Frases que indican fin de conversación\nconst finPhrases = [\n  'gracias', 'hasta luego', 'adios', 'adiós', \n  'hablamos', 'un saludo', 'nos vemos',\n  'perfecto gracias', 'ok gracias', 'vale gracias',\n  'muchas gracias', 'entendido gracias'\n];\n\n// Detectar si es mensaje de despedida\nconst isFin = finPhrases.some(phrase => \n  lastMessage.includes(phrase) || aiResponse.includes(phrase)\n);\n\n// EXTRAER DATOS DEL MENSAJE Y RESPUESTA\nconst texto = (lastMessage + ' ' + aiResponse).toLowerCase();\n\n// Extraer email\nconst emailRegex = /[\\w.-]+@[\\w.-]+\\.\\w+/;\nconst email = texto.match(emailRegex)?.[0] || $input.item.json.email || '';\n\n// Extraer teléfono (España)\nconst phoneRegex = /(?:\\+34|0034|34)?[\\s.-]?[6-9]\\d{2}[\\s.-]?\\d{3}[\\s.-]?\\d{3}/;\nconst telefono = texto.match(phoneRegex)?.[0] || $input.item.json.telefono || '';\n\n// Verificar que tenemos datos mínimos\nconst hasEmail = email && email.length > 0;\nconst hasTelefono = telefono && telefono.length > 0;\n\nreturn {\n  finConversacion: isFin && hasEmail && hasTelefono,\n  hasEmail: hasEmail,\n  hasTelefono: hasTelefono,\n  email: email,\n  telefono: telefono,\n  ...($input.item.json)\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "442ca00d-3862-47e3-8802-5b623294b1f0",
+      "name": "❓ ¿Fin Conversación?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        -464,
+        -16
+      ],
+      "parameters": {
+        "options": {},
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "id": "condition-fin",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $json.finConversacion }}",
+              "rightValue": true
+            }
+          ]
+        }
+      },
+      "typeVersion": 2.1
+    },
+    {
+      "id": "e6aeafbe-75fb-4093-af63-c97e973501d2",
+      "name": "📊 Generar Resumen",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -256,
+        -112
+      ],
+      "parameters": {
+        "jsCode": "// 📊 GENERAR RESUMEN COMPLETO\nconst nombre = $input.item.json.nombre || 'No proporcionado';\nconst email = $input.item.json.email || 'No proporcionado';\nconst telefono = $input.item.json.telefono || 'No proporcionado';\nconst tipoUsuario = $input.item.json.session_id?.split('_')[0] || 'No especificado';\nconst ciudad = $input.item.json.ciudad || 'No especificada';\n\n// Obtener conversación completa\nconst conversacionCompleta = $input.item.json.conversacion || [];\nconst textoCompleto = conversacionCompleta\n  .map(m => m.content || '')\n  .join(' ')\n  .toLowerCase();\n\n// 🎯 DETECTAR RETO PRINCIPAL\nlet reto = 'No especificado';\nif (textoCompleto.includes('captar') || textoCompleto.includes('clientes')) {\n  reto = '🎯 Captar más clientes';\n}\nif (textoCompleto.includes('reputación') || textoCompleto.includes('reseñas')) {\n  reto = '⭐ Mejorar reputación online';\n}\nif (textoCompleto.includes('automatizar')) {\n  reto = '🤖 Automatizar procesos';\n}\nif (textoCompleto.includes('citas') || textoCompleto.includes('agenda')) {\n  reto = '📅 Gestionar citas y reservas';\n}\nif (textoCompleto.includes('whatsapp') || textoCompleto.includes('atención')) {\n  reto = '💬 Atención al cliente 24/7';\n}\n\n// 🔥 DETERMINAR NIVEL DE INTERÉS\nlet nivelInteres = 'MEDIO';\nlet emoji = '🟡';\nif (email && telefono) {\n  nivelInteres = 'ALTO';\n  emoji = '🔴';\n}\n\n// 💬 GENERAR RESUMEN EMAIL (formato extenso)\nconst resumenEmail = `\nRESUMEN CONVERSACIÓN - ${nombre}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n📋 DATOS CONTACTO:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n- Nombre: ${nombre}\n- Email: ${email}\n- Teléfono: ${telefono}\n- Tipo: ${tipoUsuario}\n\n🏢 INFORMACIÓN DEL NEGOCIO:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n- Ubicación: ${ciudad}\n\n🎯 RETO PRINCIPAL:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${reto}\n\n🔥 NIVEL DE INTERÉS:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${emoji} ${nivelInteres} ${email && telefono ? '- Proporcionó datos completos' : ''}\n\n💬 CONVERSACIÓN COMPLETA:\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n${conversacionCompleta.map((m, i) => \n  `${i+1}. ${m.role === 'user' ? '👤 USUARIO' : '🤖 SOFÍA'}: ${m.content}`\n).join('\\n\\n')}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nGenerado: ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}\nSession ID: ${$input.item.json.session_id}\n`;\n\n// 📱 GENERAR RESUMEN WHATSAPP (formato compacto)\nconst resumenWhatsApp = `\n🤖 *NUEVO LEAD ESCAPARATE.COM*\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n👤 *${nombre}*\n${emoji} Nivel: *${nivelInteres}*\n\n📋 *DATOS:*\n- 📧 ${email}\n- 📱 ${telefono}\n- 📍 ${ciudad}\n\n🎯 *RETO:* ${reto}\n\n🔗 Session: ${$input.item.json.session_id.substring(0, 8)}...\n`;\n\n// 📧 GENERAR ASUNTO EMAIL\nconst asunto = `[LEAD ${nivelInteres}] ${nombre} - ${tipoUsuario} en ${ciudad}`;\n\nreturn {\n  resumenEmail: resumenEmail,\n  resumenWhatsApp: resumenWhatsApp,\n  asunto: asunto,\n  nombre: nombre,\n  email: email,\n  telefono: telefono,\n  reto: reto,\n  nivelInteres: nivelInteres,\n  ...($input.item.json)\n};"
+      },
+      "typeVersion": 2
+    },
+    {
+      "id": "d22d60e9-742b-45e1-8a0c-70e838fe4387",
+      "name": "📧 Enviar Email",
+      "type": "n8n-nodes-base.emailSend",
+      "position": [
+        -48,
+        -192
+      ],
+      "webhookId": "b0cf8c5e-8229-4fce-b625-ba995a76aa4c",
+      "parameters": {
+        "options": {},
+        "subject": "={{ $json.asunto }}",
+        "toEmail": "comercial@escaparate.com",
+        "fromEmail": "leads@escaparate.com"
+      },
+      "credentials": {
+        "smtp": {
+          "id": "3k97pbgGIoO3jxdz",
+          "name": "informacion@ia-bybusiness.es"
+        }
+      },
+      "typeVersion": 2.1
+    },
+    {
+      "id": "5b4a87f5-199b-45f2-9f82-c2bb082cb5d7",
+      "name": "📱 Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -48,
+        -32
+      ],
+      "parameters": {
+        "url": "https://api.whatsapp.example.com/send",
+        "options": {},
+        "jsonBody": "={\n  \"to\": \"34600000000\",\n  \"message\": \"={{ $('📊 Generar Resumen').item.json.resumenWhatsApp }}\"\n}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xGXIoyQTC3zwXmH0",
+          "name": "Auth Waha"
+        }
+      },
+      "typeVersion": 4.2
+    },
+    {
+      "id": "a3355222-6ed6-4215-b6ca-13af67389d0d",
+      "name": "💾 Guardar Parcial",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        -256,
+        80
+      ],
+      "parameters": {
+        "query": "=INSERT INTO leads_parciales \n(session_id, tipo_usuario, email, telefono, conversacion, fecha_actualizacion)\nVALUES \n(\n  '{{ $json.session_id }}',\n  '{{ $json.session_id.split('_')[0] }}',\n  {{ $json.email ? \"'\" + $json.email + \"'\" : 'NULL' }},\n  {{ $json.telefono ? \"'\" + $json.telefono + \"'\" : 'NULL' }},\n  '{{ JSON.stringify($json.conversacion) }}',\n  NOW()\n)\nON CONFLICT (session_id) \nDO UPDATE SET\n  email = EXCLUDED.email,\n  telefono = EXCLUDED.telefono,\n  conversacion = EXCLUDED.conversacion,\n  fecha_actualizacion = NOW();",
+        "options": {},
+        "operation": "executeQuery"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "G3wBPDLZL5hkl5GR",
+          "name": "Fabrica Master DB"
+        }
+      },
+      "typeVersion": 2.5
+    },
+    {
+      "id": "10e84a54-452a-4191-a1b9-852d896b4068",
+      "name": "🔄 Continue Chat",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        -48,
+        208
+      ],
+      "parameters": {
+        "options": {},
+        "respondWith": "allIncomingItems"
+      },
+      "typeVersion": 1.1
+    }
+  ],
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Agent Sofía",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Agent Sofía": {
+      "main": [
+        [
+          {
+            "node": "📦 Preparar Datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "monitor_reputacion": {
+      "ai_tool": [
+        [
+          {
+            "node": "🤖 AI Agent Sofía",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💭 Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "🤖 AI Agent Sofía",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "🤖 AI Agent Sofía",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Preparar Datos": {
+      "main": [
+        [
+          {
+            "node": "🔍 Detectar Fin Conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Detectar Fin Conversación": {
+      "main": [
+        [
+          {
+            "node": "❓ ¿Fin Conversación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ ¿Fin Conversación?": {
+      "main": [
+        [
+          {
+            "node": "📊 Generar Resumen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "💾 Guardar Parcial",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Generar Resumen": {
+      "main": [
+        [
+          {
+            "node": "📧 Enviar Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📱 Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Guardar Parcial": {
+      "main": [
+        [
+          {
+            "node": "🔄 Continue Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "versionId": "7543e95a-2b89-4c6b-b2ce-1e57f1082547"
+}

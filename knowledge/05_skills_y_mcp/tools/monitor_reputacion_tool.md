@@ -2,7 +2,7 @@
 
 **Clasificación:** Documentación / Tool n8n AI Agent
 **Tipo:** HTTP Request Tool (Motor Go)
-**Estado:** ✅ Lista para integrar
+**Estado:** ✅ Integrada y activa en ESCAPARATE_COM (2026-03-02)
 **Registrada en:** 2026-03-01
 
 ---
@@ -146,9 +146,9 @@ Si el rating es < 3.5, menciona que existe oportunidad de mejora de reputación.
 
 | Proyecto | Estado | Notas |
 |---|---|---|
-| **ESCAPARATE_COM** | 🔜 Lista para integrar | Agente Sofía — "Efecto WOW" en captación |
-| Monitor Frontend V2 | 🔨 En desarrollo | Integración directa, no vía n8n |
-| CRM ByBusiness | ⏳ Pendiente | Útil en módulo prospección |
+| **ESCAPARATE_COM** | ✅ Integrada y activa | AI Agent Sofia — "Efecto WOW" activo. Flujo V3_COMPLETO (XcXJL3qqsIWFu4KZ) |
+| Monitor Frontend V2 | 🔨 En desarrollo | Integracion directa, no via n8n |
+| CRM ByBusiness | ⏳ Pendiente | Util en modulo prospeccion |
 
 ---
 
