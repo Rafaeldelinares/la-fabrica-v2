@@ -288,6 +288,37 @@ Para comandos de uso frecuente que queremos siempre disponibles, moverlos a `/op
 
 ---
 
+## ESTADO DE INSTALACIÓN (2026-03-02)
+
+| MCP | Scope | Estado | Notas |
+|---|---|---|---|
+| `postgres-fabrica` | user | ✅ Instalado | fabrica DB :5432 |
+| `postgres-monitor` | user | ✅ Instalado | reputacion_cache :5435 |
+| `docker` | user | ✅ Instalado | vía /var/run/docker.sock |
+| `n8n-mcp` | user | ✅ Instalado (modo docs) | Sin API key — solo documentación de nodos |
+
+**Config en:** `/home/rafael/.claude.json` → sección `mcpServers`
+
+### n8n MCP — Activar modo gestión (pendiente)
+
+Para habilitar gestión real de workflows (crear, modificar, activar):
+
+1. Ir a `http://localhost:5678` → Settings → API Keys → Create API Key
+2. Copiar el key generado (solo se muestra una vez)
+3. Ejecutar:
+```bash
+claude mcp remove n8n-mcp
+claude mcp add -s user n8n-mcp \
+  -e MCP_MODE=stdio \
+  -e LOG_LEVEL=error \
+  -e DISABLE_CONSOLE_OUTPUT=true \
+  -e N8N_API_URL=http://localhost:5678 \
+  -e N8N_API_KEY=TU_KEY_AQUI \
+  -- npx n8n-mcp
+```
+
+**Importante:** El API key NO puede insertarse directamente en PostgreSQL — n8n usa formato JWT interno. Debe crearse desde la UI de n8n.
+
 ## ORDEN DE INSTALACIÓN RECOMENDADO
 
 1. **PostgreSQL MCP** — Mayor impacto inmediato, sin prerrequisitos
