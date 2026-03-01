@@ -141,7 +141,7 @@ Nodos activos (13):
 7. `Detectar Fin Conversacion` — Code node clasificacion
 8. `¿Fin Conversacion?` — Bifurcacion IF
 9. `Generar Resumen` — Code node resumen lead
-10. `Enviar Email` — Notificacion equipo
+10. `Enviar Email` — Notificacion equipo (remitente: `informacion@ia-bybusiness.es`)
 11. `Enviar WhatsApp` — Notificacion WAHA
 12. `Guardar Parcial` — Postgres CRM
 13. `Continue Chat` — Respuesta al widget
@@ -179,3 +179,4 @@ python3 import_workflows.py
 | 2026-02-26 | WhatsApp Assistant Demo V2 creado (Avatar SVG + Thinking Animation) |
 | 2026-03-01 | Tool `monitor_reputacion` validada en Motor Go (19 resultados reales). Pendiente integrar en Agente Sofia |
 | 2026-03-02 | Tool `monitor_reputacion` integrada en AI Agent Sofia. Flujo V3_COMPLETO (XcXJL3qqsIWFu4KZ) activo con 13 nodos. Backup JSON exportado a disco. |
+| 2026-03-02 | Fix SMTP: remitente `📧 Enviar Email` corregido de `leads@escaparate.com` → `informacion@ia-bybusiness.es` (coincide con credenciales SMTP). |
