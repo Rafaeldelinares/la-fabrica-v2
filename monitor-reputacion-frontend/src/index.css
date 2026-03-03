@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900;
+  }
+}
+
+@layer components {
+  /* Títulos principales */
+  .title {
+    @apply font-black text-4xl md:text-5xl uppercase tracking-tighter;
+  }
+
+  /* Labels/subtítulos */
+  .label {
+    @apply text-[10px] font-black uppercase tracking-widest text-slate-400;
+  }
+
+  /* Botones principales */
+  .button-primary {
+    @apply text-[10px] font-black uppercase tracking-widest px-8 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  /* Progress bar container (for sentiment analysis and stars) */
+  .progress-bar-container {
+    @apply w-full bg-slate-100 rounded-full h-2 overflow-hidden;
+  }
+
+  .progress-bar-fill {
+    @apply bg-blue-600 h-full rounded-full transition-all duration-1000 ease-out;
+  }
+}
