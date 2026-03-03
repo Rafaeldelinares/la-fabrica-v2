@@ -30,7 +30,7 @@
 | Prioridad | Tarea | Proyecto | Notas |
 |---|---|---|---|
 | ✅ HECHA | Integrar tool `monitor_reputacion` en Agente Sofia (n8n) | Escaparate COM | Completada 2026-03-02. Flujo V3_COMPLETO activo. |
-| 🔴 ALTA | Conectar formularios modales a n8n (ContactModal + ATSModal) | Monitor Frontend | Webhooks → CRM ByBusiness |
+| ✅ HECHA | Conectar formularios modales a n8n (ContactModal + ATSModal) | Monitor Frontend | Webhooks → CRM ByBusiness |
 | 🟡 MEDIA | Completar frontend CRM ByBusiness (Torre de Control + Modo Túnel) | CRM ByBusiness | React 19 + Vite. 6 módulos admin, 4 módulos operador |
 | 🟡 MEDIA | Integrar backend PHP con frontend Escaparate ES | Escaparate ES | Frontend funcional, API PHP pendiente de conectar |
 | 🟡 MEDIA | Crear docs `Escaparate_COM/arquitectura.md` | Escaparate COM | Solo hay demos, falta arquitectura formal |
@@ -44,7 +44,7 @@
 | Prioridad | Ajuste | Descripción | Archivo |
 |---|---|---|---|
 | 🟡 MEDIA | **Exportar PDF** | El botón "Exportar PDF Pro" en `AuditReport` no tiene lógica. Integrar `jspdf` + `html2canvas`, o endpoint Go que devuelva PDF | `src/components/business/AuditReport.jsx` |
-| 🟡 MEDIA | **Formularios → n8n** | `ContactModal.jsx` y `ATSModal.jsx` son estáticos. Conectar via webhook n8n | `src/components/modals/` |
+| ✅ HECHA | **Formularios → n8n** | `ContactModal.jsx` y `ATSModal.jsx` son estáticos. Conectar via webhook n8n | `src/components/modals/` |
 | 🟡 MEDIA | **Webhooks n8n para scrapings lentos** | Si hay interrupciones del scraper, valorar WebSocket o SSE en lugar de polling puro | `src/services/api.js` |
 | 🟢 BAJA | **Tiempo de respuesta en caché** | El indicador "Tiempo IA: XXs" muestra <0.5s con caché, puede parecer un fallo. Si `cached=true`, mostrar "CACHÉ" en lugar del tiempo numérico | `src/App.jsx` |
 | 🟢 BAJA | **React Router DOM** | Toda la navegación es condicional en `App.jsx`. Para URLs absolutas como `/auditoria/ferreteria-malaga`, integrar React Router | `src/App.jsx` |
