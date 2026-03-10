@@ -1,0 +1,179 @@
+{
+    "name": "ESCAPARATE_COM_WhatsApp_Router",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "whatsapp-demo",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "rules": {
+                    "rules": [
+                        {
+                            "cnd:string": [
+                                {
+                                    "value1": "={{$json.body.tipo_usuario}}",
+                                    "value2": "cliente_nuevo"
+                                }
+                            ]
+                        },
+                        {
+                            "cnd:string": [
+                                {
+                                    "value1": "={{$json.body.tipo_usuario}}",
+                                    "value2": "cliente_existente"
+                                }
+                            ]
+                        },
+                        {
+                            "cnd:string": [
+                                {
+                                    "value1": "={{$json.body.tipo_usuario}}",
+                                    "value2": "candidato"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            },
+            "name": "Switch Tipo Usuario",
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "workflowId": "id-cliente-nuevo"
+            },
+            "name": "Call Cliente Nuevo",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                700,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "workflowId": "id-cliente-existente"
+            },
+            "name": "Call Cliente Existente",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                700,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "workflowId": "id-candidato"
+            },
+            "name": "Call Candidato",
+            "type": "n8n-nodes-base.executeWorkflow",
+            "typeVersion": 1,
+            "position": [
+                700,
+                450
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ $json }}"
+            },
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                950,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Switch Tipo Usuario",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Switch Tipo Usuario": {
+            "main": [
+                [
+                    {
+                        "node": "Call Cliente Nuevo",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Call Cliente Existente",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Call Candidato",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call Cliente Nuevo": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call Cliente Existente": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Call Candidato": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

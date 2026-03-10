@@ -1,0 +1,164 @@
+{
+    "name": "ESCAPARATE_COM_Cliente_Nuevo",
+    "nodes": [
+        {
+            "parameters": {},
+            "name": "Start",
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "amount": 2,
+                "unit": "seconds"
+            },
+            "name": "Wait (Thinking)",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "keepOnlySet": true,
+                "values": {
+                    "string": [
+                        {
+                            "name": "respuesta",
+                            "value": "\u00a1Hola! Soy Sof\u00eda, consultora de IA en ByBusiness. Me especializo en ayudar a empresarios y aut\u00f3nomos a crecer usando tecnolog\u00eda. \u00bfPodr\u00edas contarme un poco sobre tu negocio? \u00bfA qu\u00e9 te dedicas?"
+                        },
+                        {
+                            "name": "valid",
+                            "value": "true"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Generar Respuesta Sof\u00eda",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                650,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://waha:3000/api/sendText",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "X-Api-Key",
+                            "value": "secret"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "chatId",
+                            "value": "={{$json.telefono}}@c.us"
+                        },
+                        {
+                            "name": "text",
+                            "value": "Hola {{$json.nombre}}, soy Sof\u00eda de ByBusiness.\n\nConfirmo que hemos recibido tu inter\u00e9s.\nUn comercial te contactar\u00e1 en m\u00e1ximo 24h con una propuesta personalizada.\n\n\u00bfAlguna pregunta mientras tanto?"
+                        },
+                        {
+                            "name": "session",
+                            "value": "default"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "WAHA Notificacion (Si Aplica)",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 1,
+            "position": [
+                850,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "fromEmail": "informacion@ia-bybusiness.com",
+                "toEmail": "informacion@ia-bybusiness.com",
+                "subject": "=[LEAD WEB] Nuevo Cliente Potencial - {{$json.empresa}}",
+                "text": "=\\nNUEVO LEAD DESDE ESCAPARATE .COM\\n---\\n\\n\ud83d\udc64 Nombre: {{$json.nombre}}\\n\ud83d\udcf1 Tel\u00e9fono: {{$json.telefono}}\\n\\n---\\nOrigen: WhatsApp Demo - ia-bybusiness.com"
+            },
+            "name": "Email Interno",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 1,
+            "position": [
+                850,
+                450
+            ],
+            "credentials": {
+                "smtp": {
+                    "id": "1",
+                    "name": "SMTP Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "escaparate_com",
+                "table": "demo_conversaciones",
+                "columns": "session_id, tipo_usuario, nombre, email, telefono, mensaje, estado",
+                "extraOptions": {}
+            },
+            "name": "Guardar en PG",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "1",
+                    "name": "Postgres local"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Start": {
+            "main": [
+                [
+                    {
+                        "node": "Wait (Thinking)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wait (Thinking)": {
+            "main": [
+                [
+                    {
+                        "node": "Generar Respuesta Sof\u00eda",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

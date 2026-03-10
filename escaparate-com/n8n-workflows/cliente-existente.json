@@ -1,0 +1,98 @@
+{
+    "name": "ESCAPARATE_COM_Cliente_Existente",
+    "nodes": [
+        {
+            "parameters": {},
+            "name": "Start",
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT * FROM escaparate_com.demo_conversaciones WHERE email ILIKE '%{{$json.email}}%' OR telefono LIKE '%{{$json.telefono}}%' LIMIT 1"
+            },
+            "name": "Buscar en PG",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "1",
+                    "name": "Postgres local"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "keepOnlySet": true,
+                "values": {
+                    "string": [
+                        {
+                            "name": "respuesta",
+                            "value": "\u00a1Hola de nuevo! Ya te veo, he localizado tu ficha. Veo que est\u00e1bamos en contacto. \u00bfQuieres que continuemos donde lo dejamos o prefieres consultar algo diferente?"
+                        },
+                        {
+                            "name": "valid",
+                            "value": "true"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Respuesta Reencuentro",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                650,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "fromEmail": "informacion@ia-bybusiness.com",
+                "toEmail": "informacion@ia-bybusiness.com",
+                "subject": "=[CLIENTE RETORNO] Contacto de Cliente Existente",
+                "text": "=\\nCLIENTE EXISTENTE - NUEVO CONTACTO\\n\\n---\\nOrigen: WhatsApp Demo"
+            },
+            "name": "Notificaci\u00f3n Cliente Retorno",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 1,
+            "position": [
+                850,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Start": {
+            "main": [
+                [
+                    {
+                        "node": "Buscar en PG",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Buscar en PG": {
+            "main": [
+                [
+                    {
+                        "node": "Respuesta Reencuentro",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

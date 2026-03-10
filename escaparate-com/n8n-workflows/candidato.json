@@ -1,0 +1,143 @@
+{
+    "name": "ESCAPARATE_COM_Candidato_RRHH",
+    "nodes": [
+        {
+            "parameters": {},
+            "name": "Start",
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "fileName": "=/opt/fabrica/escaparate-com/cv-recibidos/{{ $json.nombre }}-{{ $now.toFormat('yyyyMMddHHmmss') }}.pdf",
+                "dataPropertyName": "cv"
+            },
+            "name": "Write Binary File (CV)",
+            "type": "n8n-nodes-base.writeBinaryFile",
+            "typeVersion": 1,
+            "position": [
+                450,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "amount": 1,
+                "unit": "seconds"
+            },
+            "name": "Wait (Carlos Typing)",
+            "type": "n8n-nodes-base.wait",
+            "typeVersion": 1,
+            "position": [
+                650,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "insert",
+                "schema": "rrhh",
+                "table": "candidatos",
+                "columns": "nombre, email, telefono, posicion, cv_url, estado",
+                "extraOptions": {}
+            },
+            "name": "Guardar en PG RRHH",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 1,
+            "position": [
+                850,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "1",
+                    "name": "Postgres local"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "keepOnlySet": true,
+                "values": {
+                    "string": [
+                        {
+                            "name": "respuesta",
+                            "value": "\u00a1Hola! Soy Carlos, del equipo de Talento de ByBusiness. Qu\u00e9 alegr\u00eda que quieras unirte a nuestro equipo. Hemos recibido tus datos y tu perfil est\u00e1 en revisi\u00f3n. \u00a1Te contactaremos pronto!"
+                        },
+                        {
+                            "name": "valid",
+                            "value": "true"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Respuesta Candidato",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 1,
+            "position": [
+                1050,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "fromEmail": "informacion@ia-bybusiness.com",
+                "toEmail": "informacion@ia-bybusiness.com",
+                "subject": "=[CANDIDATO] Nueva Candidatura - Operador Llamadas - {{$json.nombre}}",
+                "text": "=\\nNUEVA CANDIDATURA\\n---\\n\\n\ud83d\udc64 Nombre: {{$json.nombre}}\\n\ud83d\udce7 Email: {{$json.email}}\\n\\n---\\nOrigen: WhatsApp Demo"
+            },
+            "name": "Notificaci\u00f3n Email RRHH",
+            "type": "n8n-nodes-base.emailSend",
+            "typeVersion": 1,
+            "position": [
+                1250,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Start": {
+            "main": [
+                [
+                    {
+                        "node": "Write Binary File (CV)",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Wait (Carlos Typing)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Wait (Carlos Typing)": {
+            "main": [
+                [
+                    {
+                        "node": "Guardar en PG RRHH",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Guardar en PG RRHH": {
+            "main": [
+                [
+                    {
+                        "node": "Respuesta Candidato",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
