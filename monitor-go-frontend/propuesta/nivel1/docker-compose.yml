@@ -1,0 +1,316 @@
+version: '3.8'
+
+# ============================================================================
+# Docker Compose - Monitor de Reputación Digital con Nivel 1
+# Arquitectura: Nivel 0 (Caché) + Nivel 1 (HTTP) + Nivel 2/3 (Chromium)
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # PostgreSQL - Base de Datos y Caché (Nivel 0)
+  # ==========================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: reputacion-postgres
+    environment:
+      POSTGRES_DB: reputacion
+      POSTGRES_USER: reputacion_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=es_ES.UTF-8"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./nivel1/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reputacion_user -d reputacion"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+
+  # ==========================================================================
+  # Backend Nivel 1 - HTTP Scraper Puro
+  # ==========================================================================
+  nivel1-backend:
+    build:
+      context: .
+      dockerfile: nivel1/Dockerfile
+    container_name: reputacion-nivel1
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: reputacion_user
+      DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      DB_NAME: reputacion
+      PORT: 8082
+      CHROMIUM_URL: http://scraper-heavy:8080
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8082/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # Scraper Nano (Nivel 2) - Chromium Sin Imágenes
+  # ==========================================================================
+  scraper-nano:
+    image: gosom/google-maps-scraper:latest
+    container_name: reputacion-scraper-nano
+    environment:
+      SCRAPING_LEVEL: nano
+      CHROME_FLAGS: |
+        --headless
+        --disable-gpu
+        --disable-dev-shm-usage
+        --disable-software-rasterizer
+        --no-sandbox
+        --disable-setuid-sandbox
+        --single-process
+        --disable-images
+        --blink-settings=imagesEnabled=false
+        --disable-remote-fonts
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # Scraper Heavy (Nivel 3) - Chromium Completo
+  # ==========================================================================
+  scraper-heavy:
+    image: gosom/google-maps-scraper:latest
+    container_name: reputacion-scraper-heavy
+    environment:
+      SCRAPING_LEVEL: full
+      CHROME_FLAGS: |
+        --headless
+        --disable-gpu
+        --disable-dev-shm-usage
+        --no-sandbox
+        --disable-setuid-sandbox
+        --single-process
+        --max-old-space-size=512
+    ports:
+      - "8080:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ==========================================================================
+  # Frontend React (Opcional)
+  # ==========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: reputacion-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost:8082
+    ports:
+      - "5175:80"
+    depends_on:
+      - nivel1-backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+
+  # ==========================================================================
+  # Prometheus - Monitorización (Opcional)
+  # ==========================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: reputacion-prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+    profiles:
+      - monitoring
+
+  # ==========================================================================
+  # Grafana - Dashboards (Opcional)
+  # ==========================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: reputacion-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+    profiles:
+      - monitoring
+
+  # ==========================================================================
+  # Redis - Caché In-Memory (Opcional para futuras mejoras)
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: reputacion-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - reputacion-network
+    profiles:
+      - cache
+
+# ============================================================================
+# Volumes Persistentes
+# ============================================================================
+volumes:
+  postgres-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# ============================================================================
+# Red Interna
+# ============================================================================
+networks:
+  reputacion-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
+
+# ============================================================================
+# Notas de Uso:
+# ============================================================================
+# 
+# Iniciar servicios básicos (sin monitorización):
+#   docker-compose up -d
+#
+# Iniciar con monitorización (Prometheus + Grafana):
+#   docker-compose --profile monitoring up -d
+#
+# Iniciar con Redis (caché adicional):
+#   docker-compose --profile cache up -d
+#
+# Iniciar TODO:
+#   docker-compose --profile monitoring --profile cache up -d
+#
+# Ver logs:
+#   docker-compose logs -f nivel1-backend
+#
+# Estadísticas de recursos:
+#   docker stats
+#
+# Ejecutar migración manual:
+#   docker-compose exec postgres psql -U reputacion_user -d reputacion -f /docker-entrypoint-initdb.d/001_create_level1_cache.sql
+#
+# Backup de base de datos:
+#   docker-compose exec postgres pg_dump -U reputacion_user reputacion > backup.sql
+#
+# Escalar scrapers:
+#   docker-compose up -d --scale scraper-nano=3
+#
+# ============================================================================

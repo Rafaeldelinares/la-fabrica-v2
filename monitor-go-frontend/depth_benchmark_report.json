@@ -1,0 +1,92 @@
+[
+  {
+    "Depth": 1,
+    "Seconds": 21.12,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 2,
+    "Seconds": 24.27,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 3,
+    "Seconds": 18.06,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 4,
+    "Seconds": 18.09,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 5,
+    "Seconds": 21.11,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 6,
+    "Seconds": 18.09,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 7,
+    "Seconds": 18.27,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 8,
+    "Seconds": 21.14,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 9,
+    "Seconds": 18.11,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  },
+  {
+    "Depth": 10,
+    "Seconds": 18.17,
+    "Rows": 1,
+    "Web": false,
+    "Phone": false,
+    "StarBreakdown": false,
+    "ReviewsObserved": 0
+  }
+]

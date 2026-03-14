@@ -1,0 +1,257 @@
+{
+  "name": "[DEMO] Scraper Engine Go",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "scraper/go",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "webhook-start",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8081/api/v1/jobs",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "Query_{{ $now.format('YYYYMMDD_HHmmss') }}"
+            },
+            {
+              "name": "keywords",
+              "value": "={{ [$json.query.q] }}"
+            },
+            {
+              "name": "lang",
+              "value": "es"
+            },
+            {
+              "name": "depth",
+              "value": 10
+            },
+            {
+              "name": "max_time",
+              "value": 120
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        220,
+        0
+      ],
+      "id": "create-job",
+      "name": "Create Job"
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ],
+      "id": "wait-initial",
+      "name": "Wait 5s"
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:8081/api/v1/jobs/{{ $json.id }}",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        660,
+        0
+      ],
+      "id": "check-status",
+      "name": "Check Status"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.status }}",
+              "operation": "equal",
+              "value2": "finished"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ],
+      "id": "is-finished",
+      "name": "Is Finished?"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "seconds"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        880,
+        200
+      ],
+      "id": "wait-retry",
+      "name": "Wait Retry"
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:8081/api/v1/jobs/{{ $('create-job').item.json.id }}/download?format=json",
+        "method": "GET",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1100,
+        -100
+      ],
+      "id": "get-results",
+      "name": "Get Results"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Analyze results\nlet results = [];\n// Check if input is CSV or JSON\nif (typeof items[0].json === 'string') {\n  // Handle potential CSV if JSON fails (fallback)\n  // For now assuming JSON due to ?format=json in URL if supported, or parsing IDK\n} \n// If results are in 'data' or similar\nresults = items[0].json || [];\n\nconst query = $('Webhook').item.json.query.q;\n\n// 1. Exact Match / Dashboard Mode\nif (results.length === 1) {\n  const r = results[0];\n  return [{\n    json: {\n      type: \"detail\",\n      data: {\n        name: r.title,\n        rating: parseFloat(r.review_rating) || 0,\n        reviews: parseInt(r.review_count) || 0,\n        address: r.address,\n        phone: r.phone,\n        website: r.website,\n        image: r.thumbnail\n      }\n    }\n  }];\n}\n\n// 2. Suggestions Mode\nif (results.length > 1) {\n  return [{\n    json: {\n      type: \"list\",\n      message: `Encontramos ${results.length} posibles coincidencias para \"${query}\".`,\n      items: results.map(r => ({\n        name: r.title,\n        rating: parseFloat(r.review_rating) || 0,\n        reviews: parseInt(r.review_count) || 0,\n        address: r.address,\n        image: r.thumbnail,\n        cid: r.cid\n      }))\n    }\n  }];\n}\n\n// 3. Fallback / Not Found Mode\nreturn [{\n  json: {\n    type: \"none\",\n    message: `No encontramos resultados exactos para \"${query}\". Intenta ser más específico.`,\n    suggestions: []\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        -100
+      ],
+      "id": "format-response",
+      "name": "Format Logic"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Create Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Job": {
+      "main": [
+        [
+          {
+            "node": "Wait 5s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 5s": {
+      "main": [
+        [
+          {
+            "node": "Check Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status": {
+      "main": [
+        [
+          {
+            "node": "Is Finished?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Finished?": {
+      "main": [
+        [
+          {
+            "node": "Get Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Retry": {
+      "main": [
+        [
+          {
+            "node": "Check Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Results": {
+      "main": [
+        [
+          {
+            "node": "Format Logic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
