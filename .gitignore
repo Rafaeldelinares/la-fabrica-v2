@@ -1,0 +1,46 @@
+# Credenciales y entornos
+.env
+.env.*
+*.env
+!.env.example
+
+# Datos sensibles / volúmenes DB
+data/
+monitor-go/pgdata*/
+monitor-go/backup_*/
+monitor-go-backup.tar.gz
+ollama_data/
+
+# Logs y outputs temporales
+*.log
+motor.log
+server.log
+server_err.log
+monitor-go/check_*.txt
+monitor-go/mellizos_*.txt
+monitor-go/temp_*.txt
+monitor-go/debug_result.json
+monitor-go/test_depth_*.json
+monitor-go/depth_benchmark_report.json
+monitor-go/*.exe
+monitor-go/monitor_engine
+
+# Node
+node_modules/
+dist/
+.vscode/
+
+# Backups y exports temporales
+escaparate-com/export_all.json
+escaparate-com/exported.json
+escaparate-com/webhook_entity_output.txt
+knowledge/00_INICIO.md.backup
+estructura-fabrica.txt
+
+# Claude internal
+.claude/
+
+# Binarios compilados
+*.exe
+monitor-go/go_github/
+monitor-go/gmapsdata/

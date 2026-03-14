@@ -76,6 +76,16 @@ ESTILO NAVY INDUSTRIAL:
 - Tipografía: Inter para UI, JetBrains Mono para datos
 - No usar spinners circulares, usar skeleton screens
 
+EXCEPCIÓN — ESCAPARATE (ia-bybusiness.com y ia-bybusiness.es):
+Los proyectos escaparate-com/ y escaparate-es/ tienen su propio sistema de diseño
+independiente del estándar Navy Industrial. En estos proyectos están PERMITIDOS:
+- rounded-xl, rounded-2xl, rounded-full, rounded-[40px]
+- Inline styles para colores de marca (#25d366, #00a884, #dcf8c6, etc.)
+- Paleta de color propia (blancos, slate-200, emerald, blue-600)
+- Framer Motion con animaciones propias
+- GGA NO debe aplicar reglas Navy Industrial a rutas escaparate-com/ o escaparate-es/
+salvo indicación explícita del usuario.
+
 PROHIBIDO:
 - Inline styles (usar Tailwind)
 - console.log en producción
