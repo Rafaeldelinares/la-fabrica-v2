@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/playwright:v1.49.0-jammy
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --only=production
+
+COPY scraper-base.js ./
+COPY scraper-nano.js ./
+COPY scraper-heavy.js ./ 
+COPY server.js ./
+
+# OJO: Copiamos todo porque server.js requiere scraper-heavy.js aunque solo usemos Nano
+# En producción lo separaríamos más finamente, pero para simplificar ahora vale.
+
+ENV PORT=8080
+ENV SCRAPER_TYPE=nano
+
+EXPOSE 8080
+
+CMD ["node", "server.js"]
