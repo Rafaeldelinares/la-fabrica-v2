@@ -1,0 +1,86 @@
+/* ── React Big Calendar — Navy Industrial Dark Theme ─────────────── */
+
+.rbc-calendar {
+  background: transparent;
+  color: #cbd5e1;
+  font-family: inherit;
+}
+
+/* Toolbar */
+.rbc-toolbar { display: none; } /* custom toolbar in JSX */
+
+/* Headers día de semana */
+.rbc-header {
+  background: #0f172a;
+  border-color: #1e293b !important;
+  padding: 6px 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: #475569;
+}
+.rbc-header + .rbc-header { border-left: 1px solid #1e293b !important; }
+
+/* Month view */
+.rbc-month-view {
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.rbc-month-row { border-top: 1px solid #1e293b; }
+.rbc-day-bg   { background: #020617; }
+.rbc-day-bg + .rbc-day-bg { border-left: 1px solid #1e293b; }
+.rbc-off-range-bg { background: #0a0f1e; }
+.rbc-today { background: #0f172a !important; }
+.rbc-date-cell { padding: 4px 6px; font-size: 11px; color: #475569; }
+.rbc-date-cell.rbc-now { color: #D00000; font-weight: 800; }
+
+/* Time/Week view */
+.rbc-time-view {
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.rbc-time-header { background: #0f172a; border-bottom: 1px solid #1e293b; }
+.rbc-time-header-content { border-left: 1px solid #1e293b; }
+.rbc-time-content { border-top: 1px solid #1e293b; }
+.rbc-time-content > * + * > * { border-left: 1px solid #1e293b; }
+.rbc-timeslot-group { border-bottom: 1px solid #1e293b; min-height: 40px; }
+.rbc-time-slot { color: #334155; font-size: 9px; font-family: 'JetBrains Mono', monospace; }
+.rbc-label { color: #334155; font-size: 9px; padding: 0 6px; }
+.rbc-day-slot .rbc-time-slot { border-top: 1px solid #0f172a; }
+.rbc-current-time-indicator { background: #D00000; height: 2px; }
+
+/* Events */
+.rbc-event {
+  border: none !important;
+  border-radius: 3px !important;
+  padding: 2px 6px !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+}
+.rbc-event:focus { outline: none; }
+.rbc-event-label { font-size: 9px !important; opacity: .7; }
+.rbc-show-more {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+  background: transparent;
+  padding: 2px 6px;
+}
+.rbc-show-more:hover { color: #cbd5e1; }
+
+/* Selected */
+.rbc-selected { box-shadow: 0 0 0 2px rgba(255,255,255,.3) !important; }
+
+/* Agenda view */
+.rbc-agenda-view table { border-color: #1e293b; }
+.rbc-agenda-date-cell, .rbc-agenda-time-cell { color: #475569; font-size: 10px; padding: 6px 10px; }
+.rbc-agenda-event-cell { font-size: 11px; padding: 6px 10px; }
+.rbc-agenda-table tbody > tr { border-bottom: 1px solid #1e293b; }
+.rbc-agenda-table tbody > tr:hover { background: #0f172a; }
+
+/* Scroll */
+.rbc-time-content::-webkit-scrollbar { width: 4px; }
+.rbc-time-content::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
