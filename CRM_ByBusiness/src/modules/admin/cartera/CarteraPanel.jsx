@@ -1,15 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Users, Search } from 'lucide-react';
+import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, Info } from 'lucide-react';
+
+const PAGE_SIZE = 15;
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ClienteDrawer from './ClienteDrawer';
+import NuevoClienteDrawer from './NuevoClienteDrawer';
 import { useAuth } from '../../auth/AuthContext';
 
 const SEMAFORO_CONFIG = {
-  verde: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Sanos' },
-  ambar: { dot: 'bg-amber-400',   badge: 'bg-amber-400/10  text-amber-400  border-amber-400/20',   label: 'Atención' },
-  rojo:  { dot: 'bg-red-500',     badge: 'bg-red-500/10    text-red-400    border-red-500/20',     label: 'Críticos' },
+  verde: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Sanos',    tooltip: 'Contactados en los últimos 30 días, sin pagos problemáticos ni renovaciones urgentes.' },
+  ambar: { dot: 'bg-amber-400',   badge: 'bg-amber-400/10  text-amber-400  border-amber-400/20',   label: 'Atención', tooltip: 'Sin contacto entre 30 y 60 días, renovación en menos de 60 días, o pagos pendientes.' },
+  rojo:  { dot: 'bg-red-500',     badge: 'bg-red-500/10    text-red-400    border-red-500/20',     label: 'Críticos',  tooltip: 'Sin contacto más de 60 días, sin ningún registro, o con pagos vencidos.' },
 };
+
+const StatTooltip = ({ text }) => (
+  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 z-20 pointer-events-none opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
+    <div className="bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-[10px] text-slate-300 font-mono leading-relaxed shadow-xl">
+      {text}
+    </div>
+    <div className="w-2 h-2 bg-slate-800 border-r border-b border-slate-700 rotate-45 mx-auto -mt-1" />
+  </div>
+);
 
 const fmtDias = (dias) => {
   if (dias === null || dias === undefined) return '—';
@@ -23,36 +35,44 @@ const fmtFecha = (iso) => {
   return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
 };
 
+const SortIcon = ({ field, sort }) => {
+  if (sort.field !== field) return <ChevronsUpDown size={10} className="text-slate-700 ml-1" />;
+  return sort.dir === 'asc'
+    ? <ChevronUp size={10} className="text-[#D00000] ml-1" />
+    : <ChevronDown size={10} className="text-[#D00000] ml-1" />;
+};
+
 const CarteraPanel = () => {
   const { user } = useAuth();
-  const [clientes, setClientes]       = useState(null);
-  const [filtroSemaforo, setFiltroS]  = useState('');
-  const [busqueda, setBusqueda]       = useState('');
+  const [clientes, setClientes]         = useState(null);
+  const [filtroSemaforo, setFiltroS]    = useState('');
+  const [filtroAnio,     setFiltroAnio] = useState('');
+  const [busqueda, setBusqueda]         = useState('');
   const [seleccionado, setSeleccionado] = useState(null);
+  const [nuevoCliente, setNuevoCliente] = useState(false);
+  const [sort, setSort]                 = useState({ field: 'nombre_comercial', dir: 'asc' });
+  const [pagina, setPagina]             = useState(1);
 
   const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
 
   useEffect(() => {
-    fetch(`${N8N}/crm-cartera-gestor`)
+    fetch(`${N8N}/crm-cartera-get`)
       .then(r => r.json())
       .then(d => { if (d.ok) setClientes(d.clientes); })
       .catch(() => setClientes([]));
   }, []);
 
-  const stats = useMemo(() => {
-    if (!clientes) return { total: 0, verde: 0, ambar: 0, rojo: 0 };
-    return {
-      total: clientes.length,
-      verde: clientes.filter(c => c.semaforo === 'verde').length,
-      ambar: clientes.filter(c => c.semaforo === 'ambar').length,
-      rojo:  clientes.filter(c => c.semaforo === 'rojo').length,
-    };
+  const aniosDisponibles = useMemo(() => {
+    if (!clientes) return [];
+    const set = new Set(clientes.map(c => c.año_alta).filter(Boolean));
+    return [...set].sort((a, b) => b - a);
   }, [clientes]);
 
   const filtrados = useMemo(() => {
     if (!clientes) return [];
     return clientes.filter(c => {
       if (filtroSemaforo && c.semaforo !== filtroSemaforo) return false;
+      if (filtroAnio && String(c.año_alta) !== String(filtroAnio)) return false;
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (c.nombre_comercial || '').toLowerCase().includes(q)
@@ -62,33 +82,91 @@ const CarteraPanel = () => {
       }
       return true;
     });
-  }, [clientes, filtroSemaforo, busqueda]);
+  }, [clientes, filtroSemaforo, filtroAnio, busqueda]);
+
+  const stats = useMemo(() => {
+    if (!clientes) return { total: 0, verde: 0, ambar: 0, rojo: 0 };
+    const base = (filtroSemaforo || filtroAnio || busqueda) ? filtrados : clientes;
+    return {
+      total: base.length,
+      verde: base.filter(c => c.semaforo === 'verde').length,
+      ambar: base.filter(c => c.semaforo === 'ambar').length,
+      rojo:  base.filter(c => c.semaforo === 'rojo').length,
+    };
+  }, [clientes, filtrados, filtroSemaforo, filtroAnio, busqueda]);
+
+  const ordenados = useMemo(() => {
+    const { field, dir } = sort;
+    const mult = dir === 'asc' ? 1 : -1;
+    return [...filtrados].sort((a, b) => {
+      let va = a[field], vb = b[field];
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (field === 'mrr' || field === 'dias_sin_contacto') return (Number(va) - Number(vb)) * mult;
+      if (field === 'proxima_renovacion') return (new Date(va) - new Date(vb)) * mult;
+      return String(va).localeCompare(String(vb), 'es') * mult;
+    });
+  }, [filtrados, sort]);
+
+  const totalPaginas = Math.max(1, Math.ceil(ordenados.length / PAGE_SIZE));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const paginados    = ordenados.slice((paginaActual - 1) * PAGE_SIZE, paginaActual * PAGE_SIZE);
+
+  const toggleSort = (field) => {
+    setSort(s => s.field === field ? { field, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { field, dir: 'asc' });
+    setPagina(1);
+  };
+
+  // Reset página al cambiar filtros
+  useMemo(() => { setPagina(1); }, [filtroSemaforo, filtroAnio, busqueda]);
 
   return (
     <div className="flex gap-0 h-full overflow-hidden">
 
-      {/* PANEL IZQUIERDO — tabla */}
-      <div className={`flex flex-col gap-4 transition-all duration-300 ${seleccionado ? 'w-[58%]' : 'w-full'} overflow-hidden pr-4`}>
+      {/* PANEL — tabla (siempre ocupa todo el ancho) */}
+      <div className="flex flex-col gap-4 w-full overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center justify-between shrink-0">
           <h2 className="text-sm font-black text-white uppercase tracking-widest">CARTERA DE CLIENTES</h2>
-          <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-sm px-3 py-1.5">
-            <Search size={13} className="text-slate-500" />
-            <input
-              type="text"
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              placeholder="Buscar cliente…"
-              className="bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-600 font-mono w-36"
-            />
+          <div className="flex items-center gap-2">
+            <select
+              value={filtroAnio}
+              onChange={e => setFiltroAnio(e.target.value)}
+              className={`bg-slate-900 border rounded-sm px-3 py-1.5 text-[10px] font-mono outline-none transition-colors cursor-pointer ${
+                filtroAnio
+                  ? 'border-[#D00000]/40 text-white bg-[#D00000]/5'
+                  : 'border-slate-800 text-slate-500 hover:border-slate-700'
+              }`}
+            >
+              <option value="">Todos los años</option>
+              {aniosDisponibles.map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-sm px-3 py-1.5">
+              <Search size={13} className="text-slate-500" />
+              <input
+                type="text"
+                value={busqueda}
+                onChange={e => setBusqueda(e.target.value)}
+                placeholder="Buscar cliente…"
+                className="bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-600 font-mono w-36"
+              />
+            </div>
+            <button
+              onClick={() => { setNuevoCliente(true); setSeleccionado(null); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D00000]/10 hover:bg-[#D00000]/20 border border-[#D00000]/30 hover:border-[#D00000]/60 text-[#D00000] text-[10px] font-mono uppercase tracking-widest rounded-sm transition-colors"
+            >
+              <Plus size={12} /> Nueva empresa
+            </button>
           </div>
         </div>
 
         {/* Stats semáforo */}
         <div className="grid grid-cols-4 gap-3 shrink-0">
           {[
-            { key: '', label: 'Total clientes', value: stats.total, dot: 'bg-slate-500' },
+            { key: '', label: 'Total clientes', value: stats.total, dot: 'bg-slate-500', tooltip: null },
             { key: 'verde', ...SEMAFORO_CONFIG.verde, value: stats.verde },
             { key: 'ambar', ...SEMAFORO_CONFIG.ambar, value: stats.ambar },
             { key: 'rojo',  ...SEMAFORO_CONFIG.rojo,  value: stats.rojo  },
@@ -96,17 +174,23 @@ const CarteraPanel = () => {
             <button
               key={s.key}
               onClick={() => setFiltroS(filtroSemaforo === s.key ? '' : s.key)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-sm border transition-all text-left ${
+              className={`relative flex items-center gap-3 px-4 py-3 rounded-sm border transition-all text-left ${
                 filtroSemaforo === s.key
                   ? 'bg-slate-800 border-slate-600'
                   : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
               }`}
             >
               <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">{s.label}</p>
                 <p className="text-xl font-black text-white font-mono leading-tight">{clientes === null ? '—' : s.value}</p>
               </div>
+              {s.tooltip && (
+                <div className="relative group/tip shrink-0" onClick={e => e.stopPropagation()}>
+                  <Info size={11} className="text-slate-600 hover:text-slate-400 transition-colors" />
+                  <StatTooltip text={s.tooltip} />
+                </div>
+              )}
             </button>
           ))}
         </div>
@@ -125,20 +209,30 @@ const CarteraPanel = () => {
               <EmptyState title="Sin clientes" icon={Users} description="No hay clientes activos que coincidan con el filtro" />
             </div>
           ) : (
-            <div className="overflow-auto">
+            <div className="flex flex-col h-full">
+              <div className="overflow-hidden flex-1">
               <table className="w-full text-left text-xs text-slate-400">
                 <thead className="text-[10px] text-slate-500 uppercase font-black tracking-widest bg-slate-950/50 border-b border-slate-800 sticky top-0">
                   <tr>
                     <th className="px-4 py-3 w-6"></th>
-                    <th className="px-4 py-3">CLIENTE</th>
-                    <th className="px-4 py-3 font-mono">ÚLTIMO CONTACTO</th>
-                    <th className="px-4 py-3 font-mono">RENOVACIÓN</th>
-                    <th className="px-4 py-3 font-mono">MRR</th>
-                    <th className="px-4 py-3">GESTOR</th>
+                    {[
+                      { label: 'CLIENTE',          field: 'nombre_comercial'   },
+                      { label: 'ÚLTIMO CONTACTO',  field: 'dias_sin_contacto'  },
+                      { label: 'RENOVACIÓN',       field: 'proxima_renovacion' },
+                      { label: 'MRR',              field: 'mrr'                },
+                      { label: 'GESTOR',           field: 'gestor_nombre'      },
+                    ].map(({ label, field }) => (
+                      <th key={field} onClick={() => toggleSort(field)}
+                        className="px-4 py-3 font-mono cursor-pointer hover:text-slate-300 select-none transition-colors">
+                        <span className="flex items-center">
+                          {label}<SortIcon field={field} sort={sort} />
+                        </span>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrados.map(c => (
+                  {paginados.map(c => (
                     <tr
                       key={c.id}
                       onClick={() => setSeleccionado(seleccionado?.id === c.id ? null : c)}
@@ -152,7 +246,23 @@ const CarteraPanel = () => {
                         <div className={`w-2.5 h-2.5 rounded-full ${SEMAFORO_CONFIG[c.semaforo]?.dot || 'bg-slate-600'}`} />
                       </td>
                       <td className="px-4 py-4">
-                        <p className="font-bold text-slate-200 uppercase tracking-wide">{c.nombre_comercial}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-200 uppercase tracking-wide">{c.nombre_comercial}</p>
+                          {c.gmaps_pendiente_validar && (
+                            <span title="Ficha GBP pendiente de validación">
+                              <AlertTriangle size={11} className="text-amber-400 shrink-0" />
+                            </span>
+                          )}
+                          {c.proxima_accion_fecha && (() => {
+                            const dias = Math.ceil((new Date(c.proxima_accion_fecha) - new Date()) / 86400000);
+                            const color = dias <= 0 ? 'text-red-400' : dias <= 7 ? 'text-amber-400' : 'text-slate-500';
+                            return (
+                              <span title={`Próxima acción: ${new Date(c.proxima_accion_fecha).toLocaleDateString('es-ES')}`}>
+                                <CalendarClock size={11} className={`${color} shrink-0`} />
+                              </span>
+                            );
+                          })()}
+                        </div>
                         {c.localidad && <p className="text-[10px] text-slate-600 font-mono mt-0.5">{c.localidad}</p>}
                       </td>
                       <td className="px-4 py-4 font-mono">
@@ -183,19 +293,86 @@ const CarteraPanel = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
+
+              {/* Paginación */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 shrink-0">
+                <span className="text-[10px] text-slate-600 font-mono">
+                  {ordenados.length} clientes · pág. {paginaActual}/{totalPaginas}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setPagina(1)} disabled={paginaActual === 1}
+                    className="px-2 py-1 text-[10px] font-mono text-slate-500 hover:text-white border border-slate-800 hover:border-slate-600 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    «
+                  </button>
+                  <button onClick={() => setPagina(p => Math.max(1, p - 1))} disabled={paginaActual === 1}
+                    className="p-1 text-slate-500 hover:text-white border border-slate-800 hover:border-slate-600 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronLeft size={12} />
+                  </button>
+                  {Array.from({ length: Math.min(5, totalPaginas) }, (_, i) => {
+                    const offset = Math.max(0, Math.min(paginaActual - 3, totalPaginas - 5));
+                    const p = i + 1 + offset;
+                    return (
+                      <button key={p} onClick={() => setPagina(p)}
+                        className={`min-w-[28px] py-1 text-[10px] font-mono border rounded-sm transition-colors ${
+                          p === paginaActual
+                            ? 'bg-[#D00000]/10 border-[#D00000]/40 text-white'
+                            : 'text-slate-500 border-slate-800 hover:text-white hover:border-slate-600'
+                        }`}>
+                        {p}
+                      </button>
+                    );
+                  })}
+                  <button onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas}
+                    className="p-1 text-slate-500 hover:text-white border border-slate-800 hover:border-slate-600 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronRight size={12} />
+                  </button>
+                  <button onClick={() => setPagina(totalPaginas)} disabled={paginaActual === totalPaginas}
+                    className="px-2 py-1 text-[10px] font-mono text-slate-500 hover:text-white border border-slate-800 hover:border-slate-600 rounded-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                    »
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </Card>
       </div>
 
-      {/* PANEL DERECHO — drawer */}
+      {/* MODAL — ficha cliente existente */}
       {seleccionado && (
-        <div className="w-[42%] shrink-0 overflow-hidden rounded-xl border border-slate-800">
-          <ClienteDrawer
-            cliente={seleccionado}
-            gestorId={user?.id}
-            onClose={() => setSeleccionado(null)}
-          />
+        <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setSeleccionado(null)}>
+          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-xl border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <ClienteDrawer
+              cliente={seleccionado}
+              gestorId={user?.id}
+              onClose={() => setSeleccionado(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* MODAL — alta nueva empresa */}
+      {nuevoCliente && (
+        <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setNuevoCliente(false)}>
+          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-xl border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <NuevoClienteDrawer
+              onClose={() => setNuevoCliente(false)}
+              onCreado={(cliente) => {
+                setNuevoCliente(false);
+                // Recargar cartera e ir directamente al nuevo cliente
+                fetch(`${N8N}/crm-cartera-get`)
+                  .then(r => r.json())
+                  .then(d => {
+                    if (d.ok) {
+                      setClientes(d.clientes);
+                      const nuevo = d.clientes.find(c => c.id === cliente?.id);
+                      if (nuevo) setSeleccionado(nuevo);
+                    }
+                  })
+                  .catch(() => {});
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
