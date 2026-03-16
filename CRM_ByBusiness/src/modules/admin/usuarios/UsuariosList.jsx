@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Users, UserPlus, Edit2, Trash2, Save, X, RefreshCw, Eye, EyeOff, PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import PropTypes from 'prop-types';
+import { Users, UserPlus, Edit2, Trash2, Save, X, RefreshCw, Eye, EyeOff,
+  PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff, UserX, ChevronRight } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as OTPAuth from 'otpauth';
 import { fmtFecha } from '../../../utils/dates';
+import { useAuth } from '../../auth/AuthContext';
 
-// Endpoint n8n — VITE_N8N_URL debe estar definida en producción
-const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+const N8N = import.meta.env.VITE_N8N_URL;
 
 const ROLES = [
   { value: 'admin',        label: 'Administrador' },
@@ -21,7 +23,7 @@ const ROLE_COLORS = {
   en_practicas: 'bg-amber-900/30 text-amber-400 border border-amber-800/50',
 };
 
-const ESTADO_LLAMADA_DOT = {
+const ESTADO_DOT = {
   libre:    'bg-emerald-500',
   ocupado:  'bg-amber-500',
   ausente:  'bg-orange-500',
@@ -29,28 +31,291 @@ const ESTADO_LLAMADA_DOT = {
 
 const emptyForm = { nombre: '', email: '', password: '', rol: 'operador' };
 
-/** Panel de gestión de usuarios del CRM: alta, edición, ausencia, baja y 2FA. */
+/**
+ * Modal de 2 pasos para gestionar ausencia o baja definitiva de un usuario.
+ * Paso 1: asignar cubridor a cada gestión activa (cliente/cita).
+ * Paso 2 (solo baja): confirmación final irreversible.
+ * @param {{ usuario: Object, modo: 'ausencia'|'baja', adminsActivos: Array, onConfirm: Function, onCancel: Function }} props
+ */
+const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) => {
+  const [gestiones, setGestiones]   = useState(null);
+  const [asignaciones, setAsignaciones] = useState({});
+  const [paso, setPaso]             = useState(1);
+  const [cargando, setCargando]     = useState(true);
+
+  useEffect(() => {
+    setCargando(true);
+    fetch(`${N8N}/crm-ausencia-gestiones?operador_id=${usuario.id}`)
+      .then(r => r.json())
+      .then(d => {
+        const gs = Array.isArray(d.gestiones) ? d.gestiones : [];
+        setGestiones(gs);
+        const init = {};
+        gs.forEach((g, i) => { init[i] = { cubridor_id: '', nuevas_al_cubridor: true }; });
+        setAsignaciones(init);
+      })
+      .catch(() => setGestiones([]))
+      .finally(() => setCargando(false));
+  }, [usuario.id]);
+
+  const todasAsignadas = gestiones?.length === 0 ||
+    Object.values(asignaciones).every(a => a.cubridor_id !== '');
+
+  const handleConfirm = () => {
+    if (paso === 1 && modo === 'baja' && gestiones?.length > 0) { setPaso(2); return; }
+    const delegaciones = (gestiones || []).map((g, i) => ({
+      tipo:              g.tipo,
+      referencia_id:     g.referencia_id,
+      cubridor_id:       parseInt(asignaciones[i]?.cubridor_id) || null,
+      nuevas_al_cubridor: asignaciones[i]?.nuevas_al_cubridor ?? true,
+    }));
+    onConfirm(delegaciones);
+  };
+
+  const esBaja = modo === 'baja';
+  const titulo = esBaja ? 'Baja definitiva' : 'Marcar ausente';
+  const colorBorde = esBaja ? 'border-red-700/50' : 'border-orange-700/50';
+  const colorTitulo = esBaja ? 'text-red-400' : 'text-orange-400';
+  const colorBtn = esBaja ? 'bg-red-700 hover:bg-red-600' : 'bg-orange-700 hover:bg-orange-600';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className={`bg-slate-900 border ${colorBorde} rounded-sm w-full max-w-lg max-h-[85vh] flex flex-col`}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={14} className={colorTitulo} />
+            <span className={`text-xs font-black uppercase tracking-widest ${colorTitulo}`}>
+              {titulo} — {usuario.nombre}
+            </span>
+          </div>
+          <button onClick={onCancel}><X size={14} className="text-slate-500 hover:text-white" /></button>
+        </div>
+
+        {/* Paso 2 — confirmación definitiva de baja */}
+        {paso === 2 && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-4 p-6">
+            <UserX size={40} className="text-red-500" />
+            <p className="text-sm font-bold text-white text-center">
+              ¿Confirmar baja definitiva de <span className="text-red-400">{usuario.nombre}</span>?
+            </p>
+            <p className="text-[10px] text-slate-400 text-center">
+              Esta acción es irreversible. El usuario perderá el acceso permanentemente.
+              Sus gestiones han sido delegadas en el paso anterior.
+            </p>
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setPaso(1)}
+                className="text-xs px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-sm">
+                Volver
+              </button>
+              <button onClick={() => onConfirm(Object.values(asignaciones).length > 0
+                  ? (gestiones || []).map((g, i) => ({
+                      tipo: g.tipo, referencia_id: g.referencia_id,
+                      cubridor_id: parseInt(asignaciones[i]?.cubridor_id) || null,
+                      nuevas_al_cubridor: asignaciones[i]?.nuevas_al_cubridor ?? true,
+                    }))
+                  : [])}
+                className="text-xs font-black px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-sm uppercase tracking-wider">
+                CONFIRMAR BAJA DEFINITIVA
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Paso 1 — delegación de gestiones */}
+        {paso === 1 && (
+          <>
+            <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+
+              {/* Bloque automático */}
+              <div className="bg-slate-800/40 border border-slate-700/50 rounded-sm p-3">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Automático</p>
+                <p className="text-[10px] text-slate-400">
+                  Leads pendientes y callbacks → liberados al pool automáticamente.
+                </p>
+              </div>
+
+              {/* Bloque manual */}
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                  Asignación manual de gestiones
+                </p>
+                {cargando && (
+                  <div className="flex flex-col gap-2">
+                    {[1,2,3].map(i => <div key={i} className="h-10 bg-slate-800/50 rounded-sm animate-pulse" />)}
+                  </div>
+                )}
+                {!cargando && gestiones?.length === 0 && (
+                  <p className="text-[10px] text-slate-500 italic">Sin gestiones activas en cartera ni citas pendientes.</p>
+                )}
+                {!cargando && gestiones?.map((g, i) => (
+                  <div key={i} className="flex items-center gap-2 py-2 border-b border-slate-800">
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-sm font-black uppercase ${g.tipo === 'cliente' ? 'bg-blue-900/40 text-blue-400' : 'bg-purple-900/40 text-purple-400'}`}>
+                      {g.tipo}
+                    </span>
+                    <span className="text-[10px] text-slate-300 flex-1 truncate">{g.nombre}</span>
+                    <select
+                      value={asignaciones[i]?.cubridor_id || ''}
+                      onChange={e => setAsignaciones(prev => ({ ...prev, [i]: { ...prev[i], cubridor_id: e.target.value } }))}
+                      className="bg-slate-950 border border-slate-700 rounded-sm px-2 py-1 text-[10px] text-slate-300 outline-none focus:border-slate-500 min-w-[120px]"
+                    >
+                      <option value="">— Cubridor —</option>
+                      {adminsActivos.filter(a => a.id !== usuario.id).map(a => (
+                        <option key={a.id} value={a.id}>{a.nombre}</option>
+                      ))}
+                    </select>
+                    <label className="flex items-center gap-1 text-[9px] text-slate-500 cursor-pointer">
+                      <input type="checkbox"
+                        checked={asignaciones[i]?.nuevas_al_cubridor ?? true}
+                        onChange={e => setAsignaciones(prev => ({ ...prev, [i]: { ...prev[i], nuevas_al_cubridor: e.target.checked } }))}
+                        className="accent-blue-500"
+                      />
+                      Nuevas→cubridor
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-800">
+              {!todasAsignadas && gestiones?.length > 0 && (
+                <span className="text-[9px] text-amber-400">Asigna cubridor a todas las gestiones</span>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button onClick={onCancel}
+                  className="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-sm">
+                  Cancelar
+                </button>
+                <button onClick={handleConfirm} disabled={!todasAsignadas && gestiones?.length > 0}
+                  className={`text-xs font-black px-4 py-1.5 ${colorBtn} text-white rounded-sm uppercase tracking-wider disabled:opacity-40 flex items-center gap-1`}>
+                  {esBaja ? <><ChevronRight size={12} /> SIGUIENTE</> : 'CONFIRMAR AUSENCIA'}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+DelegacionModal.propTypes = {
+  usuario:       PropTypes.shape({ id: PropTypes.number.isRequired, nombre: PropTypes.string.isRequired }).isRequired,
+  modo:          PropTypes.oneOf(['ausencia', 'baja']).isRequired,
+  adminsActivos: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.number.isRequired, nombre: PropTypes.string.isRequired })).isRequired,
+  onConfirm:     PropTypes.func.isRequired,
+  onCancel:      PropTypes.func.isRequired,
+};
+
+/**
+ * Modal para resolver delegaciones activas al reactivar un usuario ausente.
+ * El admin elige por cada gestión si se devuelve al titular o se consolida con el cubridor.
+ * @param {{ usuario: Object, onConfirm: Function, onCancel: Function }} props
+ */
+const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
+  const [delegaciones, setDelegaciones] = useState(null);
+  const [resoluciones, setResoluciones] = useState({});
+  const [cargando, setCargando]         = useState(true);
+
+  useEffect(() => {
+    setCargando(true);
+    fetch(`${N8N}/crm-ausencia-gestiones?operador_id=${usuario.id}`)
+      .then(r => r.json())
+      .then(d => {
+        const gs = Array.isArray(d.gestiones) ? d.gestiones : [];
+        setDelegaciones(gs);
+        const init = {};
+        gs.forEach((g, i) => { init[i] = 'devuelta'; });
+        setResoluciones(init);
+      })
+      .catch(() => setDelegaciones([]))
+      .finally(() => setCargando(false));
+  }, [usuario.id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-emerald-700/50 rounded-sm w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+          <span className="text-xs font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+            <PlayCircle size={14} /> Reactivar — {usuario.nombre}
+          </span>
+          <button onClick={onCancel}><X size={14} className="text-slate-500 hover:text-white" /></button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
+          {cargando && <div className="h-10 bg-slate-800/50 rounded-sm animate-pulse" />}
+          {!cargando && delegaciones?.length === 0 && (
+            <p className="text-[10px] text-slate-500 italic">Sin delegaciones activas. Se reactivará directamente.</p>
+          )}
+          {!cargando && delegaciones?.map((g, i) => (
+            <div key={i} className="flex items-center gap-2 py-2 border-b border-slate-800">
+              <span className={`text-[8px] px-1.5 py-0.5 rounded-sm font-black uppercase ${g.tipo === 'cliente' ? 'bg-blue-900/40 text-blue-400' : 'bg-purple-900/40 text-purple-400'}`}>
+                {g.tipo}
+              </span>
+              <span className="text-[10px] text-slate-300 flex-1 truncate">{g.nombre}</span>
+              <select
+                value={resoluciones[i] || 'devuelta'}
+                onChange={e => setResoluciones(prev => ({ ...prev, [i]: e.target.value }))}
+                className="bg-slate-950 border border-slate-700 rounded-sm px-2 py-1 text-[10px] text-slate-300 outline-none focus:border-slate-500"
+              >
+                <option value="devuelta">Devolver al titular</option>
+                <option value="consolidada">Mantener con cubridor</option>
+              </select>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 justify-end px-5 py-3 border-t border-slate-800">
+          <button onClick={onCancel}
+            className="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-sm">
+            Cancelar
+          </button>
+          <button onClick={() => onConfirm(Object.entries(resoluciones).map(([i, estado]) => ({
+              id: delegaciones[i]?.id || i,
+              estado,
+            })))}
+            className="text-xs font-black px-4 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-sm uppercase tracking-wider">
+            REACTIVAR
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+ReactivarModal.propTypes = {
+  usuario:   PropTypes.shape({ id: PropTypes.number.isRequired, nombre: PropTypes.string.isRequired }).isRequired,
+  onConfirm: PropTypes.func.isRequired,
+  onCancel:  PropTypes.func.isRequired,
+};
+
+/**
+ * Panel de administración de usuarios del CRM.
+ * Gestiona altas, ediciones, ausencias temporales, reactivaciones y bajas definitivas.
+ * Incluye 2FA por usuario y delegación de gestiones en ausencias/bajas.
+ */
 const UsuariosList = () => {
+  const { user } = useAuth();
   const [usuarios, setUsuarios] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const errorTimerRef = useRef(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState(null);
+  const [saving, setSaving]     = useState(false);
+  const errorTimerRef           = useRef(null);
 
-  const [modo, setModo] = useState(null); // 'crear' | 'editar'
+  const [modo, setModo]         = useState(null);
   const [formData, setFormData] = useState(emptyForm);
-  const [showPwd, setShowPwd] = useState(false);
+  const [showPwd, setShowPwd]   = useState(false);
 
-  // Ausencia confirmation
-  const [confirmAusencia, setConfirmAusencia] = useState(null); // { id, nombre }
-  const [confirmBaja, setConfirmBaja] = useState(null);
-  // 2FA
-  const [qrModal, setQrModal] = useState(null); // { nombre, email, secret }
+  const [modalAusencia, setModalAusencia] = useState(null);
+  const [modalBaja, setModalBaja]         = useState(null);
+  const [modalReactivar, setModalReactivar] = useState(null);
+  const [qrModal, setQrModal]             = useState(null);
 
   useEffect(() => () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); }, []);
 
-  /** Carga la lista de usuarios desde n8n. */
-  const cargar = () => {
+  const cargar = useCallback(() => {
     setLoading(true);
     setError(null);
     fetch(`${N8N}/crm-usuarios-get`)
@@ -58,102 +323,151 @@ const UsuariosList = () => {
       .then(d => { if (d.ok) setUsuarios(d.usuarios); else setError('Error al cargar usuarios'); })
       .catch(() => setError('Error de conexión'))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const mostrarInfo = (msg) => {
+    setError(msg);
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    errorTimerRef.current = setTimeout(() => setError(null), 5000);
   };
 
-  useEffect(() => { cargar(); }, []);
+  const abrirCrear  = () => { setFormData(emptyForm); setShowPwd(false); setModo('crear'); };
+  const abrirEditar = (u) => { setFormData({ nombre: u.nombre, email: u.email, password: '', rol: u.rol, id: u.id }); setShowPwd(false); setModo('editar'); };
+  const cerrar      = () => { setModo(null); setFormData(emptyForm); };
 
-  /** Abre el formulario en modo creación. */
-  const abrirCrear = () => { setFormData(emptyForm); setShowPwd(false); setModo('crear'); setConfirmAusencia(null); setConfirmBaja(null); };
-  const abrirEditar = (u) => { setFormData({ nombre: u.nombre, email: u.email, password: '', rol: u.rol, id: u.id }); setShowPwd(false); setModo('editar'); setConfirmAusencia(null); setConfirmBaja(null); };
-  const cerrar = () => { setModo(null); setFormData(emptyForm); };
-
-  /** Guarda el usuario (crear o editar) vía n8n. */
   const guardar = async () => {
     if (!formData.nombre || !formData.email || (modo === 'crear' && !formData.password)) return;
     setSaving(true);
     try {
       const url = modo === 'crear' ? `${N8N}/crm-crear-usuario` : `${N8N}/crm-editar-usuario`;
-      const r = await fetch(url, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const d = await r.json();
+      const r   = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const d   = await r.json();
       if (modo === 'crear' && !d.ok) { setError('Email ya en uso'); return; }
       cargar(); cerrar();
-    } catch { setError('Error al guardar'); }
+    } catch (err) { setError('Error al guardar'); }
     finally { setSaving(false); }
   };
 
-  /** Marca al usuario como ausente y libera sus leads/callbacks al pool. */
-  const marcarAusente = async (id) => {
+  const confirmarAusencia = async (delegaciones) => {
+    const u = modalAusencia;
+    setModalAusencia(null);
+    const adminsEmails = usuarios.filter(x => x.rol === 'admin' && x.estado === 'activo').map(x => x.email).join(',');
     try {
-      const r = await fetch(`${N8N}/crm-marcar-ausente`, {
+      await fetch(`${N8N}/crm-ausencia-crear`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ operador_id: u.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
       });
-      const d = await r.json();
-      setConfirmAusencia(null);
       cargar();
-      if (d.leads_liberados > 0 || d.callbacks_liberados > 0) {
-        setError(`✓ Ausencia marcada. ${d.leads_liberados || 0} leads y ${d.callbacks_liberados || 0} callbacks liberados al pool.`);
-        if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-        errorTimerRef.current = setTimeout(() => setError(null), 5000);
-      }
-    } catch { setError('Error al marcar ausencia'); }
+      mostrarInfo(`✓ ${u.nombre} marcado como ausente. Delegaciones creadas.`);
+    } catch (err) { setError('Error al marcar ausencia'); }
   };
 
-  /** Genera secreto TOTP para el usuario y muestra el QR de configuración. */
+  const confirmarBaja = async (delegaciones) => {
+    const u = modalBaja;
+    setModalBaja(null);
+    const adminsEmails   = usuarios.filter(x => x.rol === 'admin' && x.estado === 'activo').map(x => x.email).join(',');
+    try {
+      await fetch(`${N8N}/crm-usuario-baja`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operador_id: u.id, operador_nombre: u.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
+      });
+      cargar();
+      mostrarInfo(`✓ ${u.nombre} dado de baja definitivamente.`);
+    } catch (err) { setError('Error al dar de baja'); }
+  };
+
+  const confirmarReactivar = async (resoluciones) => {
+    const u = modalReactivar;
+    setModalReactivar(null);
+    try {
+      await fetch(`${N8N}/crm-ausencia-reactivar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ operador_id: u.id, resoluciones }),
+      });
+      cargar();
+      mostrarInfo(`✓ ${u.nombre} reactivado.`);
+    } catch (err) { setError('Error al reactivar'); }
+  };
+
+  const suspender = async (id) => {
+    try {
+      await fetch(`${N8N}/crm-eliminar-usuario`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      cargar();
+    } catch (err) { setError('Error al suspender'); }
+  };
+
+  const reactivarSuspendido = async (id) => {
+    try {
+      await fetch(`${N8N}/crm-reactivar-usuario`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      cargar();
+    } catch (err) { setError('Error al reactivar'); }
+  };
+
   const activar2fa = async (u) => {
     try {
-      const r = await fetch(`${N8N}/crm-activar-2fa`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: u.id }),
-      });
+      const r = await fetch(`${N8N}/crm-activar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id }) });
       const d = await r.json();
       if (d.ok) { setQrModal({ nombre: u.nombre, email: u.email, secret: d.totp_secret }); cargar(); }
-    } catch { setError('Error al activar 2FA'); }
+    } catch (err) { setError('Error al activar 2FA'); }
   };
 
-  /** Desactiva el 2FA del usuario. */
   const desactivar2fa = async (id) => {
     try {
-      await fetch(`${N8N}/crm-desactivar-2fa`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
+      await fetch(`${N8N}/crm-desactivar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
       cargar();
-    } catch { setError('Error al desactivar 2FA'); }
+    } catch (err) { setError('Error al desactivar 2FA'); }
   };
 
-  /** Reactiva un usuario suspendido o ausente. */
-  const reactivar = async (id) => {
-    try {
-      await fetch(`${N8N}/crm-reactivar-usuario`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      cargar();
-    } catch { setError('Error al reactivar usuario'); }
-  };
-
-  /** Da de baja (suspende) al usuario. */
-  const darDeBaja = async (id) => {
-    try {
-      await fetch(`${N8N}/crm-eliminar-usuario`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
-      });
-      setConfirmBaja(null);
-      cargar();
-    } catch { setError('Error al dar de baja'); }
-  };
-
-  const activos = usuarios.filter(u => u.estado === 'activo');
+  const activos     = usuarios.filter(u => u.estado === 'activo');
+  const ausentes    = usuarios.filter(u => u.estado === 'activo' && u.estado_llamada === 'ausente');
   const suspendidos = usuarios.filter(u => u.estado === 'suspendido');
-  const ausentes = usuarios.filter(u => u.estado_llamada === 'ausente');
+  const bajas       = usuarios.filter(u => u.estado === 'baja');
+  const adminsActivos = usuarios.filter(u => u.rol === 'admin' && u.estado === 'activo' && u.estado_llamada !== 'ausente');
 
   return (
     <div className="flex flex-col h-full gap-4">
+
+      {/* Modales */}
+      {modalAusencia && (
+        <DelegacionModal usuario={modalAusencia} modo="ausencia" adminsActivos={adminsActivos}
+          onConfirm={confirmarAusencia} onCancel={() => setModalAusencia(null)} />
+      )}
+      {modalBaja && (
+        <DelegacionModal usuario={modalBaja} modo="baja" adminsActivos={adminsActivos}
+          onConfirm={confirmarBaja} onCancel={() => setModalBaja(null)} />
+      )}
+      {modalReactivar && (
+        <ReactivarModal usuario={modalReactivar}
+          onConfirm={confirmarReactivar} onCancel={() => setModalReactivar(null)} />
+      )}
+      {qrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-80 flex flex-col items-center gap-4">
+            <div className="flex items-center justify-between w-full">
+              <span className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1">
+                <ShieldCheck size={14} className="text-emerald-400" /> 2FA Activado
+              </span>
+              <button onClick={() => setQrModal(null)}><X size={14} className="text-slate-500 hover:text-white" /></button>
+            </div>
+            <p className="text-[10px] text-slate-400 text-center">
+              Muestra este QR a <span className="text-white font-bold">{qrModal.nombre}</span> para que lo escanee con Google Authenticator.
+            </p>
+            <div className="p-3 bg-white rounded-sm">
+              <QRCodeSVG
+                value={new OTPAuth.TOTP({ issuer: 'ByBusiness', label: qrModal.email, algorithm: 'SHA1', digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(qrModal.secret) }).toString()}
+                size={160} level="M"
+              />
+            </div>
+            <p className="text-[9px] text-slate-600 font-mono text-center break-all">{qrModal.secret}</p>
+            <button onClick={() => setQrModal(null)}
+              className="w-full text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white py-2 rounded-sm">
+              ENTENDIDO
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -162,7 +476,7 @@ const UsuariosList = () => {
             <Users size={20} className="text-[#D00000]" /> Gestión de Usuarios
           </h2>
           <p className="text-[10px] font-mono text-slate-500 mt-0.5 uppercase tracking-widest">
-            {activos.length} activos · {ausentes.length} ausentes · {suspendidos.length} suspendidos
+            {activos.length} activos · {ausentes.length} ausentes · {suspendidos.length} suspendidos · {bajas.length} bajas
           </p>
         </div>
         <div className="flex gap-2">
@@ -229,62 +543,6 @@ const UsuariosList = () => {
         </div>
       )}
 
-      {/* Confirmación ausencia */}
-      {confirmAusencia && (
-        <div className="bg-orange-950/30 border border-orange-700/50 rounded-sm p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle size={16} className="text-orange-400 mt-0.5 shrink-0" />
-            <div className="flex-1">
-              <p className="text-xs font-bold text-orange-300 mb-1">Marcar ausente: {confirmAusencia.nombre}</p>
-              <p className="text-[10px] text-slate-400 mb-3">
-                Sus leads asignados volverán al pool común y sus callbacks quedarán sin asignar hasta que otro operador los retome o vuelva a la actividad.
-              </p>
-              <div className="flex gap-2">
-                <button onClick={() => marcarAusente(confirmAusencia.id)}
-                  className="text-[10px] font-bold px-3 py-1.5 bg-orange-700 hover:bg-orange-600 text-white rounded-sm">
-                  CONFIRMAR AUSENCIA
-                </button>
-                <button onClick={() => setConfirmAusencia(null)}
-                  className="text-[10px] px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-sm">
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal QR 2FA */}
-      {qrModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-80 flex flex-col items-center gap-4">
-            <div className="flex items-center justify-between w-full">
-              <span className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1">
-                <ShieldCheck size={14} className="text-emerald-400" /> 2FA Activado
-              </span>
-              <button onClick={() => setQrModal(null)}><X size={14} className="text-slate-500 hover:text-white" /></button>
-            </div>
-            <p className="text-[10px] text-slate-400 text-center">
-              Muestra este QR a <span className="text-white font-bold">{qrModal.nombre}</span> para que lo escanee con Google Authenticator.
-            </p>
-            <div className="p-3 bg-white rounded-sm">
-              <QRCodeSVG
-                value={new OTPAuth.TOTP({ issuer: 'ByBusiness', label: qrModal.email, algorithm: 'SHA1', digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(qrModal.secret) }).toString()}
-                size={160} level="M"
-              />
-            </div>
-            <p className="text-[9px] text-slate-600 font-mono text-center break-all">{qrModal.secret}</p>
-            <p className="text-[10px] text-amber-400 text-center">
-              En el próximo login el usuario verá "Nuevo dispositivo → Vincular" para escanear su QR.
-            </p>
-            <button onClick={() => setQrModal(null)}
-              className="w-full text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white py-2 rounded-sm">
-              ENTENDIDO
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Tabla */}
       {loading ? (
         <div className="flex-1 flex flex-col gap-2">
@@ -302,21 +560,27 @@ const UsuariosList = () => {
             </thead>
             <tbody className="divide-y divide-slate-800/50">
               {usuarios.map(u => {
+                const isBaja      = u.estado === 'baja';
                 const isSuspendido = u.estado === 'suspendido';
-                const isAusente = u.estado_llamada === 'ausente';
+                const isAusente   = u.estado === 'activo' && u.estado_llamada === 'ausente';
+                const isInactivo  = isBaja || isSuspendido;
+
                 return (
-                  <tr key={u.id} className={`group hover:bg-slate-800/30 transition-colors ${isSuspendido ? 'opacity-35' : ''}`}>
+                  <tr key={u.id} className={`group hover:bg-slate-800/30 transition-colors ${isInactivo ? 'opacity-35' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="relative">
                           <div className="w-7 h-7 rounded-sm bg-slate-800 flex items-center justify-center text-[#D00000] font-black text-xs">
                             {(u.nombre || u.email).charAt(0).toUpperCase()}
                           </div>
-                          <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-900 ${ESTADO_LLAMADA_DOT[u.estado_llamada] || 'bg-slate-600'}`} />
+                          {!isInactivo && (
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-900 ${ESTADO_DOT[u.estado_llamada] || 'bg-slate-600'}`} />
+                          )}
                         </div>
                         <div>
                           <span className="text-xs font-bold text-white block">{u.nombre}</span>
                           {isAusente && <span className="text-[8px] text-orange-400 uppercase font-black tracking-widest">Ausente</span>}
+                          {isBaja    && <span className="text-[8px] text-red-500 uppercase font-black tracking-widest">Baja</span>}
                         </div>
                       </div>
                     </td>
@@ -327,35 +591,51 @@ const UsuariosList = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`text-[10px] font-mono uppercase ${isSuspendido ? 'text-red-500' : 'text-emerald-400'}`}>
-                        {isSuspendido ? 'Suspendido' : 'Activo'}
+                      <span className={`text-[10px] font-mono uppercase ${isBaja ? 'text-red-600' : isSuspendido ? 'text-red-400' : isAusente ? 'text-orange-400' : 'text-emerald-400'}`}>
+                        {isBaja ? 'Baja' : isSuspendido ? 'Suspendido' : isAusente ? 'Ausente' : 'Activo'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-[10px] text-slate-600 font-mono">{u.created_at ? fmtFecha(u.created_at) : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        {!isSuspendido && (
+
+                        {/* Editar — solo activos no ausentes */}
+                        {!isInactivo && !isAusente && (
                           <button onClick={() => abrirEditar(u)} title="Editar"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-blue-400 transition-colors">
                             <Edit2 size={13} />
                           </button>
                         )}
-                        {!isSuspendido && !isAusente && (
-                          <button onClick={() => setConfirmAusencia({ id: u.id, nombre: u.nombre })} title="Marcar ausente"
+
+                        {/* Marcar ausente — activos no ausentes */}
+                        {!isInactivo && !isAusente && (
+                          <button onClick={() => setModalAusencia(u)} title="Marcar ausente"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-orange-400 transition-colors">
                             <PauseCircle size={13} />
                           </button>
                         )}
+
+                        {/* Reactivar ausente */}
                         {isAusente && (
-                          <button onClick={() => reactivar(u.id)} title="Reactivar"
+                          <button onClick={() => setModalReactivar(u)} title="Reactivar"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
                             <PlayCircle size={13} />
                           </button>
                         )}
-                        {!isSuspendido && (
+
+                        {/* Reactivar suspendido */}
+                        {isSuspendido && (
+                          <button onClick={() => reactivarSuspendido(u.id)} title="Reactivar"
+                            className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
+                            <PlayCircle size={13} />
+                          </button>
+                        )}
+
+                        {/* 2FA — solo activos */}
+                        {!isInactivo && (
                           u.totp_habilitado ? (
                             <button onClick={() => desactivar2fa(u.id)} title="Desactivar 2FA"
-                              className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors" >
+                              className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
                               <ShieldCheck size={13} />
                             </button>
                           ) : (
@@ -365,22 +645,23 @@ const UsuariosList = () => {
                             </button>
                           )
                         )}
-                        {!isSuspendido && (
-                          confirmBaja === u.id ? (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[9px] text-red-400">¿Dar de baja?</span>
-                              <button onClick={() => darDeBaja(u.id)}
-                                className="text-[9px] px-2 py-1 bg-red-800 hover:bg-red-700 text-white rounded-sm font-bold">Sí</button>
-                              <button onClick={() => setConfirmBaja(null)}
-                                className="text-[9px] px-2 py-1 bg-slate-700 text-white rounded-sm">No</button>
-                            </div>
-                          ) : (
-                            <button onClick={() => setConfirmBaja(u.id)} title="Dar de baja"
-                              className="p-1.5 hover:bg-slate-700 rounded-sm text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                              <Trash2 size={13} />
-                            </button>
-                          )
+
+                        {/* Suspender — activos no ausentes (hover only) */}
+                        {!isInactivo && !isAusente && (
+                          <button onClick={() => suspender(u.id)} title="Suspender"
+                            className="p-1.5 hover:bg-slate-700 rounded-sm text-amber-500 transition-colors opacity-0 group-hover:opacity-100">
+                            <Trash2 size={13} />
+                          </button>
                         )}
+
+                        {/* Dar de baja definitiva — activos o suspendidos (hover only) */}
+                        {!isBaja && (
+                          <button onClick={() => setModalBaja(u)} title="Dar de baja definitiva"
+                            className="p-1.5 hover:bg-slate-700 rounded-sm text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                            <UserX size={13} />
+                          </button>
+                        )}
+
                       </div>
                     </td>
                   </tr>

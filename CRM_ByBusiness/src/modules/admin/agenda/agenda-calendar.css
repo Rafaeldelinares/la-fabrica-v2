@@ -94,6 +94,9 @@
 .ev-tipo-gbp_autorepair         { background-color: #ef444410 !important; border-left: 3px solid #ef4444 !important; color: #ef4444 !important; }
 .ev-tipo-proxima_accion_cliente { background-color: #D0000010 !important; border-left: 3px solid #D00000 !important; color: #D00000 !important; }
 .ev-tipo-default                { background-color: #64748b10 !important; border-left: 3px solid #64748b !important; color: #cbd5e1 !important; }
+.ev-tipo-delegacion_info        { background-color: #3b82f610 !important; border-left: 3px solid #3b82f6 !important; color: #3b82f6 !important; }
+.ev-tipo-delegacion_aviso       { background-color: #f59e0b10 !important; border-left: 3px solid #f59e0b !important; color: #f59e0b !important; }
+.ev-tipo-delegacion_urgente     { background-color: #D0000020 !important; border-left: 3px solid #D00000 !important; color: #D00000 !important; font-weight: 800 !important; }
 
 /* Tooltip flotante — posición dinámica via CSS custom properties */
 .tt-flotante { left: var(--tt-x); top: var(--tt-y); }
