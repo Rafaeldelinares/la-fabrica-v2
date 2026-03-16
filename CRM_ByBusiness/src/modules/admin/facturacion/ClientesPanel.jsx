@@ -306,7 +306,7 @@ ClienteRow.propTypes = {
  * Orquesta la carga de clientes vía n8n y abre el ProformaModal para crear nuevas proformas.
  * @param {Function} onAbrirCliente - Callback para abrir la ficha del cliente en ClienteDrawer
  */
-const ClientesPanel = ({ onAbrirCliente, alturaDisponible }) => {
+const ClientesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const { user } = useAuth();
   const [clientes, setClientes] = useState(null);
   const [modalCliente, setModalCliente] = useState(null);
@@ -328,7 +328,7 @@ const ClientesPanel = ({ onAbrirCliente, alturaDisponible }) => {
     loadClientes();
   // loadClientes cierra sobre N8N_URL que es constante de build, no reactiva
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [reloadKey]);
 
   return (
     <>
@@ -394,6 +394,7 @@ const ClientesPanel = ({ onAbrirCliente, alturaDisponible }) => {
 ClientesPanel.propTypes = {
   onAbrirCliente:   PropTypes.func.isRequired,
   alturaDisponible: PropTypes.number.isRequired,
+  reloadKey:        PropTypes.number.isRequired,
 };
 
 export default ClientesPanel;

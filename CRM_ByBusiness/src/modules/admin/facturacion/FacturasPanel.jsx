@@ -23,7 +23,7 @@ const ESTADO_BADGE = {
  * Panel de facturas emitidas. El nombre de empresa es clickeable y abre la ficha del cliente.
  * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
  */
-const FacturasPanel = ({ onAbrirCliente, alturaDisponible }) => {
+const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [facturas, setFacturas] = useState(null);
   const [viewing, setViewing]   = useState(null);
   const [pagina, setPagina]     = useState(1);
@@ -37,7 +37,7 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible }) => {
       .then(r => r.json())
       .then(d => { if (d.ok) setFacturas(d.facturas); })
       .catch(() => setFacturas([]));
-  }, []);
+  }, [reloadKey]);
 
   return (
     <>
@@ -157,6 +157,7 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible }) => {
 FacturasPanel.propTypes = {
   onAbrirCliente:   PropTypes.func.isRequired,
   alturaDisponible: PropTypes.number.isRequired,
+  reloadKey:        PropTypes.number.isRequired,
 };
 
 export default FacturasPanel;

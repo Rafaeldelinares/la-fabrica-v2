@@ -20,6 +20,7 @@ const FacturacionPanel = () => {
   const { user } = useAuth();
   const [tab, setTab] = useState('clientes');
   const [clienteDrawer, setClienteDrawer] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const contenidoRef = useRef(null);
   const [alturaContenido, setAlturaContenido] = useState(500);
 
@@ -67,9 +68,9 @@ const FacturacionPanel = () => {
       </div>
 
       <div ref={contenidoRef} className="flex-1 min-h-0 overflow-hidden">
-        {tab === 'clientes'     && <ClientesPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} />}
-        {tab === 'facturas'     && <FacturasPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} />}
-        {tab === 'renovaciones' && <RenovacionesPanel alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} />}
+        {tab === 'clientes'     && <ClientesPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} reloadKey={reloadKey} />}
+        {tab === 'facturas'     && <FacturasPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} reloadKey={reloadKey} />}
+        {tab === 'renovaciones' && <RenovacionesPanel alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} reloadKey={reloadKey} />}
       </div>
 
       {clienteDrawer && (
@@ -81,7 +82,7 @@ const FacturacionPanel = () => {
               cliente={clienteDrawer}
               gestorId={user?.id}
               onClose={() => setClienteDrawer(null)}
-              onGestorChanged={() => {}}
+              onGestorChanged={() => { setClienteDrawer(null); setReloadKey(k => k + 1); }}
             />
           </div>
         </div>
