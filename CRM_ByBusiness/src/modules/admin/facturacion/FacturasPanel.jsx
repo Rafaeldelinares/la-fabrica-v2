@@ -4,7 +4,7 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import FacturaViewer from './FacturaViewer';
-import { FileText, Eye, ExternalLink } from 'lucide-react';
+import { FileText, Eye, ExternalLink, ChevronUp, ChevronDown } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 
 const N8N = import.meta.env.VITE_N8N_URL;
@@ -19,6 +19,37 @@ const ESTADO_BADGE = {
   anulada:  'bg-slate-700 text-slate-500 border-slate-600',
 };
 
+const SORT_COLS = ['numero', 'nombre_comercial', 'fecha_emision', 'fecha_vencimiento', 'total_con_iva'];
+
+function sortFacturas(list, col, dir) {
+  if (!col) return list;
+  return [...list].sort((a, b) => {
+    let va = a[col], vb = b[col];
+    if (col === 'fecha_emision' || col === 'fecha_vencimiento') {
+      va = va ? new Date(va).getTime() : 0;
+      vb = vb ? new Date(vb).getTime() : 0;
+    } else if (col === 'total_con_iva') {
+      va = parseFloat(va) || 0;
+      vb = parseFloat(vb) || 0;
+    } else {
+      va = (va || '').toString().toLowerCase();
+      vb = (vb || '').toString().toLowerCase();
+    }
+    if (va < vb) return dir === 'asc' ? -1 : 1;
+    if (va > vb) return dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+const SortIcon = ({ col, sortCol, sortDir }) => {
+  if (sortCol !== col) return <ChevronUp size={9} className="text-slate-700 ml-0.5" />;
+  return sortDir === 'asc'
+    ? <ChevronUp size={9} className="text-[#D00000] ml-0.5" />
+    : <ChevronDown size={9} className="text-[#D00000] ml-0.5" />;
+};
+
+SortIcon.propTypes = { col: PropTypes.string.isRequired, sortCol: PropTypes.string, sortDir: PropTypes.string };
+
 /**
  * Panel de facturas emitidas. El nombre de empresa es clickeable y abre la ficha del cliente.
  * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
@@ -27,6 +58,8 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [facturas, setFacturas] = useState(null);
   const [viewing, setViewing]   = useState(null);
   const [pagina, setPagina]     = useState(1);
+  const [sortCol, setSortCol]   = useState('fecha_emision');
+  const [sortDir, setSortDir]   = useState('desc');
 
   const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 84) / 44));
 
@@ -38,6 +71,20 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
       .then(d => { if (d.ok) setFacturas(d.facturas); })
       .catch(() => setFacturas([]));
   }, [reloadKey]);
+
+  const toggleSort = (col) => {
+    if (!SORT_COLS.includes(col)) return;
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+    setPagina(1);
+  };
+
+  const thClass = (col) =>
+    `px-4 py-3 font-mono select-none ${SORT_COLS.includes(col) ? 'cursor-pointer hover:text-slate-300' : ''} ${sortCol === col ? 'text-slate-300' : ''}`;
 
   return (
     <>
@@ -55,21 +102,32 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
               description="Las facturas se generan al aceptar una proforma con 'Requiere factura' activado" />
           </div>
         ) : (() => {
-          const totalPaginas = Math.ceil(facturas.length / filasPorPagina);
-          const paginadas = facturas.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
+          const sorted = sortFacturas(facturas, sortCol, sortDir);
+          const totalPaginas = Math.ceil(sorted.length / filasPorPagina);
+          const paginadas = sorted.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
           return (
             <>
               <div className="flex-1 overflow-auto">
                 <table className="w-full text-left text-xs text-slate-400">
                   <thead className="text-[10px] text-slate-500 uppercase font-black tracking-widest bg-slate-950/50 border-b border-slate-800">
                     <tr>
-                      <th className="px-4 py-3 font-mono">Nº FACTURA</th>
-                      <th className="px-4 py-3">CLIENTE</th>
-                      <th className="px-4 py-3 font-mono">FECHA</th>
-                      <th className="px-4 py-3 font-mono">VENCE</th>
+                      <th className={thClass('numero')} onClick={() => toggleSort('numero')}>
+                        <span className="flex items-center">Nº FACTURA <SortIcon col="numero" sortCol={sortCol} sortDir={sortDir} /></span>
+                      </th>
+                      <th className={thClass('nombre_comercial')} onClick={() => toggleSort('nombre_comercial')}>
+                        <span className="flex items-center">CLIENTE <SortIcon col="nombre_comercial" sortCol={sortCol} sortDir={sortDir} /></span>
+                      </th>
+                      <th className={thClass('fecha_emision')} onClick={() => toggleSort('fecha_emision')}>
+                        <span className="flex items-center">FECHA <SortIcon col="fecha_emision" sortCol={sortCol} sortDir={sortDir} /></span>
+                      </th>
+                      <th className={thClass('fecha_vencimiento')} onClick={() => toggleSort('fecha_vencimiento')}>
+                        <span className="flex items-center">VENCE <SortIcon col="fecha_vencimiento" sortCol={sortCol} sortDir={sortDir} /></span>
+                      </th>
                       <th className="px-4 py-3 font-mono">BASE</th>
                       <th className="px-4 py-3 font-mono">IVA</th>
-                      <th className="px-4 py-3 font-mono">TOTAL</th>
+                      <th className={thClass('total_con_iva')} onClick={() => toggleSort('total_con_iva')}>
+                        <span className="flex items-center">TOTAL <SortIcon col="total_con_iva" sortCol={sortCol} sortDir={sortDir} /></span>
+                      </th>
                       <th className="px-4 py-3">PAGO</th>
                       <th className="px-4 py-3">ESTADO</th>
                       <th className="px-4 py-3" />
@@ -127,7 +185,7 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
               {totalPaginas > 1 && (
                 <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
                   <span className="text-[10px] text-slate-600 font-mono">
-                    {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, facturas.length)} de {facturas.length}
+                    {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, sorted.length)} de {sorted.length}
                   </span>
                   <div className="flex items-center gap-1">
                     <button
