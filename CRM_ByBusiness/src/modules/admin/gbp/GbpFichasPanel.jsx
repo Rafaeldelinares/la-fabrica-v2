@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw, Plus, MapPin, Star, AlertCircle } from 'lucide-react';
 import EmptyState from '../../../shared/ui/EmptyState';
+import { fmtFecha } from '../../../utils/dates';
 
 const ESTADO_COLOR = {
   activa:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -20,8 +21,9 @@ const RatingStars = ({ value }) => {
 const GbpFichasPanel = ({ onSelectFicha }) => {
   const [fichas, setFichas] = useState(null);
   const [filtroEstado, setFiltroEstado] = useState('');
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const base = import.meta.env.VITE_N8N_URL;
 
+  /** Carga las fichas GBP desde n8n, filtrando por estado si está seleccionado. */
   const cargar = () => {
     setFichas(null);
     const params = filtroEstado ? `?estado=${filtroEstado}` : '';
@@ -31,6 +33,7 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
       .catch(() => setFichas([]));
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { cargar(); }, [filtroEstado]);
 
   return (
@@ -106,7 +109,7 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
                       </span>
                     </td>
                     <td className="px-3 py-3 text-[10px] font-mono text-slate-600">
-                      {f.ultimo_sync ? new Date(f.ultimo_sync).toLocaleDateString('es-ES') : '—'}
+                      {f.ultimo_sync ? fmtFecha(f.ultimo_sync) : '—'}
                     </td>
                     <td className="px-3 py-3">
                       <button onClick={e => { e.stopPropagation(); onSelectFicha(f); }}

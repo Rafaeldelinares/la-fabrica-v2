@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Users, UserPlus, Edit2, Trash2, Save, X, RefreshCw, Eye, EyeOff, PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as OTPAuth from 'otpauth';
+import { fmtFecha } from '../../../utils/dates';
 
 // Endpoint n8n — VITE_N8N_URL debe estar definida en producción
 const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
@@ -330,7 +331,7 @@ const UsuariosList = () => {
                         {isSuspendido ? 'Suspendido' : 'Activo'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-[10px] text-slate-600 font-mono">{u.created_at || '—'}</td>
+                    <td className="px-4 py-3 text-[10px] text-slate-600 font-mono">{u.created_at ? fmtFecha(u.created_at) : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
                         {!isSuspendido && (
