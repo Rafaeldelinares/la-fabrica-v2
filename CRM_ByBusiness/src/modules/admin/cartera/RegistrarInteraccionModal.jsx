@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { X, Send } from 'lucide-react';
+
+const N8N = import.meta.env.VITE_N8N_URL;
 
 const TIPOS = [
   { value: 'llamada',  label: 'Llamada' },
@@ -16,8 +19,6 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
   const [proximaAccion, setProximaAccion] = useState('');
   const [saving, setSaving]               = useState(false);
   const [error, setError]                 = useState('');
-
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,7 +50,7 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-xl shadow-2xl">
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-sm shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
           <div>
@@ -138,6 +139,13 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
       </div>
     </div>
   );
+};
+
+RegistrarInteraccionModal.propTypes = {
+  cliente:   PropTypes.object.isRequired,
+  gestorId:  PropTypes.number,
+  onClose:   PropTypes.func.isRequired,
+  onSaved:   PropTypes.func.isRequired,
 };
 
 export default RegistrarInteraccionModal;

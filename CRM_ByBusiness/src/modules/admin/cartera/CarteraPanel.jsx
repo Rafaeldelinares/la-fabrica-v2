@@ -345,7 +345,7 @@ const CarteraPanel = () => {
       {/* MODAL — ficha cliente existente */}
       {seleccionado && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setSeleccionado(null)}>
-          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-[90vw] max-w-[1080px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
             <ClienteDrawer
               cliente={seleccionado}
               gestorId={user?.id}
@@ -362,7 +362,7 @@ const CarteraPanel = () => {
       {/* MODAL — alta nueva empresa */}
       {nuevoCliente && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setNuevoCliente(false)}>
-          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-[90vw] max-w-[1080px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
             <NuevoClienteDrawer
               onClose={() => setNuevoCliente(false)}
               onCreado={(cliente) => {
