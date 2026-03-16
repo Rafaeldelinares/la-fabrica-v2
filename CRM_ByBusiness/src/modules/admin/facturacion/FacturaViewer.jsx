@@ -88,9 +88,7 @@ const FacturaViewer = ({ factura, onClose }) => {
                   <p>NIF: {emisorNif}</p>
                   <p className="mt-0.5 uppercase font-medium" style={{ maxWidth: 160 }}>{emisorNombre}</p>
                 </div>
-                <div className="bg-slate-900 rounded-sm px-3 py-1.5 shrink-0">
-                  <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-12 object-contain" />
-                </div>
+                <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-14 object-contain" />
               </div>
 
               {/* Título */}
