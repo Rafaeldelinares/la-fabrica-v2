@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, Info } from 'lucide-react';
-
-const PAGE_SIZE = 15;
+import { fmtFecha } from '../../../utils/dates';
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ClienteDrawer from './ClienteDrawer';
 import NuevoClienteDrawer from './NuevoClienteDrawer';
 import { useAuth } from '../../auth/AuthContext';
+
+const PAGE_SIZE = 15;
 
 const SEMAFORO_CONFIG = {
   verde: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Sanos',    tooltip: 'Contactados en los últimos 30 días, sin pagos problemáticos ni renovaciones urgentes.' },
@@ -30,10 +31,6 @@ const fmtDias = (dias) => {
   return `${dias}d`;
 };
 
-const fmtFecha = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
-};
 
 const SortIcon = ({ field, sort }) => {
   if (sort.field !== field) return <ChevronsUpDown size={10} className="text-slate-700 ml-1" />;
@@ -42,10 +39,15 @@ const SortIcon = ({ field, sort }) => {
     : <ChevronDown size={10} className="text-[#D00000] ml-1" />;
 };
 
+/**
+ * CarteraPanel — Panel principal de gestión de la cartera de clientes.
+ * Muestra la tabla paginada de clientes con filtros por semáforo y año,
+ * y abre el drawer de ficha de cliente o el alta de nueva empresa en modal.
+ */
 const CarteraPanel = () => {
   const { user } = useAuth();
   const [clientes, setClientes]         = useState(null);
-  const [filtroSemaforo, setFiltroS]    = useState('');
+  const [filtroSemaforo, setFiltroSemaforo] = useState('');
   const [filtroAnio,     setFiltroAnio] = useState('');
   const [busqueda, setBusqueda]         = useState('');
   const [seleccionado, setSeleccionado] = useState(null);
@@ -53,13 +55,15 @@ const CarteraPanel = () => {
   const [sort, setSort]                 = useState({ field: 'nombre_comercial', dir: 'asc' });
   const [pagina, setPagina]             = useState(1);
 
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N = import.meta.env.VITE_N8N_URL;
 
   useEffect(() => {
     fetch(`${N8N}/crm-cartera-get`)
       .then(r => r.json())
       .then(d => { if (d.ok) setClientes(d.clientes); })
       .catch(() => setClientes([]));
+  // N8N es constante de módulo, no reactiva
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const aniosDisponibles = useMemo(() => {
@@ -118,7 +122,7 @@ const CarteraPanel = () => {
   };
 
   // Reset página al cambiar filtros
-  useMemo(() => { setPagina(1); }, [filtroSemaforo, filtroAnio, busqueda]);
+  useEffect(() => { setPagina(1); }, [filtroSemaforo, filtroAnio, busqueda]);
 
   return (
     <div className="flex gap-0 h-full overflow-hidden">
@@ -173,7 +177,7 @@ const CarteraPanel = () => {
           ].map(s => (
             <button
               key={s.key}
-              onClick={() => setFiltroS(filtroSemaforo === s.key ? '' : s.key)}
+              onClick={() => setFiltroSemaforo(filtroSemaforo === s.key ? '' : s.key)}
               className={`relative flex items-center gap-3 px-4 py-3 rounded-sm border transition-all text-left ${
                 filtroSemaforo === s.key
                   ? 'bg-slate-800 border-slate-600'
@@ -257,7 +261,7 @@ const CarteraPanel = () => {
                             const dias = Math.ceil((new Date(c.proxima_accion_fecha) - new Date()) / 86400000);
                             const color = dias <= 0 ? 'text-red-400' : dias <= 7 ? 'text-amber-400' : 'text-slate-500';
                             return (
-                              <span title={`Próxima acción: ${new Date(c.proxima_accion_fecha).toLocaleDateString('es-ES')}`}>
+                              <span title={`Próxima acción: ${fmtFecha(c.proxima_accion_fecha)}`}>
                                 <CalendarClock size={11} className={`${color} shrink-0`} />
                               </span>
                             );
@@ -341,7 +345,7 @@ const CarteraPanel = () => {
       {/* MODAL — ficha cliente existente */}
       {seleccionado && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setSeleccionado(null)}>
-          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-xl border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
             <ClienteDrawer
               cliente={seleccionado}
               gestorId={user?.id}
@@ -354,7 +358,7 @@ const CarteraPanel = () => {
       {/* MODAL — alta nueva empresa */}
       {nuevoCliente && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setNuevoCliente(false)}>
-          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-xl border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-[980px] max-w-full h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
             <NuevoClienteDrawer
               onClose={() => setNuevoCliente(false)}
               onCreado={(cliente) => {

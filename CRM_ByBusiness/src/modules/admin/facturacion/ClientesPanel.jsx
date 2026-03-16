@@ -3,19 +3,26 @@ import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ProformaModal from './ProformaModal';
 import { Users, ChevronDown, ChevronUp, CheckCircle, Clock, Plus, CreditCard, X, BadgeCheck, FileText } from 'lucide-react';
+import { fmtFecha } from '../../../utils/dates';
+import { useAuth } from '../../auth/AuthContext';
 
-const N8N_URL = () => import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
-const fmtEur  = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
 
 const METODOS = ['transferencia', 'efectivo', 'tarjeta', 'bizum'];
 
+/**
+ * PagoChip — Pastilla de pago individual dentro de un plan de pagos de proforma.
+ * Muestra el estado (cobrado / pendiente) y permite registrar el cobro inline
+ * seleccionando método y referencia de pago.
+ * @param {object}   pg         - Objeto de pago con id, importe, estado, fecha y fracción
+ * @param {Function} onCobrado  - Callback invocado tras registrar el cobro con éxito
+ */
 const PagoChip = ({ pg, onCobrado }) => {
   const [cobrandoId, setCobrandoId] = useState(null); // pago_id activo
   const [metodo, setMetodo]         = useState('transferencia');
   const [referencia, setReferencia] = useState('');
   const [saving, setSaving]         = useState(false);
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const base = import.meta.env.VITE_N8N_URL;
 
   const cobrar = async () => {
     setSaving(true);
@@ -26,7 +33,7 @@ const PagoChip = ({ pg, onCobrado }) => {
       });
       const d = await r.json();
       if (d.ok) { setCobrandoId(null); onCobrado && onCobrado(); }
-    } finally { setSaving(false); }
+    } catch { /* error de red — finally restablece el estado */ } finally { setSaving(false); }
   };
 
   if (pg.estado === 'cobrado') {
@@ -35,7 +42,7 @@ const PagoChip = ({ pg, onCobrado }) => {
         <CheckCircle size={10} className="text-emerald-400" />
         <span className="text-[10px] font-mono text-slate-400">{pg.fraccion_num}/{pg.total_fracciones}</span>
         <span className="text-[10px] font-mono text-emerald-300 font-bold">{fmtEur(pg.importe)}</span>
-        <span className="text-[10px] text-slate-600">{fmtDate(pg.fecha)}</span>
+        <span className="text-[10px] text-slate-600">{fmtFecha(pg.fecha)}</span>
       </div>
     );
   }
@@ -64,7 +71,7 @@ const PagoChip = ({ pg, onCobrado }) => {
       <Clock size={10} className="text-amber-400" />
       <span className="text-[10px] font-mono text-slate-400">{pg.fraccion_num}/{pg.total_fracciones}</span>
       <span className="text-[10px] font-mono text-white font-bold">{fmtEur(pg.importe)}</span>
-      <span className="text-[10px] text-slate-600">{fmtDate(pg.fecha)}</span>
+      <span className="text-[10px] text-slate-600">{fmtFecha(pg.fecha)}</span>
       <button onClick={() => setCobrandoId(pg.id)}
         className="hidden group-hover:flex items-center gap-0.5 text-[10px] text-slate-500 hover:text-emerald-400 transition-colors ml-1">
         <CreditCard size={9} /> Cobrar
@@ -73,18 +80,24 @@ const PagoChip = ({ pg, onCobrado }) => {
   );
 };
 
+/**
+ * ProformaRow — Fila expandible para una proforma dentro de un ClienteRow.
+ * Permite aceptar la proforma, generar la factura y visualizar el plan de pagos.
+ * @param {object}   proforma   - Objeto proforma con líneas, pagos, estado y totales
+ * @param {Function} onRefresh  - Callback para recargar la lista de proformas del cliente
+ */
 const ProformaRow = ({ proforma, onRefresh }) => {
   const [open, setOpen]           = useState(false);
   const [pagos, setPagos]         = useState(proforma.pagos || []);
   const [estado, setEstado]       = useState(proforma.estado);
-  const [aceptando, setAcept]     = useState(false);
-  const [facturando, setFact]     = useState(false);
+  const [aceptando, setAceptando] = useState(false);
+  const [facturando, setFacturando] = useState(false);
   const [facturaOk, setFacturaOk] = useState(false);
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const base = import.meta.env.VITE_N8N_URL;
 
   const aceptar = async (e) => {
     e.stopPropagation();
-    setAcept(true);
+    setAceptando(true);
     try {
       const r = await fetch(`${base}/crm-proforma-aceptar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -92,12 +105,12 @@ const ProformaRow = ({ proforma, onRefresh }) => {
       });
       const d = await r.json();
       if (d.ok) { setEstado('aceptada'); onRefresh && onRefresh(); }
-    } finally { setAcept(false); }
+    } catch { /* error de red — finally restablece el estado */ } finally { setAceptando(false); }
   };
 
   const generarFactura = async (e) => {
     e.stopPropagation();
-    setFact(true);
+    setFacturando(true);
     try {
       const r = await fetch(`${base}/crm-factura-generar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -105,7 +118,7 @@ const ProformaRow = ({ proforma, onRefresh }) => {
       });
       const d = await r.json();
       if (d.ok) { setFacturaOk(true); onRefresh && onRefresh(); }
-    } finally { setFact(false); }
+    } catch { /* error de red — finally restablece el estado */ } finally { setFacturando(false); }
   };
 
   return (
@@ -114,7 +127,7 @@ const ProformaRow = ({ proforma, onRefresh }) => {
         className="w-full flex items-center justify-between px-4 py-2.5 text-xs hover:bg-slate-800/30 transition-colors">
         <div className="flex items-center gap-3">
           <span className="font-mono text-slate-500">{proforma.numero || `PRO-${String(proforma.id).padStart(4,'0')}`}</span>
-          <span className="text-slate-300">{fmtDate(proforma.fecha)}</span>
+          <span className="text-slate-300">{fmtFecha(proforma.fecha)}</span>
           <span className={`text-[10px] px-1.5 py-0.5 rounded-sm border ${
             estado === 'aceptada'
               ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
@@ -182,10 +195,17 @@ const ProformaRow = ({ proforma, onRefresh }) => {
   );
 };
 
+/**
+ * ClienteRow — Fila expandible de cliente en el panel de facturación.
+ * Muestra resumen económico (cobrado, pendiente, proformas) y carga las proformas
+ * al expandirse. Incluye acceso rápido a crear nueva proforma.
+ * @param {object}   cliente          - Objeto cliente con totales y datos básicos
+ * @param {Function} onNuevaProforma  - Callback invocado con el cliente para abrir ProformaModal
+ */
 const ClienteRow = ({ cliente, onNuevaProforma }) => {
   const [open, setOpen] = useState(false);
   const [proformas, setProformas] = useState(null);
-  const N8N_URL = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N_URL = import.meta.env.VITE_N8N_URL;
 
   const loadProformas = () => {
     fetch(`${N8N_URL}/crm-proformas?cliente_id=${cliente.id}`)
@@ -244,10 +264,15 @@ const ClienteRow = ({ cliente, onNuevaProforma }) => {
   );
 };
 
+/**
+ * ClientesPanel — Panel de facturación que lista clientes con sus proformas y pagos.
+ * Orquesta la carga de clientes vía n8n y abre el ProformaModal para crear nuevas proformas.
+ */
 const ClientesPanel = () => {
+  const { user } = useAuth();
   const [clientes, setClientes] = useState(null);
   const [modalCliente, setModalCliente] = useState(null);
-  const N8N_URL = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N_URL = import.meta.env.VITE_N8N_URL;
 
   const loadClientes = () => {
     fetch(`${N8N_URL}/crm-clientes`)
@@ -256,7 +281,11 @@ const ClientesPanel = () => {
       .catch(() => setClientes([]));
   };
 
-  useEffect(loadClientes, []);
+  useEffect(() => {
+    loadClientes();
+  // loadClientes cierra sobre N8N_URL que es constante de build, no reactiva
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
@@ -280,7 +309,7 @@ const ClientesPanel = () => {
       {modalCliente && (
         <ProformaModal
           cliente={modalCliente}
-          operadorId={1}
+          operadorId={user?.id}
           onClose={() => setModalCliente(null)}
           onCreated={loadClientes}
         />

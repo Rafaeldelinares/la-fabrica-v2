@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { format } from 'date-fns';
 import { X, Phone, Mail, Calendar, FileText, Plus, Clock, User, Globe, MapPin, Star, MessageSquare, RefreshCw, TrendingUp, AlertCircle, CheckCircle, XCircle, AlertTriangle, CalendarClock, Building2, ExternalLink, BadgeCheck } from 'lucide-react';
 import RegistrarInteraccionModal from './RegistrarInteraccionModal';
+import DatePickerField from '../../../shared/ui/DatePickerField';
+import { fmtFecha, fmtFechaHora, fmtMesAno } from '../../../utils/dates';
 
 const SEMAFORO = {
   verde: 'bg-emerald-500',
@@ -17,17 +20,8 @@ const TIPO_COLOR = {
   llamada:     'border-slate-800 bg-slate-950/50',
 };
 
-const fmtFecha = (iso) => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-};
 
-const fmtFechaCorta = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
-};
-
+/** Formatea un número de días de antigüedad como texto legible (p.ej. "3 días", "Hoy"). */
 const fmtDias = (dias) => {
   if (dias === null || dias === undefined) return 'Sin contacto';
   if (dias === 0) return 'Hoy';
@@ -42,7 +36,7 @@ const TABS = [
   { id: 'gbp',        label: 'Google Business' },
 ];
 
-/* ─── TAB: Ficha ─── */
+/** TabFicha — Pestaña de datos de contacto, localización y próxima acción del cliente. */
 const TabFicha = ({ cliente, n8nUrl }) => {
   const [proximaFecha, setProximaFecha] = useState(cliente.proxima_accion_fecha?.slice(0, 10) || '');
   const [proximaNota,  setProximaNota]  = useState(cliente.proxima_accion_nota  || '');
@@ -53,11 +47,23 @@ const TabFicha = ({ cliente, n8nUrl }) => {
   const [guardandoGest, setGuardandoGest] = useState(false);
   const [guardadoGest,  setGuardadoGest]  = useState(false);
 
+  const timerGuardado     = useRef(null);
+  const timerGuardadoGest = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(timerGuardado.current);
+      clearTimeout(timerGuardadoGest.current);
+    };
+  }, []);
+
   useEffect(() => {
     fetch(`${n8nUrl}/crm-usuarios-get`)
       .then(r => r.json())
       .then(d => { if (d.ok) setGestores(d.usuarios.filter(u => ['admin','operador'].includes(u.rol))); })
-      .catch(() => {});
+      .catch(() => setGestores([]));
+  // n8nUrl es constante de build, no reactiva
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSaveGestor = async () => {
@@ -69,8 +75,9 @@ const TabFicha = ({ cliente, n8nUrl }) => {
         body: JSON.stringify({ cliente_id: cliente.id, gestor_id: gestorId || null }),
       });
       setGuardadoGest(true);
-      setTimeout(() => setGuardadoGest(false), 2000);
-    } catch { /* silent */ } finally { setGuardandoGest(false); }
+      clearTimeout(timerGuardadoGest.current);
+      timerGuardadoGest.current = setTimeout(() => setGuardadoGest(false), 2000);
+    } catch { /* error de red — finally restablece el estado */ } finally { setGuardandoGest(false); }
   };
 
   const handleSaveProxima = async () => {
@@ -82,8 +89,9 @@ const TabFicha = ({ cliente, n8nUrl }) => {
         body: JSON.stringify({ cliente_id: cliente.id, fecha: proximaFecha || null, nota: proximaNota || null }),
       });
       setGuardado(true);
-      setTimeout(() => setGuardado(false), 2000);
-    } catch { /* silent */ } finally { setGuardando(false); }
+      clearTimeout(timerGuardado.current);
+      timerGuardado.current = setTimeout(() => setGuardado(false), 2000);
+    } catch { /* error de red — finally restablece el estado */ } finally { setGuardando(false); }
   };
 
   const localidadComercialDiferente =
@@ -205,11 +213,10 @@ const TabFicha = ({ cliente, n8nUrl }) => {
           Próxima acción
         </p>
         <div className="flex flex-col gap-2">
-          <input
-            type="date"
-            value={proximaFecha}
-            onChange={e => setProximaFecha(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full"
+          <DatePickerField
+            selected={proximaFecha ? new Date(proximaFecha) : null}
+            onChange={(date) => setProximaFecha(date ? format(date, 'yyyy-MM-dd') : '')}
+            placeholderText="DD/MM/AAAA"
           />
           <textarea
             value={proximaNota}
@@ -231,7 +238,7 @@ const TabFicha = ({ cliente, n8nUrl }) => {
   );
 };
 
-/* ─── TAB: Contratos ─── */
+/** TabContratos — Pestaña de contratos activos del cliente con opción de añadir nuevos servicios. */
 const TabContratos = ({ cliente, n8nUrl }) => {
   const [contratos, setContratos] = useState(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
@@ -271,7 +278,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
           .then(r => r.json())
           .then(d => setContratos(d.ok ? d.contratos : []));
       }
-    } catch { /* silent */ } finally { setGuardandoNuevo(false); }
+    } catch { /* error de red — finally restablece el estado */ } finally { setGuardandoNuevo(false); }
   };
 
   if (contratos === null) return (
@@ -326,12 +333,12 @@ const TabContratos = ({ cliente, n8nUrl }) => {
               </div>
               <div>
                 <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest mb-0.5">Inicio</p>
-                <p className="text-xs text-slate-400 font-mono">{fmtFechaCorta(c.fecha_inicio)}</p>
+                <p className="text-xs text-slate-400 font-mono">{fmtFecha(c.fecha_inicio)}</p>
               </div>
               <div>
                 <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest mb-0.5">Vencimiento</p>
                 <p className={`text-xs font-mono ${colorFin}`}>
-                  {fmtFechaCorta(fechaFin)}
+                  {fmtFecha(fechaFin)}
                   {diasFin !== null && diasFin <= 60 && diasFin > 0 && (
                     <span className="block text-[9px] text-amber-500/80">en {diasFin}d</span>
                   )}
@@ -373,9 +380,11 @@ const TabContratos = ({ cliente, n8nUrl }) => {
             </div>
             <div>
               <p className="text-[9px] text-slate-600 font-mono mb-1">Fecha inicio</p>
-              <input type="date" value={nuevoForm.fecha_inicio}
-                onChange={e => setNuevoForm(f => ({ ...f, fecha_inicio: e.target.value }))}
-                className="bg-slate-950 border border-slate-700 rounded-sm px-2 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full" />
+              <DatePickerField
+                selected={nuevoForm.fecha_inicio ? new Date(nuevoForm.fecha_inicio) : null}
+                onChange={(date) => setNuevoForm(f => ({ ...f, fecha_inicio: date ? format(date, 'yyyy-MM-dd') : '' }))}
+                placeholderText="DD/MM/AAAA"
+              />
             </div>
             <div>
               <p className="text-[9px] text-slate-600 font-mono mb-1">Duración (meses)</p>
@@ -410,7 +419,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
   );
 };
 
-/* ─── TAB: Historial ─── */
+/** TabHistorial — Pestaña de historial cronológico de interacciones del cliente. */
 const TabHistorial = ({ timeline, onAddInteraccion }) => {
   const iconEvento = (ev) => {
     if (ev.tipo_evento === 'llamada') return '📱';
@@ -445,7 +454,7 @@ const TabHistorial = ({ timeline, onAddInteraccion }) => {
             </div>
             <div className="flex items-center gap-1 text-[10px] text-slate-600 font-mono shrink-0">
               <Clock size={10} />
-              {fmtFecha(ev.fecha_evento)}
+              {fmtFechaHora(ev.fecha_evento)}
             </div>
           </div>
           {ev.resumen && <p className="text-xs text-slate-300 leading-relaxed mt-1">{ev.resumen}</p>}
@@ -458,7 +467,7 @@ const TabHistorial = ({ timeline, onAddInteraccion }) => {
   );
 };
 
-/* ─── Mini sparkline SVG ─── */
+/** Sparkline — Mini gráfico SVG de tendencia para series de datos de reputación GBP. */
 const Sparkline = ({ points, color = '#10b981', height = 40 }) => {
   if (!points || points.length < 2) return null;
   const min = Math.min(...points);
@@ -483,7 +492,7 @@ const Sparkline = ({ points, color = '#10b981', height = 40 }) => {
   );
 };
 
-/* ─── Ficha GBP individual (detalle expandido) ─── */
+/** FichaDetalle — Detalle expandido de una ficha Google Business Profile con rating, reseñas y sentiment. */
 const FichaDetalle = ({ ficha, historico, n8nUrl, clienteId, onValidar }) => {
   const parseSentiment = (s) => {
     if (!s) return null;
@@ -496,7 +505,7 @@ const FichaDetalle = ({ ficha, historico, n8nUrl, clienteId, onValidar }) => {
   const histRating  = historico?.map(h => h.gmaps_rating  ? Number(h.gmaps_rating)  : null).filter(Boolean) || [];
   const histReseñas = historico?.map(h => h.gmaps_reseñas ? Number(h.gmaps_reseñas) : null).filter(Boolean) || [];
   const histFechas  = historico?.map(h => h.fecha_snapshot
-    ? new Date(h.fecha_snapshot).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }) : '').filter(Boolean) || [];
+    ? fmtMesAno(h.fecha_snapshot) : '').filter(Boolean) || [];
 
   return (
     <div className="flex flex-col gap-3 pt-1">
@@ -581,7 +590,7 @@ const FichaDetalle = ({ ficha, historico, n8nUrl, clienteId, onValidar }) => {
               <tbody>
                 {[...historico].reverse().map((h, i) => (
                   <tr key={i} className="border-b border-slate-800/50">
-                    <td className="py-0.5 text-slate-500">{fmtFechaCorta(h.fecha_snapshot)}</td>
+                    <td className="py-0.5 text-slate-500">{fmtFecha(h.fecha_snapshot)}</td>
                     <td className="py-0.5 text-right text-amber-400">{h.gmaps_rating ? Number(h.gmaps_rating).toFixed(1) : '—'}</td>
                     <td className="py-0.5 text-right text-slate-300">{h.gmaps_reseñas ?? '—'}</td>
                   </tr>
@@ -602,8 +611,11 @@ const FichaDetalle = ({ ficha, historico, n8nUrl, clienteId, onValidar }) => {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[10px] text-slate-500 font-mono w-20 shrink-0">General</span>
               <div className="flex-1 h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full ${overallSentiment >= 0.7 ? 'bg-emerald-500' : overallSentiment >= 0.4 ? 'bg-amber-400' : 'bg-red-500'}`}
-                  style={{ width: `${Math.round(overallSentiment * 100)}%` }} />
+                {/* width requiere inline style para valor dinámico en %; Tailwind JIT no genera valores arbitrarios en runtime */}
+                <div
+                  className={`h-full rounded-full ${overallSentiment >= 0.7 ? 'bg-emerald-500' : overallSentiment >= 0.4 ? 'bg-amber-400' : 'bg-red-500'}`}
+                  style={{ width: `${Math.round(overallSentiment * 100)}%` }}
+                />
               </div>
               <span className="text-[10px] font-mono w-8 text-right text-slate-300">{Math.round(overallSentiment * 100)}%</span>
             </div>
@@ -624,12 +636,17 @@ const FichaDetalle = ({ ficha, historico, n8nUrl, clienteId, onValidar }) => {
   );
 };
 
+/** SentimentBar — Barra de progreso de sentimiento con etiqueta y porcentaje para análisis GBP. */
 /* ─── TAB: Google Business ─── */
 const SentimentBar = ({ label, value, color }) => (
   <div className="flex items-center gap-2">
     <span className="text-[10px] text-slate-500 font-mono w-20 shrink-0">{label}</span>
     <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-      <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.round((value || 0) * 100)}%` }} />
+      {/* width requiere inline style para valor dinámico en %; Tailwind JIT no genera valores arbitrarios en runtime */}
+      <div
+        className={`h-full rounded-full transition-all ${color}`}
+        style={{ width: `${Math.round((value || 0) * 100)}%` }}
+      />
     </div>
     <span className="text-[10px] text-slate-400 font-mono w-8 text-right">{value ? `${Math.round(value * 100)}%` : '—'}</span>
   </div>
@@ -672,13 +689,19 @@ const TabGBP = ({ cliente, n8nUrl }) => {
       .catch(() => setFichas([]));
   };
 
-  useEffect(() => { fetchFichas(); }, [cliente.id]);
+  useEffect(() => {
+    fetchFichas();
+  // fetchFichas es estable dentro del render; n8nUrl es constante de build, no reactiva
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliente.id]);
 
   useEffect(() => {
     fetch(`${n8nUrl}/crm-gbp-historico-cliente?cliente_id=${cliente.id}`)
       .then(r => r.json())
       .then(d => setHistorico(d.ok ? d.historico : []))
       .catch(() => setHistorico([]));
+  // n8nUrl es constante de build, no reactiva
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cliente.id]);
 
   const fichaActual = fichas?.[selIdx] || null;
@@ -694,7 +717,7 @@ const TabGBP = ({ cliente, n8nUrl }) => {
         body: JSON.stringify({ cliente_id: cliente.id, query }),
       });
       fetchFichas();
-    } catch { /* silent */ } finally { setRefreshing(false); }
+    } catch { /* error de red — finally restablece el estado */ } finally { setRefreshing(false); }
   };
 
   const handleValidar = async (fichaId, accion) => {
@@ -705,7 +728,7 @@ const TabGBP = ({ cliente, n8nUrl }) => {
         body: JSON.stringify({ cliente_id: cliente.id, ficha_id: fichaId, accion }),
       });
       fetchFichas();
-    } catch { /* silent */ }
+    } catch { fetchFichas(); /* error de red — recarga fichas para revertir UI */ }
   };
 
   const handleAddFicha = async () => {
@@ -720,7 +743,7 @@ const TabGBP = ({ cliente, n8nUrl }) => {
       setAddMode(false);
       setNewFicha({ tipo: '', gmaps_nombre: '', gmaps_url: '', gestionada_por_bybusiness: false });
       fetchFichas();
-    } catch { /* silent */ } finally { setSaving(false); }
+    } catch { /* error de red — finally restablece el estado */ } finally { setSaving(false); }
   };
 
   if (fichas === null) return (
@@ -851,7 +874,7 @@ const TabGBP = ({ cliente, n8nUrl }) => {
                 </span>
               )}
               <p className="text-[10px] text-slate-600 font-mono ml-auto">
-                {fichaActual.gmaps_last_updated ? `↻ ${fmtFechaCorta(fichaActual.gmaps_last_updated)}` : ''}
+                {fichaActual.gmaps_last_updated ? `↻ ${fmtFecha(fichaActual.gmaps_last_updated)}` : ''}
               </p>
             </div>
           )}
@@ -863,13 +886,19 @@ const TabGBP = ({ cliente, n8nUrl }) => {
   );
 };
 
-/* ─── MAIN COMPONENT ─── */
+/**
+ * ClienteDrawer — Drawer/modal de ficha completa de un cliente de cartera.
+ * Contiene tabs de Ficha, Contratos, Historial de interacciones y Google Business Profile.
+ * @param {object}   cliente   - Objeto cliente con todos sus campos de cartera
+ * @param {string|number} gestorId - ID del gestor autenticado, para registrar interacciones
+ * @param {Function} onClose   - Callback invocado al cerrar el drawer
+ */
 const ClienteDrawer = ({ cliente, gestorId, onClose }) => {
   const [activeTab, setActiveTab] = useState('ficha');
   const [timeline, setTimeline]   = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N = import.meta.env.VITE_N8N_URL;
 
   const fetchTimeline = () => {
     fetch(`${N8N}/crm-interacciones-cliente?cliente_id=${cliente.id}`)
@@ -878,7 +907,11 @@ const ClienteDrawer = ({ cliente, gestorId, onClose }) => {
       .catch(() => setTimeline([]));
   };
 
-  useEffect(() => { fetchTimeline(); }, [cliente.id]);
+  useEffect(() => {
+    fetchTimeline();
+  // fetchTimeline es estable dentro del render; N8N es constante de módulo, no reactiva
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliente.id]);
 
   const handleSaved = () => {
     setShowModal(false);

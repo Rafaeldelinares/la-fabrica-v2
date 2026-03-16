@@ -52,3 +52,8 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #D00000;
 }
+
+/* Progress/sentiment bars — width driven by CSS custom property --bar-width */
+.sentiment-bar {
+  width: var(--bar-width, 0%);
+}
