@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
 import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock } from 'lucide-react';
+import PropTypes from 'prop-types';
 import { useAuth } from '../../../modules/auth/AuthContext';
 import DatePickerField from '../../../shared/ui/DatePickerField';
+import { fmtFechaHora } from '../../../utils/dates';
 
 const localizer = dateFnsLocalizer({
   format, parse,
@@ -36,13 +38,15 @@ const fmtHeader = (date, view) => {
 
 /** Modal para crear una nueva cita cliente desde el panel de agenda. */
 const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
-  const [form, setForm] = useState({ cliente_id: '', fecha_hora: '', motivo: '' });
-  const [saving, setSaving] = useState(false);
+  const [form, setForm]           = useState({ cliente_id: '', fecha_hora: '', motivo: '' });
+  const [saving, setSaving]       = useState(false);
+  const [errorGuardar, setErrorGuardar] = useState(false);
   const actualizarCampo = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
 
   const guardar = async () => {
     if (!form.cliente_id || !form.fecha_hora || !form.motivo) return;
     setSaving(true);
+    setErrorGuardar(false);
     try {
       const response = await fetch(`${N8N}/crm-crear-cita`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -50,8 +54,9 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
       });
       const data = await response.json();
       if (data.ok) { onCreated(); onClose(); }
-    } catch {
-      // error de red — mantener modal abierto para reintentar
+    } catch (err) {
+      console.error('[NuevaCitaModal] error de red al crear cita:', err);
+      setErrorGuardar(true);
     } finally { setSaving(false); }
   };
 
@@ -62,6 +67,11 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
           <h2 className="text-sm font-black text-white uppercase tracking-widest">Nueva Cita</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={16} /></button>
         </div>
+        {errorGuardar && (
+          <p className="text-[10px] text-red-400 font-mono mb-3 bg-red-900/20 border border-red-900/30 rounded-sm px-3 py-2">
+            Error al crear la cita — inténtalo de nuevo
+          </p>
+        )}
         <div className="space-y-4">
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Cliente</label>
@@ -99,6 +109,13 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
   );
 };
 
+NuevaCitaModal.propTypes = {
+  clientes:  PropTypes.arrayOf(PropTypes.object).isRequired,
+  gestorId:  PropTypes.number,
+  onClose:   PropTypes.func.isRequired,
+  onCreated: PropTypes.func.isRequired,
+};
+
 /** Modal de detalle de un evento del calendario al hacer clic sobre él. */
 const EventoDetalle = ({ evento, onClose }) => {
   if (!evento) return null;
@@ -130,6 +147,80 @@ const EventoDetalle = ({ evento, onClose }) => {
   );
 };
 
+EventoDetalle.propTypes = {
+  evento:  PropTypes.object,
+  onClose: PropTypes.func.isRequired,
+};
+
+/** Contexto para pasar callbacks hover a EventoTag sin prop-drilling ni globales mutables. */
+const TooltipCtx = React.createContext({ set: null, clear: null });
+
+/**
+ * Contenido del tooltip flotante de evento — sin lógica de posicionamiento.
+ * El posicionamiento se realiza en el padre via ref.current.style.setProperty.
+ * @param {{ evento: Object }} props
+ */
+const TooltipContenido = ({ evento }) => {
+  const cfg = TIPO[evento.tipo] || TIPO.llamada_operador;
+  const { Icon } = cfg;
+  const desc = evento.descripcion
+    ? (evento.descripcion.length > 80 ? `${evento.descripcion.slice(0, 77)}…` : evento.descripcion)
+    : null;
+
+  return (
+    <div className={`bg-slate-900 border ${cfg.borderClass} rounded-sm shadow-2xl p-3 w-64`}>
+      <div className={`flex items-center gap-1.5 mb-2 ${cfg.textClass}`}>
+        <Icon size={10} />
+        <span className="text-[9px] font-black uppercase tracking-widest">{cfg.label}</span>
+      </div>
+      <p className="text-xs font-bold text-white mb-2 leading-tight">{evento.titulo}</p>
+      <p className="text-[10px] font-mono text-slate-400 mb-1.5">{fmtFechaHora(evento.start)}</p>
+      {(evento.responsable || evento.operador_nombre) && (
+        <p className="text-[10px] text-slate-500 font-mono mb-1.5">
+          {evento.responsable ? `Gestor: ${evento.responsable}` : `Operador: ${evento.operador_nombre}`}
+        </p>
+      )}
+      {desc && (
+        <p className="text-[10px] text-slate-400 italic border-l-2 border-slate-700 pl-2 mb-2 leading-relaxed">{desc}</p>
+      )}
+      {evento.estado && (
+        <span className={`inline-block px-1.5 py-0.5 rounded-sm text-[9px] font-black uppercase border ${
+          evento.estado === 'realizada' || evento.estado === 'confirmada'
+            ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
+            : 'bg-slate-800 text-slate-400 border-slate-700'
+        }`}>{evento.estado}</span>
+      )}
+    </div>
+  );
+};
+
+TooltipContenido.propTypes = { evento: PropTypes.object.isRequired };
+
+/**
+ * Componente de evento personalizado para react-big-calendar.
+ * Muestra icono de tipo + título y dispara el tooltip flotante en hover.
+ * @param {{ event: Object }} props
+ */
+const EventoTag = ({ event }) => {
+  const { set, clear } = React.useContext(TooltipCtx);
+  const cfg = TIPO[event.tipo] || TIPO.llamada_operador;
+  const { Icon } = cfg;
+  return (
+    <div
+      className="flex items-center gap-1 overflow-hidden w-full h-full px-0.5"
+      onMouseEnter={e => set?.(event, e.clientX, e.clientY)}
+      onMouseLeave={() => clear?.()}
+    >
+      <Icon size={9} className="shrink-0 opacity-70" />
+      <span className="text-[10px] font-bold truncate leading-none">{event.title}</span>
+    </div>
+  );
+};
+
+EventoTag.propTypes = { event: PropTypes.object.isRequired };
+
+const CALENDAR_COMPONENTS = { event: EventoTag };
+
 /** Panel de agenda unificada (admin): visualiza todos los eventos del equipo con filtros por tipo. */
 const AgendaGlobalPanel = () => {
   const { user } = useAuth();
@@ -139,11 +230,25 @@ const AgendaGlobalPanel = () => {
   const [view, setView]           = useState(Views.WEEK);
   const [fecha, setFecha]         = useState(new Date());
   const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true });
-  const [modalCita, setModalCita] = useState(false);
-  const [eventoSel, setEventoSel] = useState(null);
+  const [modalCita, setModalCita]         = useState(false);
+  const [eventoSel, setEventoSel]         = useState(null);
+  const [tooltipEvento, setTooltipEvento] = useState(null);
+  const [errorCarga, setErrorCarga]       = useState(false);
+  const tooltipWrapperRef                 = useRef(null);
+
+  const tooltipHandlers = useMemo(() => ({
+    set: (evento, x, y) => {
+      tooltipWrapperRef.current?.style.setProperty('--tt-x', `${Math.min(x + 14, window.innerWidth - 272)}px`);
+      tooltipWrapperRef.current?.style.setProperty('--tt-y', `${Math.min(y + 10, window.innerHeight - 210)}px`);
+      setTooltipEvento(evento);
+    },
+    clear: () => setTooltipEvento(null),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
 
   const cargar = useCallback(() => {
     setLoading(true);
+    setErrorCarga(false);
     const fechaInicio = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
     const fechaFin    = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
     fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
@@ -157,7 +262,7 @@ const AgendaGlobalPanel = () => {
           tooltip: e.descripcion ? `${e.titulo} — ${e.descripcion}` : e.titulo,
         })));
       })
-      .catch(() => setEventos([]))
+      .catch(err => { console.error('[AgendaGlobal] error cargando eventos:', err); setEventos([]); setErrorCarga(true); })
       .finally(() => setLoading(false));
   }, [fecha]);
 
@@ -167,7 +272,7 @@ const AgendaGlobalPanel = () => {
     fetch(`${N8N}/crm-clientes`)
       .then(r => r.json())
       .then(d => { if (d.ok) setClientes(d.clientes); })
-      .catch(() => setClientes([]));
+      .catch(err => { console.error('[AgendaGlobal] error cargando clientes:', err); setClientes([]); });
   }, []);
 
   const eventosFiltrados = eventos.filter(e => filtros[e.tipo]);
@@ -244,6 +349,12 @@ const AgendaGlobalPanel = () => {
 
       {/* ── Calendario ── */}
       <div className="flex-1 min-h-0">
+        <TooltipCtx.Provider value={tooltipHandlers}>
+        {errorCarga && (
+          <div className="mb-2 px-3 py-2 bg-red-900/20 border border-red-900/40 rounded-sm text-[10px] text-red-400 font-mono uppercase tracking-widest">
+            Error al cargar la agenda — comprueba la conexión con n8n
+          </div>
+        )}
         {loading && eventosFiltrados.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <p className="text-[10px] text-slate-700 font-mono uppercase tracking-widest animate-pulse">Cargando agenda...</p>
@@ -258,7 +369,7 @@ const AgendaGlobalPanel = () => {
             onNavigate={setFecha}
             onSelectEvent={setEventoSel}
             eventPropGetter={estiloEvento}
-            tooltipAccessor="tooltip"
+            components={CALENDAR_COMPONENTS}
             culture="es"
             messages={{
               week: 'Semana', day: 'Día', month: 'Mes', today: 'Hoy',
@@ -274,10 +385,11 @@ const AgendaGlobalPanel = () => {
               dayRangeHeaderFormat: ({ start, end }) =>
                 `${format(start, 'd MMM', { locale: es })} – ${format(end, 'd MMM yyyy', { locale: es })}`,
             }}
-            style={{ height: '100%' }}
+            className="agenda-calendar-height"
             popup
           />
         )}
+        </TooltipCtx.Provider>
       </div>
 
       {modalCita && (
@@ -290,6 +402,9 @@ const AgendaGlobalPanel = () => {
       )}
 
       {eventoSel && <EventoDetalle evento={eventoSel} onClose={() => setEventoSel(null)} />}
+      <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}>
+        {tooltipEvento && <TooltipContenido evento={tooltipEvento} />}
+      </div>
     </div>
   );
 };
