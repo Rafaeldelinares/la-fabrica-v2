@@ -117,13 +117,12 @@ NuevaCitaModal.propTypes = {
   onCreated: PropTypes.func.isRequired,
 };
 
-/** Modal de detalle de un evento del calendario al hacer clic sobre él. */
 /**
  * Modal de detalle de un evento del calendario.
- * Si el evento tiene cliente_id, muestra un botón para abrir la ficha del cliente.
- * @param {{ evento: Object, onClose: Function, onAbrirCliente: Function }} props
+ * Si se pasa clienteObj, el nombre de la empresa es clickeable y abre la ficha del cliente.
+ * @param {{ evento: Object, clienteObj: Object|null, onClose: Function, onAbrirCliente: Function }} props
  */
-const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
+const EventoDetalle = ({ evento, clienteObj, onClose, onAbrirCliente }) => {
   if (!evento) return null;
   const cfg = TIPO[evento.tipo] || TIPO.llamada_operador;
   return (
@@ -133,7 +132,21 @@ const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
           <span className={`text-[10px] font-black uppercase tracking-widest ${cfg.textClass}`}>{cfg.label}</span>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={14} /></button>
         </div>
-        <p className="text-sm font-bold text-white mb-1">{evento.titulo}</p>
+
+        {clienteObj ? (
+          <button
+            onClick={() => { onAbrirCliente(clienteObj); onClose(); }}
+            className="group flex items-center gap-1.5 mb-1 text-left"
+          >
+            <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">
+              {clienteObj.nombre_comercial}
+            </span>
+            <ExternalLink size={10} className="text-slate-600 group-hover:text-blue-400 transition-colors shrink-0 mt-px" />
+          </button>
+        ) : (
+          <p className="text-sm font-bold text-white mb-1">{evento.titulo}</p>
+        )}
+
         <p className="text-xs text-slate-400 mb-3">{evento.descripcion}</p>
         <div className="text-[10px] text-slate-500 font-mono space-y-1">
           <div>{format(evento.start, "dd/MM/yyyy · HH:mm")}</div>
@@ -148,23 +161,16 @@ const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
             }`}>{evento.estado}</span>
           </div>
         </div>
-        {evento.cliente_id && (
-          <button
-            onClick={() => { onAbrirCliente(evento.cliente_id); onClose(); }}
-            className="mt-4 w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 text-xs font-black text-slate-300 hover:text-white rounded-sm transition-colors uppercase tracking-widest"
-          >
-            <ExternalLink size={11} /> Ver ficha cliente
-          </button>
-        )}
       </div>
     </div>
   );
 };
 
 EventoDetalle.propTypes = {
-  evento:          PropTypes.object,
-  onClose:         PropTypes.func.isRequired,
-  onAbrirCliente:  PropTypes.func.isRequired,
+  evento:         PropTypes.object,
+  clienteObj:     PropTypes.object,
+  onClose:        PropTypes.func.isRequired,
+  onAbrirCliente: PropTypes.func.isRequired,
 };
 
 /** Contexto para pasar callbacks hover a EventoTag sin prop-drilling ni globales mutables. */
@@ -252,10 +258,9 @@ const AgendaGlobalPanel = () => {
   const [errorCarga, setErrorCarga]       = useState(false);
   const tooltipWrapperRef                 = useRef(null);
 
-  const abrirClienteDesdeAgenda = useCallback((clienteId) => {
-    const c = clientes.find(x => String(x.id) === String(clienteId));
-    if (c) setClienteDrawer(c);
-  }, [clientes]);
+  const abrirClienteDesdeAgenda = useCallback((clienteObj) => {
+    setClienteDrawer(clienteObj);
+  }, []);
 
   const tooltipHandlers = useMemo(() => ({
     set: (evento, x, y) => {
@@ -422,7 +427,14 @@ const AgendaGlobalPanel = () => {
         />
       )}
 
-      {eventoSel && <EventoDetalle evento={eventoSel} onClose={() => setEventoSel(null)} onAbrirCliente={abrirClienteDesdeAgenda} />}
+      {eventoSel && (
+        <EventoDetalle
+          evento={eventoSel}
+          clienteObj={clientes.find(x => String(x.id) === String(eventoSel.cliente_id)) ?? null}
+          onClose={() => setEventoSel(null)}
+          onAbrirCliente={abrirClienteDesdeAgenda}
+        />
+      )}
       {clienteDrawer && <ClienteDrawer cliente={clienteDrawer} gestorId={user?.id} onClose={() => setClienteDrawer(null)} onGestorChanged={() => {}} />}
       <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}>
         {tooltipEvento && <TooltipContenido evento={tooltipEvento} />}
