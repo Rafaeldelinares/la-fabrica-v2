@@ -166,7 +166,8 @@ const RenovacionesPanel = ({ onAbrirCliente }) => {
                     </span>
                     {/* Barra */}
                     <div
-                      className={`w-full rounded-sm transition-all ${isSel ? 'bg-white/90' : isCurr ? 'bg-[#D00000]/80 group-hover:bg-[#D00000]' : 'bg-slate-700 group-hover:bg-slate-500'} h-[${barH}px]`}
+                      ref={el => { if (el) el.style.height = `${barH}px`; }}
+                      className={`w-full rounded-sm transition-all ${isSel ? 'bg-white/90' : isCurr ? 'bg-[#D00000]/80 group-hover:bg-[#D00000]' : 'bg-slate-700 group-hover:bg-slate-500'}`}
                     />
                     {/* Mes label */}
                     <span className={`text-[7px] font-mono uppercase truncate w-full text-center transition-colors ${isSel ? 'text-white' : isCurr ? 'text-[#D00000]' : 'text-slate-600'}`}>
