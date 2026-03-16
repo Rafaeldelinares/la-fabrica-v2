@@ -306,12 +306,16 @@ ClienteRow.propTypes = {
  * Orquesta la carga de clientes vía n8n y abre el ProformaModal para crear nuevas proformas.
  * @param {Function} onAbrirCliente - Callback para abrir la ficha del cliente en ClienteDrawer
  */
-const ClientesPanel = ({ onAbrirCliente }) => {
+const ClientesPanel = ({ onAbrirCliente, alturaDisponible }) => {
   const { user } = useAuth();
   const [clientes, setClientes] = useState(null);
   const [modalCliente, setModalCliente] = useState(null);
   const [pagina, setPagina] = useState(1);
   const N8N_URL = import.meta.env.VITE_N8N_URL;
+
+  const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 40) / 52));
+
+  useEffect(() => { setPagina(1); }, [filasPorPagina]);
 
   const loadClientes = () => {
     fetch(`${N8N_URL}/crm-clientes`)
@@ -343,15 +347,15 @@ const ClientesPanel = ({ onAbrirCliente }) => {
         ) : (
           <>
             {(() => {
-              const totalPaginas = Math.ceil(clientes.length / 25);
-              const paginados = clientes.slice((pagina - 1) * 25, pagina * 25);
+              const totalPaginas = Math.ceil(clientes.length / filasPorPagina);
+              const paginados = clientes.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
               return (
                 <>
                   <div>{paginados.map(c => <ClienteRow key={c.id} cliente={c} onNuevaProforma={setModalCliente} onAbrirCliente={onAbrirCliente} />)}</div>
                   {totalPaginas > 1 && (
                     <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
                       <span className="text-[10px] text-slate-600 font-mono">
-                        {(pagina - 1) * 25 + 1}–{Math.min(pagina * 25, clientes.length)} de {clientes.length}
+                        {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, clientes.length)} de {clientes.length}
                       </span>
                       <div className="flex items-center gap-1">
                         <button
@@ -387,6 +391,9 @@ const ClientesPanel = ({ onAbrirCliente }) => {
   );
 };
 
-ClientesPanel.propTypes = { onAbrirCliente: PropTypes.func.isRequired };
+ClientesPanel.propTypes = {
+  onAbrirCliente:   PropTypes.func.isRequired,
+  alturaDisponible: PropTypes.number.isRequired,
+};
 
 export default ClientesPanel;

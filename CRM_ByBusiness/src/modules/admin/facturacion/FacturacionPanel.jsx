@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import ClientesPanel from './ClientesPanel';
 import RenovacionesPanel from './RenovacionesPanel';
@@ -20,6 +20,17 @@ const FacturacionPanel = () => {
   const { user } = useAuth();
   const [tab, setTab] = useState('clientes');
   const [clienteDrawer, setClienteDrawer] = useState(null);
+  const contenidoRef = useRef(null);
+  const [alturaContenido, setAlturaContenido] = useState(500);
+
+  useEffect(() => {
+    if (!contenidoRef.current) return;
+    const obs = new ResizeObserver(entries => {
+      setAlturaContenido(Math.floor(entries[0].contentRect.height));
+    });
+    obs.observe(contenidoRef.current);
+    return () => obs.disconnect();
+  }, []);
 
   /** Fetch puntual del cliente por id y abre el ClienteDrawer. */
   const abrirCliente = useCallback((clienteId) => {
@@ -30,9 +41,9 @@ const FacturacionPanel = () => {
   }, []);
 
   return (
-    <div className="flex flex-col gap-4 h-full overflow-y-auto bg-slate-950 font-sans">
+    <div className="flex flex-col h-full overflow-hidden bg-slate-950 font-sans">
 
-      <div className="flex items-center justify-between">
+      <div className="shrink-0 mb-4 flex items-center justify-between">
         <h2 className="text-sm font-black text-white uppercase tracking-widest">FACTURACIÓN</h2>
         <div className="flex gap-1">
           {TABS.map(t => {
@@ -55,9 +66,11 @@ const FacturacionPanel = () => {
         </div>
       </div>
 
-      {tab === 'clientes'     && <ClientesPanel     onAbrirCliente={abrirCliente} />}
-      {tab === 'facturas'     && <FacturasPanel     onAbrirCliente={abrirCliente} />}
-      {tab === 'renovaciones' && <RenovacionesPanel onAbrirCliente={abrirCliente} />}
+      <div ref={contenidoRef} className="flex-1 min-h-0 overflow-hidden">
+        {tab === 'clientes'     && <ClientesPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} />}
+        {tab === 'facturas'     && <FacturasPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} />}
+        {tab === 'renovaciones' && <RenovacionesPanel alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} />}
+      </div>
 
       {clienteDrawer && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"

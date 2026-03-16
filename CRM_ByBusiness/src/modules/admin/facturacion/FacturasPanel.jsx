@@ -23,10 +23,14 @@ const ESTADO_BADGE = {
  * Panel de facturas emitidas. El nombre de empresa es clickeable y abre la ficha del cliente.
  * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
  */
-const FacturasPanel = ({ onAbrirCliente }) => {
+const FacturasPanel = ({ onAbrirCliente, alturaDisponible }) => {
   const [facturas, setFacturas] = useState(null);
   const [viewing, setViewing]   = useState(null);
   const [pagina, setPagina]     = useState(1);
+
+  const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 84) / 44));
+
+  useEffect(() => { setPagina(1); }, [filasPorPagina]);
 
   useEffect(() => {
     fetch(`${N8N}/crm-facturas`)
@@ -51,8 +55,8 @@ const FacturasPanel = ({ onAbrirCliente }) => {
               description="Las facturas se generan al aceptar una proforma con 'Requiere factura' activado" />
           </div>
         ) : (() => {
-          const totalPaginas = Math.ceil(facturas.length / 25);
-          const paginadas = facturas.slice((pagina - 1) * 25, pagina * 25);
+          const totalPaginas = Math.ceil(facturas.length / filasPorPagina);
+          const paginadas = facturas.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
           return (
             <>
               <div className="overflow-x-auto">
@@ -123,7 +127,7 @@ const FacturasPanel = ({ onAbrirCliente }) => {
               {totalPaginas > 1 && (
                 <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
                   <span className="text-[10px] text-slate-600 font-mono">
-                    {(pagina - 1) * 25 + 1}–{Math.min(pagina * 25, facturas.length)} de {facturas.length}
+                    {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, facturas.length)} de {facturas.length}
                   </span>
                   <div className="flex items-center gap-1">
                     <button
@@ -150,6 +154,9 @@ const FacturasPanel = ({ onAbrirCliente }) => {
   );
 };
 
-FacturasPanel.propTypes = { onAbrirCliente: PropTypes.func.isRequired };
+FacturasPanel.propTypes = {
+  onAbrirCliente:   PropTypes.func.isRequired,
+  alturaDisponible: PropTypes.number.isRequired,
+};
 
 export default FacturasPanel;

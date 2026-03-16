@@ -34,12 +34,16 @@ const riskClass = (dias) => {
  * Panel de renovaciones de contratos. El nombre de empresa es clickeable y abre la ficha.
  * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
  */
-const RenovacionesPanel = ({ onAbrirCliente }) => {
+const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
   const [renovaciones, setRenovaciones] = useState(null);
   const [meses,        setMeses]        = useState(12);
   const [mesFiltro,    setMesFiltro]    = useState(null);
   const [pagina,       setPagina]       = useState(1);
   const N8N = import.meta.env.VITE_N8N_URL;
+
+  const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 380) / 40));
+
+  useEffect(() => { setPagina(1); }, [filasPorPagina]);
 
   const load = () => {
     setRenovaciones(null);
@@ -190,8 +194,8 @@ const RenovacionesPanel = ({ onAbrirCliente }) => {
 
           {/* CAPA 2 — Lista de contratos */}
           {(() => {
-            const totalPaginas = Math.ceil(lista.length / 25);
-            const paginados = lista.slice((pagina - 1) * 25, pagina * 25);
+            const totalPaginas = Math.ceil(lista.length / filasPorPagina);
+            const paginados = lista.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
             return (
               <div className="bg-slate-900 border border-slate-800 rounded-sm overflow-hidden shrink-0">
                 <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
@@ -250,7 +254,7 @@ const RenovacionesPanel = ({ onAbrirCliente }) => {
                 {totalPaginas > 1 && (
                   <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
                     <span className="text-[10px] text-slate-600 font-mono">
-                      {(pagina - 1) * 25 + 1}–{Math.min(pagina * 25, lista.length)} de {lista.length}
+                      {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, lista.length)} de {lista.length}
                     </span>
                     <div className="flex items-center gap-1">
                       <button
@@ -276,6 +280,9 @@ const RenovacionesPanel = ({ onAbrirCliente }) => {
   );
 };
 
-RenovacionesPanel.propTypes = { onAbrirCliente: PropTypes.func.isRequired };
+RenovacionesPanel.propTypes = {
+  onAbrirCliente:   PropTypes.func.isRequired,
+  alturaDisponible: PropTypes.number.isRequired,
+};
 
 export default RenovacionesPanel;
