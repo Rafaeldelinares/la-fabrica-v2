@@ -85,7 +85,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
   const loading = renovaciones === null;
 
   return (
-    <div className="flex flex-col gap-4 h-full overflow-y-auto custom-scrollbar pr-1">
+    <div className="flex flex-col gap-4 h-full overflow-hidden pr-1">
 
       {/* Controles horizonte */}
       <div className="flex items-center justify-between shrink-0">
@@ -197,7 +197,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
             const totalPaginas = Math.ceil(lista.length / filasPorPagina);
             const paginados = lista.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
             return (
-              <div className="bg-slate-900 border border-slate-800 rounded-sm overflow-hidden shrink-0">
+              <div className="bg-slate-900 border border-slate-800 rounded-sm overflow-hidden flex-1 flex flex-col">
                 <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
                   <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">
                     {mesFiltro
@@ -206,7 +206,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
                   </p>
                   <span className="text-[9px] text-slate-600 font-mono">{fmtEur(filtroMRR)} MRR</span>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="flex-1 overflow-auto">
                   <table className="w-full text-left">
                     <thead className="text-[9px] text-slate-600 uppercase tracking-widest bg-slate-950/50 border-b border-slate-800">
                       <tr>
@@ -252,7 +252,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
                   </table>
                 </div>
                 {totalPaginas > 1 && (
-                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
+                  <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
                     <span className="text-[10px] text-slate-600 font-mono">
                       {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, lista.length)} de {lista.length}
                     </span>
