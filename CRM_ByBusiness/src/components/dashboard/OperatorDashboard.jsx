@@ -1,14 +1,23 @@
 import React, { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { useAuth } from '../../modules/auth/AuthContext';
+import DatePickerField from '../../shared/ui/DatePickerField';
 import Button from '../../shared/ui/Button';
 import Card from '../../shared/ui/Card';
 import Badge from '../../shared/ui/Badge';
 import EmptyState from '../../shared/ui/EmptyState';
 import Stat from '../../shared/ui/Stat';
 import { Database, ExternalLink, Copy, Phone, Calendar, GraduationCap, TrendingUp } from 'lucide-react';
+import { fmtFecha, fmtFechaHora } from '../../utils/dates';
 
-const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+const N8N = import.meta.env.VITE_N8N_URL;
 
+/**
+ * Dashboard principal del operador de llamadas.
+ * Gestiona el flujo completo: asignación de lead, registro de resultado,
+ * historial de trazabilidad y llamadas programadas.
+ * Soporta modo simulación (en_practicas) con leads ficticios y seguimiento de progreso.
+ */
 const OperatorDashboard = () => {
   const { user } = useAuth();
   const isTraining = user?.role === 'en_practicas';
@@ -28,6 +37,8 @@ const OperatorDashboard = () => {
   const [historial, setHistorial] = useState([]);
   const [programadas, setProgramadas] = useState([]);
 
+  const [errorRed, setErrorRed] = useState('');
+
   // Training-specific state
   const [sesionId, setSesionId] = useState(null);
   const [trainingLeads, setTrainingLeads] = useState([]);
@@ -40,20 +51,25 @@ const OperatorDashboard = () => {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ operador_id: user.id }),
     })
-      .then(r => r.json())
-      .then(d => { if (d.ok) setSesionId(d.sesion.id); })
-      .catch(() => {});
+      .then(res => res.json())
+      .then(data => { if (data.ok) setSesionId(data.sesion.id); })
+      .catch(() => setSesionId(null));
   }, [isTraining, user?.id]);
 
   // Cargar leads de entrenamiento
   useEffect(() => {
     if (!isTraining || !user?.id) return;
     fetch(`${N8N}/crm-leads-entrenamiento?operador_id=${user.id}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setTrainingLeads(d.leads); })
-      .catch(() => {});
+      .then(res => res.json())
+      .then(data => { if (data.ok) setTrainingLeads(data.leads); })
+      .catch(() => setTrainingLeads([]));
   }, [isTraining, user?.id, sessionLeads.length]);
 
+  /**
+   * Solicita el siguiente lead disponible de la cola y lo carga como lead activo.
+   * En modo simulación selecciona el lead ficticio con menos intentos previos.
+   * En modo real invoca el webhook crm-llamada-activa.
+   */
   const handleAsignarLead = async () => {
     if (isTraining) {
       // Seleccionar lead ficticio con menos intentos
@@ -69,6 +85,7 @@ const OperatorDashboard = () => {
     }
     try {
       const resp = await fetch(`${N8N}/crm-llamada-activa?operador_id=${user?.id}`);
+      if (!resp.ok) { setErrorRed('Error del servidor al obtener lead.'); return; }
       const data = await resp.json();
       if (data && data.lead) {
         setLead(data.lead);
@@ -77,9 +94,16 @@ const OperatorDashboard = () => {
         setResultado(''); setNotas(''); setFechaProgramada(''); setNombreResponsable('');
         setActiveTab('LLAMADA');
       }
-    } catch {}
+    } catch (_networkError) {
+      setErrorRed("Error de red al obtener lead. Inténtalo de nuevo.");
+    }
   };
 
+  /**
+   * Registra el resultado de la llamada activa y libera el lead.
+   * En modo simulación envía al endpoint de entrenamiento.
+   * En modo real envía al endpoint crm-resultado con el payload completo.
+   */
   const handleRegistrarResultado = () => {
     if (!resultado) return;
 
@@ -98,7 +122,7 @@ const OperatorDashboard = () => {
           setSessionLeads(prev => [...prev, { ...lead, resultado }]);
           setLead(null); setResultado(''); setNotas(''); setStartTime(null);
         })
-        .catch(() => {});
+        .catch(() => setErrorRed('Error de red al registrar resultado. Inténtalo de nuevo.'));
       return;
     }
 
@@ -120,7 +144,7 @@ const OperatorDashboard = () => {
         setLead(null); setLlamadaId(null); setStartTime(null);
         setResultado(''); setNotas(''); setFechaProgramada(''); setNombreResponsable('');
       })
-      .catch(() => {});
+      .catch(() => setErrorRed('Error de red al registrar resultado. Inténtalo de nuevo.'));
   };
 
   // Timer
@@ -129,9 +153,9 @@ const OperatorDashboard = () => {
     if (lead && startTime) {
       interval = setInterval(() => {
         const diff = Math.floor((Date.now() - startTime) / 1000);
-        const m = Math.floor(diff / 60).toString().padStart(2, '0');
-        const s = (diff % 60).toString().padStart(2, '0');
-        setElapsedString(`⏱ ${m}:${s}`);
+        const minutos = Math.floor(diff / 60).toString().padStart(2, '0');
+        const segundos = (diff % 60).toString().padStart(2, '0');
+        setElapsedString(`⏱ ${minutos}:${segundos}`);
       }, 1000);
     } else {
       setElapsedString('00:00');
@@ -145,7 +169,7 @@ const OperatorDashboard = () => {
     fetch(`${N8N}/crm-llamadas-programadas?operador_id=${user.id}`)
       .then(res => res.json())
       .then(data => { if (data?.ok) setProgramadas(data.programadas || []); })
-      .catch(() => {});
+      .catch(() => setProgramadas([]));
   }, [user?.id, isTraining]);
 
   // Fetch historial lead real
@@ -161,9 +185,9 @@ const OperatorDashboard = () => {
   useEffect(() => {
     if (!isTraining || !user?.id) return;
     fetch(`${N8N}/crm-historial-operador?operador_id=${user.id}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setTrainingStats(d.resumen); })
-      .catch(() => {});
+      .then(res => res.json())
+      .then(data => { if (data.ok) setTrainingStats(data.resumen); })
+      .catch(() => setTrainingStats(null));
   }, [isTraining, user?.id, sessionLeads.length]);
 
   const opcionesResultado = [
@@ -204,7 +228,11 @@ const OperatorDashboard = () => {
           </>
         )}
 
-        <Button variant="primary" className="w-full" onClick={handleAsignarLead}
+        {errorRed && (
+          <p className="text-[10px] text-red-400 font-mono text-center py-1">{errorRed}</p>
+        )}
+
+        <Button variant="primary" className="w-full" onClick={() => { setErrorRed(''); handleAsignarLead(); }}
           disabled={isTraining && trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length === 0}>
           {isTraining ? 'SIGUIENTE CLIENTE' : 'ASIGNAR SIGUIENTE LEAD'}
         </Button>
@@ -312,9 +340,12 @@ const OperatorDashboard = () => {
                   {!isTraining && resultado === 'callback' && (
                     <div className="mt-2 text-xs">
                       <label className="block text-slate-500 mb-1">PROGRAMAR EN (obligatorio)</label>
-                      <input type="datetime-local" value={fechaProgramada}
-                        onChange={e => setFechaProgramada(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 text-white text-sm rounded-sm p-2 w-full outline-none focus:border-[#D00000]" />
+                      <DatePickerField
+                        selected={fechaProgramada ? new Date(fechaProgramada) : null}
+                        onChange={(date) => setFechaProgramada(date ? format(date, "yyyy-MM-dd'T'HH:mm") : '')}
+                        showTimeSelect
+                        placeholderText="DD/MM/AAAA HH:MM"
+                      />
                     </div>
                   )}
 
@@ -344,22 +375,18 @@ const OperatorDashboard = () => {
             {activeTab === 'GUION' && (
               <div className="flex flex-col gap-3 py-2">
                 {[
-                  { fase: 'APERTURA', color: 'border-slate-600',
-                    texto: `"Hola, mi nombre es ${user?.nombre || '[nombre]'} y le llamo de ByBusiness, especialistas en publicidad para Google. ¿Hablo con el responsable?"` },
-                  { fase: 'CUALIFICACIÓN', color: 'border-slate-600',
-                    texto: '"¿Cuál es su nombre para dirigirme a usted? — Encantado/a, [nombre]..."' },
-                  { fase: 'GANCHO', color: 'border-amber-700',
-                    texto: '"Le llamo porque estamos finalizando el año y como bien sabe, Google actualiza todas sus fichas de empresa para determinar cuáles califican para seguir apareciendo en primera página con búsqueda."' },
-                  { fase: 'DIAGNÓSTICO', color: 'border-amber-700',
-                    texto: `"Una vez verificada la ficha de su empresa, vemos que su valoración actual es de ${lead?.rating ? lead.rating + ' estrellas' : '_____ estrellas'} y en este caso es necesario generar un flujo de valoraciones positivas para conseguir la puntuación más alta, además de optimizar el perfil para ser vistos por más clientes."` },
-                  { fase: 'OFERTA', color: 'border-[#D00000]',
-                    texto: `"Esto sería a través de nuestras promociones vigentes que incluyen:\n• 3 formas de búsqueda diferentes y/o modificables\n• Fotografías de los servicios que ofrecen\n• Un publicista encargado de trabajar permanentemente en su ficha\n• Difusión en redes sociales\n• Geolocalización del local\n\nTodo por un ÚNICO pago de 289€ + IVA = 349,69€, para estar durante 18 MESES en la primera página de Google de forma fija y permanente (sin CPC)."` },
-                  { fase: 'CIERRE', color: 'border-emerald-700',
-                    texto: '"¿Tiene alguna pregunta o duda hasta aquí? — [responder y pasar al cierre]\n\nEn caso de que le interese quedarse con el espacio, le explico cómo trabajamos: por seguridad no pedimos ni número de cuenta ni de tarjeta. Lo que hacemos es un contrato mediante grabación de voz y le enviamos su factura proforma con todo detallado para el abono respectivo.\n\n¿A nombre de quién le enviamos la factura, al suyo o al de empresa?"' },
-                ].map(({ fase, color, texto }) => (
-                  <div key={fase} className={`border-l-2 ${color} bg-slate-900 rounded-r-sm px-4 py-3`}>
+                  { fase: 'APERTURA',                     texto: `"Hola, mi nombre es ${user?.nombre || '[nombre]'} y le llamo de ByBusiness, especialistas en publicidad para Google. ¿Hablo con el responsable?"` },
+                  { fase: 'CUALIFICACIÓN',                     texto: '"¿Cuál es su nombre para dirigirme a usted? — Encantado/a, [nombre]..."' },
+                  { fase: 'GANCHO',                     texto: '"Le llamo porque estamos finalizando el año y como bien sabe, Google actualiza todas sus fichas de empresa para determinar cuáles califican para seguir apareciendo en primera página con búsqueda."' },
+                  { fase: 'DIAGNÓSTICO',                     texto: `"Una vez verificada la ficha de su empresa, vemos que su valoración actual es de ${lead?.rating ? lead.rating + ' estrellas' : '_____ estrellas'} y en este caso es necesario generar un flujo de valoraciones positivas para conseguir la puntuación más alta, además de optimizar el perfil para ser vistos por más clientes."` },
+                  { fase: 'OFERTA',                     texto: `"Esto sería a través de nuestras promociones vigentes que incluyen:\n• 3 formas de búsqueda diferentes y/o modificables\n• Fotografías de los servicios que ofrecen\n• Un publicista encargado de trabajar permanentemente en su ficha\n• Difusión en redes sociales\n• Geolocalización del local\n\nTodo por un ÚNICO pago de 289€ + IVA = 349,69€, para estar durante 18 MESES en la primera página de Google de forma fija y permanente (sin CPC)."` },
+                  { fase: 'CIERRE',                     texto: '"¿Tiene alguna pregunta o duda hasta aquí? — [responder y pasar al cierre]\n\nEn caso de que le interese quedarse con el espacio, le explico cómo trabajamos: por seguridad no pedimos ni número de cuenta ni de tarjeta. Lo que hacemos es un contrato mediante grabación de voz y le enviamos su factura proforma con todo detallado para el abono respectivo.\n\n¿A nombre de quién le enviamos la factura, al suyo o al de empresa?"' },
+                ].map(({ fase, texto }) => (
+                  <div key={fase} className={`border-l-2 bg-slate-900 rounded-r-sm px-4 py-3 ${
+                    fase === 'OFERTA' ? 'border-[#D00000]' : fase === 'CIERRE' ? 'border-emerald-700' : 'border-amber-700'
+                  }`}>
                     <span className={`text-[9px] font-black uppercase tracking-widest block mb-2 ${
-                      color.includes('D00000') ? 'text-[#D00000]' : color.includes('emerald') ? 'text-emerald-500' : color.includes('amber') ? 'text-amber-500' : 'text-slate-500'
+                      fase === 'OFERTA' ? 'text-[#D00000]' : fase === 'CIERRE' ? 'text-emerald-500' : 'text-amber-500'
                     }`}>{fase}</span>
                     <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">{texto}</p>
                   </div>
@@ -413,7 +440,7 @@ const OperatorDashboard = () => {
               historial.map((hist, idx) => (
                 <Card key={idx} className="p-3 flex flex-col gap-1 border border-slate-800/50 bg-slate-900/40 rounded-sm">
                   <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between">
-                    <span>{hist.fecha ? new Date(hist.fecha).toLocaleDateString('es-ES') : 'Fecha N/A'}</span>
+                    <span>{hist.fecha ? fmtFecha(hist.fecha) : 'Fecha N/A'}</span>
                     <span className="uppercase">{hist.resultado?.replace(/_/g, ' ') || 'N/A'}</span>
                   </div>
                   {hist.notas && <p className="text-xs text-slate-400 line-clamp-2 mt-1">{hist.notas}</p>}
@@ -479,7 +506,7 @@ const OperatorDashboard = () => {
                   <Card key={p.id} className="p-3 flex flex-col gap-1 border-slate-800/50 rounded-sm">
                     <span className="text-xs font-bold text-white uppercase tracking-wider truncate">{p.nombre_comercial}</span>
                     <span className="text-[10px] text-slate-500 font-mono">
-                      {p.fecha_programada ? new Date(p.fecha_programada).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      {p.fecha_programada ? fmtFechaHora(p.fecha_programada) : '—'}
                     </span>
                     <div><Badge status="pendiente">{p.tipo?.toUpperCase() || 'CALLBACK'}</Badge></div>
                   </Card>
