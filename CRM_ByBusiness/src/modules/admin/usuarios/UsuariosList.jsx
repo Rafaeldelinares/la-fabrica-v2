@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, UserPlus, Edit2, Trash2, Save, X, RefreshCw, Eye, EyeOff, PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as OTPAuth from 'otpauth';
 
+// Endpoint n8n — VITE_N8N_URL debe estar definida en producción
 const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
 
 const ROLES = [
@@ -27,11 +28,13 @@ const ESTADO_LLAMADA_DOT = {
 
 const emptyForm = { nombre: '', email: '', password: '', rol: 'operador' };
 
+/** Panel de gestión de usuarios del CRM: alta, edición, ausencia, baja y 2FA. */
 const UsuariosList = () => {
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+  const errorTimerRef = useRef(null);
 
   const [modo, setModo] = useState(null); // 'crear' | 'editar'
   const [formData, setFormData] = useState(emptyForm);
@@ -43,10 +46,13 @@ const UsuariosList = () => {
   // 2FA
   const [qrModal, setQrModal] = useState(null); // { nombre, email, secret }
 
+  useEffect(() => () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); }, []);
+
+  /** Carga la lista de usuarios desde n8n. */
   const cargar = () => {
     setLoading(true);
     setError(null);
-    fetch(`${N8N}/crm-get-usuarios`)
+    fetch(`${N8N}/crm-usuarios-get`)
       .then(r => r.json())
       .then(d => { if (d.ok) setUsuarios(d.usuarios); else setError('Error al cargar usuarios'); })
       .catch(() => setError('Error de conexión'))
@@ -55,10 +61,12 @@ const UsuariosList = () => {
 
   useEffect(() => { cargar(); }, []);
 
+  /** Abre el formulario en modo creación. */
   const abrirCrear = () => { setFormData(emptyForm); setShowPwd(false); setModo('crear'); setConfirmAusencia(null); setConfirmBaja(null); };
   const abrirEditar = (u) => { setFormData({ nombre: u.nombre, email: u.email, password: '', rol: u.rol, id: u.id }); setShowPwd(false); setModo('editar'); setConfirmAusencia(null); setConfirmBaja(null); };
   const cerrar = () => { setModo(null); setFormData(emptyForm); };
 
+  /** Guarda el usuario (crear o editar) vía n8n. */
   const guardar = async () => {
     if (!formData.nombre || !formData.email || (modo === 'crear' && !formData.password)) return;
     setSaving(true);
@@ -75,55 +83,68 @@ const UsuariosList = () => {
     finally { setSaving(false); }
   };
 
+  /** Marca al usuario como ausente y libera sus leads/callbacks al pool. */
   const marcarAusente = async (id) => {
-    const r = await fetch(`${N8N}/crm-marcar-ausente`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    const d = await r.json();
-    setConfirmAusencia(null);
-    cargar();
-    if (d.leads_liberados > 0 || d.callbacks_liberados > 0) {
-      setError(`✓ Ausencia marcada. ${d.leads_liberados || 0} leads y ${d.callbacks_liberados || 0} callbacks liberados al pool.`);
-      setTimeout(() => setError(null), 5000);
-    }
-  };
-
-  const activar2fa = async (u) => {
-    const r = await fetch(`${N8N}/crm-activar-2fa`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: u.id }),
-    });
-    const d = await r.json();
-    if (d.ok) {
-      setQrModal({ nombre: u.nombre, email: u.email, secret: d.totp_secret });
+    try {
+      const r = await fetch(`${N8N}/crm-marcar-ausente`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const d = await r.json();
+      setConfirmAusencia(null);
       cargar();
-    }
+      if (d.leads_liberados > 0 || d.callbacks_liberados > 0) {
+        setError(`✓ Ausencia marcada. ${d.leads_liberados || 0} leads y ${d.callbacks_liberados || 0} callbacks liberados al pool.`);
+        if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+        errorTimerRef.current = setTimeout(() => setError(null), 5000);
+      }
+    } catch { setError('Error al marcar ausencia'); }
   };
 
+  /** Genera secreto TOTP para el usuario y muestra el QR de configuración. */
+  const activar2fa = async (u) => {
+    try {
+      const r = await fetch(`${N8N}/crm-activar-2fa`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: u.id }),
+      });
+      const d = await r.json();
+      if (d.ok) { setQrModal({ nombre: u.nombre, email: u.email, secret: d.totp_secret }); cargar(); }
+    } catch { setError('Error al activar 2FA'); }
+  };
+
+  /** Desactiva el 2FA del usuario. */
   const desactivar2fa = async (id) => {
-    await fetch(`${N8N}/crm-desactivar-2fa`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    cargar();
+    try {
+      await fetch(`${N8N}/crm-desactivar-2fa`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      cargar();
+    } catch { setError('Error al desactivar 2FA'); }
   };
 
+  /** Reactiva un usuario suspendido o ausente. */
   const reactivar = async (id) => {
-    await fetch(`${N8N}/crm-reactivar-usuario`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    cargar();
+    try {
+      await fetch(`${N8N}/crm-reactivar-usuario`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      cargar();
+    } catch { setError('Error al reactivar usuario'); }
   };
 
+  /** Da de baja (suspende) al usuario. */
   const darDeBaja = async (id) => {
-    await fetch(`${N8N}/crm-eliminar-usuario`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    setConfirmBaja(null);
-    cargar();
+    try {
+      await fetch(`${N8N}/crm-eliminar-usuario`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      setConfirmBaja(null);
+      cargar();
+    } catch { setError('Error al dar de baja'); }
   };
 
   const activos = usuarios.filter(u => u.estado === 'activo');
