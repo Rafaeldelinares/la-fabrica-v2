@@ -7,7 +7,9 @@ import * as OTPAuth from 'otpauth';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
 
-const N8N = import.meta.env.VITE_N8N_URL;
+const N8N      = import.meta.env.VITE_N8N_URL;
+const N8N_AUS  = import.meta.env.VITE_N8N_AUSENCIAS_URL;
+const N8N_GEST = import.meta.env.VITE_N8N_GESTIONES_URL;
 
 const ROLES = [
   { value: 'admin',        label: 'Administrador' },
@@ -45,7 +47,7 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
 
   useEffect(() => {
     setCargando(true);
-    fetch(`${N8N}/crm-ausencia-gestiones?operador_id=${usuario.id}`)
+    fetch(`${N8N_GEST}?operador_id=${usuario.id}`)
       .then(r => r.json())
       .then(d => {
         const gs = Array.isArray(d.gestiones) ? d.gestiones : [];
@@ -221,7 +223,7 @@ const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
 
   useEffect(() => {
     setCargando(true);
-    fetch(`${N8N}/crm-ausencia-gestiones?operador_id=${usuario.id}`)
+    fetch(`${N8N_GEST}?operador_id=${usuario.id}`)
       .then(r => r.json())
       .then(d => {
         const gs = Array.isArray(d.gestiones) ? d.gestiones : [];
@@ -355,9 +357,9 @@ const UsuariosList = () => {
     setModalAusencia(null);
     const adminsEmails = usuarios.filter(x => x.rol === 'admin' && x.estado === 'activo').map(x => x.email).join(',');
     try {
-      await fetch(`${N8N}/crm-ausencia-crear`, {
+      await fetch(N8N_AUS, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operador_id: u.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
+        body: JSON.stringify({ action: 'ausencia_crear', operador_id: u.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
       });
       cargar();
       mostrarInfo(`✓ ${u.nombre} marcado como ausente. Delegaciones creadas.`);
@@ -369,9 +371,9 @@ const UsuariosList = () => {
     setModalBaja(null);
     const adminsEmails   = usuarios.filter(x => x.rol === 'admin' && x.estado === 'activo').map(x => x.email).join(',');
     try {
-      await fetch(`${N8N}/crm-usuario-baja`, {
+      await fetch(N8N_AUS, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operador_id: u.id, operador_nombre: u.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
+        body: JSON.stringify({ action: 'baja', operador_id: u.id, operador_nombre: u.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
       });
       cargar();
       mostrarInfo(`✓ ${u.nombre} dado de baja definitivamente.`);
@@ -382,9 +384,9 @@ const UsuariosList = () => {
     const u = modalReactivar;
     setModalReactivar(null);
     try {
-      await fetch(`${N8N}/crm-ausencia-reactivar`, {
+      await fetch(N8N_AUS, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operador_id: u.id, resoluciones }),
+        body: JSON.stringify({ action: 'ausencia_reactivar', operador_id: u.id, resoluciones }),
       });
       cargar();
       mostrarInfo(`✓ ${u.nombre} reactivado.`);
