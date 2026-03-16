@@ -3,6 +3,7 @@ import Card from '../../shared/ui/Card';
 import Badge from '../../shared/ui/Badge';
 import EmptyState from '../../shared/ui/EmptyState';
 import { GraduationCap, RefreshCw, RotateCcw, UserCheck, Star, Trash2, Plus, ChevronDown, ChevronUp, AlertTriangle, TrendingDown, PhoneOff, TrendingUp } from 'lucide-react';
+import { fmtHora } from '../../utils/dates';
 
 const ALERTAS_REGLAS = [
   {
@@ -59,8 +60,6 @@ const AlertasSesion = ({ llamadas }) => {
   );
 };
 
-const N8N = () => import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
-
 const DIFICULTAD_COLOR = {
   facil:   'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   medio:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
@@ -91,7 +90,7 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
   const evaluar = async () => {
     if (!op.sesion_id || apto === null) return;
     setSaving(true);
-    const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+    const base = import.meta.env.VITE_N8N_URL;
     try {
       await fetch(`${base}/crm-evaluar-sesion`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -105,7 +104,8 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
         }),
       });
       onEvaluar.refetch();
-    } finally { setSaving(false); }
+    } catch { /* error de red — finally restablece el estado */ }
+    finally { setSaving(false); }
   };
 
   const llamadas = op.ultimas_llamadas || [];
@@ -158,7 +158,7 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
               <div className="space-y-1">
                 {llamadas.map((ll, i) => (
                   <div key={i} className="flex items-center gap-3 text-[10px] py-1.5 border-b border-slate-800/50 last:border-0">
-                    <span className="font-mono text-slate-600 w-20 shrink-0">{new Date(ll.fecha).toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'})}</span>
+                    <span className="font-mono text-slate-600 w-20 shrink-0">{fmtHora(ll.fecha)}</span>
                     <span className="font-bold text-slate-300 truncate flex-1">{ll.lead}</span>
                     <span className={`font-mono shrink-0 ${ll.resultado === 'venta' ? 'text-emerald-400' : 'text-slate-500'}`}>
                       {ll.resultado?.replace(/_/g,' ')}
@@ -200,7 +200,7 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
                   Necesita más práctica
                 </button>
               </div>
-              <button onClick={evaluar} disabled={!apto !== false && apto === null || saving}
+              <button onClick={evaluar} disabled={apto === null || saving}
                 className="flex items-center gap-1.5 text-[10px] font-black text-white bg-[#D00000] hover:bg-red-700 px-4 py-1.5 rounded-sm transition-colors disabled:opacity-50 uppercase tracking-widest">
                 <Star size={10} /> {saving ? 'Guardando…' : 'Guardar evaluación'}
               </button>
@@ -215,7 +215,7 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
 const GestionLeads = ({ onRefresh }) => {
   const [leads, setLeads] = useState(null);
   const [resetting, setResetting] = useState(false);
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const base = import.meta.env.VITE_N8N_URL;
 
   const cargar = () => {
     fetch(`${base}/crm-leads-entrenamiento`)
@@ -224,7 +224,7 @@ const GestionLeads = ({ onRefresh }) => {
       .catch(() => setLeads([]));
   };
 
-  useEffect(cargar, []);
+  useEffect(() => { cargar(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   const resetAll = async () => {
     if (!confirm('¿Borrar TODAS las interacciones de entrenamiento? Los leads quedarán limpios.')) return;
@@ -240,19 +240,23 @@ const GestionLeads = ({ onRefresh }) => {
 
   const resetOperador = async (operadorId, nombre) => {
     if (!confirm(`¿Borrar interacciones de ${nombre}?`)) return;
-    await fetch(`${base}/crm-reset-entrenamiento`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: 'reset_historial', operador_id: operadorId }),
-    });
-    cargar(); onRefresh();
+    try {
+      await fetch(`${base}/crm-reset-entrenamiento`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: 'reset_historial', operador_id: operadorId }),
+      });
+      cargar(); onRefresh();
+    } catch { /* error de red */ }
   };
 
   const toggleLead = async (lead) => {
-    await fetch(`${base}/crm-reset-entrenamiento`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accion: lead.activo ? 'borrar_lead' : 'restaurar_lead', lead_id: lead.id }),
-    });
-    cargar();
+    try {
+      await fetch(`${base}/crm-reset-entrenamiento`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accion: lead.activo ? 'borrar_lead' : 'restaurar_lead', lead_id: lead.id }),
+      });
+      cargar();
+    } catch { /* error de red */ }
   };
 
   return (
@@ -299,7 +303,7 @@ const GestionLeads = ({ onRefresh }) => {
 const SupervisorPanel = ({ user }) => {
   const [operadores, setOperadores] = useState(null);
   const [tab, setTab] = useState('operadores');
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const base = import.meta.env.VITE_N8N_URL;
 
   const cargar = () => {
     setOperadores(null);
@@ -309,7 +313,7 @@ const SupervisorPanel = ({ user }) => {
       .catch(() => setOperadores([]));
   };
 
-  useEffect(cargar, []);
+  useEffect(() => { cargar(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
 
   const activos = operadores?.filter(o => o.sesion_id) || [];
 

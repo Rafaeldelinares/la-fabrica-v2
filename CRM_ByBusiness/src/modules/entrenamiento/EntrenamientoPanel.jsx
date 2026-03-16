@@ -4,8 +4,7 @@ import Badge from '../../shared/ui/Badge';
 import EmptyState from '../../shared/ui/EmptyState';
 import HistorialProgreso from './HistorialProgreso';
 import { GraduationCap, Phone, PhoneOff, PhoneMissed, Calendar, TrendingUp, RefreshCw, Play, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
-
-const N8N = () => import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+import { fmtFecha } from '../../utils/dates';
 
 const DIFICULTAD_COLOR = {
   facil:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -31,7 +30,7 @@ const TarjetaLead = ({ lead, onRegistrar }) => {
   const registrar = async () => {
     if (!resultado) return;
     setSaving(true);
-    const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+    const base = import.meta.env.VITE_N8N_URL;
     try {
       await fetch(`${base}/crm-resultado-entrenamiento`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -45,7 +44,8 @@ const TarjetaLead = ({ lead, onRegistrar }) => {
       });
       setResultado(''); setNotas(''); setDuracion(''); setOpen(false);
       onRegistrar.refetch();
-    } finally { setSaving(false); }
+    } catch { /* error de red — finally restablece el estado */ }
+    finally { setSaving(false); }
   };
 
   return (
@@ -92,7 +92,7 @@ const TarjetaLead = ({ lead, onRegistrar }) => {
               <p className="text-[9px] text-slate-500 uppercase tracking-widest mb-2">Mis llamadas anteriores</p>
               {lead.mis_llamadas.map((ll, i) => (
                 <div key={i} className="flex items-center gap-2 text-[10px] py-1 border-b border-slate-800/50 last:border-0">
-                  <span className="font-mono text-slate-600">{new Date(ll.fecha).toLocaleDateString('es-ES')}</span>
+                  <span className="font-mono text-slate-600">{fmtFecha(ll.fecha)}</span>
                   <span className="text-slate-400">{ll.resultado?.replace(/_/g,' ')}</span>
                   {ll.notas && <span className="text-slate-600 italic truncate flex-1">{ll.notas}</span>}
                 </div>
@@ -140,7 +140,7 @@ const EntrenamientoPanel = ({ user }) => {
   const [leads, setLeads] = useState(null);
   const [sesionId, setSesionId] = useState(null);
   const [iniciando, setIniciando] = useState(false);
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const base = import.meta.env.VITE_N8N_URL;
 
   const cargarLeads = () => {
     fetch(`${base}/crm-leads-entrenamiento?operador_id=${user.id}`)
@@ -161,6 +161,7 @@ const EntrenamientoPanel = ({ user }) => {
     } finally { setIniciando(false); }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { cargarLeads(); }, []);
 
   const totalLlamadas = leads ? leads.reduce((s, l) => s + (l.mis_intentos || 0), 0) : 0;

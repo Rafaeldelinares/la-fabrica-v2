@@ -3,16 +3,12 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { TrendingUp } from 'lucide-react';
+import { fmtFecha } from '../../../utils/dates';
 
 const ESTADO_CLASSES = {
   activo:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   pausado:   'bg-amber-500/10 text-amber-400 border-amber-500/20',
   cancelado: 'bg-red-500/10 text-red-500 border-red-500/20',
-};
-
-const fmtFecha = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
 };
 
 const VentasPanel = () => {
@@ -24,11 +20,12 @@ const VentasPanel = () => {
 
   const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetch(`${N8N}/crm-operadores-lista`)
       .then(r => r.json())
       .then(d => { if (d.ok) setOperadores(d.operadores); })
-      .catch(() => {});
+      .catch(() => setOperadores([]));
   }, []);
 
   useEffect(() => {
@@ -38,7 +35,7 @@ const VentasPanel = () => {
     fetch(`${N8N}/crm-ventas?${params}`)
       .then(r => r.json())
       .then(d => { if (d.ok) { setVentas(d.ventas); setTotal(d.total); } })
-      .catch(() => {});
+      .catch(() => setVentas([]));
   }, [filtroEstado, filtroOperador]);
 
   return (
