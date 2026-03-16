@@ -4,11 +4,12 @@ import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth,
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
-import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../../modules/auth/AuthContext';
 import DatePickerField from '../../../shared/ui/DatePickerField';
 import { fmtFechaHora } from '../../../utils/dates';
+import ClienteDrawer from '../cartera/ClienteDrawer';
 
 const localizer = dateFnsLocalizer({
   format, parse,
@@ -117,7 +118,12 @@ NuevaCitaModal.propTypes = {
 };
 
 /** Modal de detalle de un evento del calendario al hacer clic sobre él. */
-const EventoDetalle = ({ evento, onClose }) => {
+/**
+ * Modal de detalle de un evento del calendario.
+ * Si el evento tiene cliente_id, muestra un botón para abrir la ficha del cliente.
+ * @param {{ evento: Object, onClose: Function, onAbrirCliente: Function }} props
+ */
+const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
   if (!evento) return null;
   const cfg = TIPO[evento.tipo] || TIPO.llamada_operador;
   return (
@@ -142,14 +148,23 @@ const EventoDetalle = ({ evento, onClose }) => {
             }`}>{evento.estado}</span>
           </div>
         </div>
+        {evento.cliente_id && (
+          <button
+            onClick={() => { onAbrirCliente(evento.cliente_id); onClose(); }}
+            className="mt-4 w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 text-xs font-black text-slate-300 hover:text-white rounded-sm transition-colors uppercase tracking-widest"
+          >
+            <ExternalLink size={11} /> Ver ficha cliente
+          </button>
+        )}
       </div>
     </div>
   );
 };
 
 EventoDetalle.propTypes = {
-  evento:  PropTypes.object,
-  onClose: PropTypes.func.isRequired,
+  evento:          PropTypes.object,
+  onClose:         PropTypes.func.isRequired,
+  onAbrirCliente:  PropTypes.func.isRequired,
 };
 
 /** Contexto para pasar callbacks hover a EventoTag sin prop-drilling ni globales mutables. */
@@ -232,9 +247,15 @@ const AgendaGlobalPanel = () => {
   const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true });
   const [modalCita, setModalCita]         = useState(false);
   const [eventoSel, setEventoSel]         = useState(null);
+  const [clienteDrawer, setClienteDrawer] = useState(null);
   const [tooltipEvento, setTooltipEvento] = useState(null);
   const [errorCarga, setErrorCarga]       = useState(false);
   const tooltipWrapperRef                 = useRef(null);
+
+  const abrirClienteDesdeAgenda = useCallback((clienteId) => {
+    const c = clientes.find(x => String(x.id) === String(clienteId));
+    if (c) setClienteDrawer(c);
+  }, [clientes]);
 
   const tooltipHandlers = useMemo(() => ({
     set: (evento, x, y) => {
@@ -401,7 +422,8 @@ const AgendaGlobalPanel = () => {
         />
       )}
 
-      {eventoSel && <EventoDetalle evento={eventoSel} onClose={() => setEventoSel(null)} />}
+      {eventoSel && <EventoDetalle evento={eventoSel} onClose={() => setEventoSel(null)} onAbrirCliente={abrirClienteDesdeAgenda} />}
+      {clienteDrawer && <ClienteDrawer cliente={clienteDrawer} gestorId={user?.id} onClose={() => setClienteDrawer(null)} onGestorChanged={() => {}} />}
       <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}>
         {tooltipEvento && <TooltipContenido evento={tooltipEvento} />}
       </div>
