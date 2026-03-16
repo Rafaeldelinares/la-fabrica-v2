@@ -1,8 +1,9 @@
 import React from 'react';
 import { Printer, X } from 'lucide-react';
+import { fmtFecha } from '../../../utils/dates';
 
 const fmtEur  = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '0,00 €';
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' }) : '—';
+const fmtDate = (d) => fmtFecha(d);
 
 /**
  * Visor/impresor de factura legal española.

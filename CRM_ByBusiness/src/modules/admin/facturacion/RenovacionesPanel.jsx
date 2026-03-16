@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { fmtFecha, fmtMesAno } from '../../../utils/dates';
 
 const MESES_OPCIONES = [3, 6, 9, 12, 15, 18, 20];
 
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+const fmtDate = (d) => fmtFecha(d);
 const fmtEur  = (n) => n ? `${Number(n).toLocaleString('es-ES')}€` : '—';
 
 const mesKey   = (dateStr) => { if (!dateStr) return 'unknown'; const d = new Date(dateStr); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
-const mesLabel = (dateStr) => { if (!dateStr) return ''; return new Date(dateStr).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }); };
+const mesLabel = (dateStr) => fmtMesAno(dateStr);
 
 const urgencyClass = (dias) => {
   if (dias <= 0)  return 'bg-red-500/20 text-red-400 border-red-500/30';

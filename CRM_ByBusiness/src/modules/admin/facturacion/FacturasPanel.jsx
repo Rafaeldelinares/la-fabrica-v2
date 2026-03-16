@@ -4,9 +4,10 @@ import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import FacturaViewer from './FacturaViewer';
 import { FileText, Eye } from 'lucide-react';
+import { fmtFecha } from '../../../utils/dates';
 
 const fmtEur  = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
+const fmtDate = (d) => fmtFecha(d);
 
 const ESTADO_BADGE = {
   emitida:  'bg-blue-500/10 text-blue-400 border-blue-500/20',
