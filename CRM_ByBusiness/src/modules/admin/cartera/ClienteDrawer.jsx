@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 import { X, Phone, Mail, Calendar, FileText, Plus, Clock, User, Globe, MapPin, Star, MessageSquare, RefreshCw, TrendingUp, AlertCircle, CheckCircle, XCircle, AlertTriangle, CalendarClock, Building2, ExternalLink, BadgeCheck } from 'lucide-react';
 import RegistrarInteraccionModal from './RegistrarInteraccionModal';
@@ -37,7 +38,7 @@ const TABS = [
 ];
 
 /** TabFicha — Pestaña de datos de contacto, localización y próxima acción del cliente. */
-const TabFicha = ({ cliente, n8nUrl }) => {
+const TabFicha = ({ cliente, n8nUrl, onGestorChanged }) => {
   const [proximaFecha, setProximaFecha] = useState(cliente.proxima_accion_fecha?.slice(0, 10) || '');
   const [proximaNota,  setProximaNota]  = useState(cliente.proxima_accion_nota  || '');
   const [guardando, setGuardando]       = useState(false);
@@ -60,7 +61,7 @@ const TabFicha = ({ cliente, n8nUrl }) => {
   useEffect(() => {
     fetch(`${n8nUrl}/crm-usuarios-get`)
       .then(r => r.json())
-      .then(d => { if (d.ok) setGestores(d.usuarios.filter(u => ['admin','operador'].includes(u.rol))); })
+      .then(d => { if (d.ok) setGestores(d.usuarios.filter(u => u.rol === 'admin')); })
       .catch(() => setGestores([]));
   // n8nUrl es constante de build, no reactiva
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -77,6 +78,8 @@ const TabFicha = ({ cliente, n8nUrl }) => {
       setGuardadoGest(true);
       clearTimeout(timerGuardadoGest.current);
       timerGuardadoGest.current = setTimeout(() => setGuardadoGest(false), 2000);
+      const g = gestores.find(x => String(x.id) === String(gestorId));
+      onGestorChanged?.({ gestor_id: gestorId || null, gestor_nombre: g?.nombre || null });
     } catch { /* error de red — finally restablece el estado */ } finally { setGuardandoGest(false); }
   };
 
@@ -236,6 +239,12 @@ const TabFicha = ({ cliente, n8nUrl }) => {
       </div>
     </div>
   );
+};
+
+TabFicha.propTypes = {
+  cliente:          PropTypes.object.isRequired,
+  n8nUrl:           PropTypes.string.isRequired,
+  onGestorChanged:  PropTypes.func,
 };
 
 /** TabContratos — Pestaña de contratos activos del cliente con opción de añadir nuevos servicios. */
@@ -893,7 +902,7 @@ const TabGBP = ({ cliente, n8nUrl }) => {
  * @param {string|number} gestorId - ID del gestor autenticado, para registrar interacciones
  * @param {Function} onClose   - Callback invocado al cerrar el drawer
  */
-const ClienteDrawer = ({ cliente, gestorId, onClose }) => {
+const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged }) => {
   const [activeTab, setActiveTab] = useState('ficha');
   const [timeline, setTimeline]   = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -980,7 +989,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose }) => {
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {activeTab === 'ficha'     && <TabFicha     cliente={cliente} n8nUrl={N8N} />}
+          {activeTab === 'ficha'     && <TabFicha     cliente={cliente} n8nUrl={N8N} onGestorChanged={onGestorChanged} />}
           {activeTab === 'contratos' && <TabContratos cliente={cliente} n8nUrl={N8N} />}
           {activeTab === 'historial' && <TabHistorial timeline={timeline} />}
           {activeTab === 'gbp'       && <TabGBP       cliente={cliente} n8nUrl={N8N} />}
@@ -997,6 +1006,13 @@ const ClienteDrawer = ({ cliente, gestorId, onClose }) => {
       )}
     </>
   );
+};
+
+ClienteDrawer.propTypes = {
+  cliente:          PropTypes.object.isRequired,
+  gestorId:         PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  onClose:          PropTypes.func.isRequired,
+  onGestorChanged:  PropTypes.func,
 };
 
 export default ClienteDrawer;

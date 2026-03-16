@@ -350,6 +350,10 @@ const CarteraPanel = () => {
               cliente={seleccionado}
               gestorId={user?.id}
               onClose={() => setSeleccionado(null)}
+              onGestorChanged={({ gestor_id, gestor_nombre }) => {
+                setSeleccionado(prev => ({ ...prev, gestor_id, gestor_nombre }));
+                setClientes(prev => prev?.map(c => c.id === seleccionado.id ? { ...c, gestor_id, gestor_nombre } : c) ?? prev);
+              }}
             />
           </div>
         </div>
