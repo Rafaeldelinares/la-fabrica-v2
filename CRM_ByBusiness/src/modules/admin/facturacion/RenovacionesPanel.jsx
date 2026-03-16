@@ -38,6 +38,7 @@ const RenovacionesPanel = ({ onAbrirCliente }) => {
   const [renovaciones, setRenovaciones] = useState(null);
   const [meses,        setMeses]        = useState(12);
   const [mesFiltro,    setMesFiltro]    = useState(null);
+  const [pagina,       setPagina]       = useState(1);
   const N8N = import.meta.env.VITE_N8N_URL;
 
   const load = () => {
@@ -153,7 +154,7 @@ const RenovacionesPanel = ({ onAbrirCliente }) => {
                   <div
                     key={m.key}
                     className="flex flex-col items-center gap-0.5 cursor-pointer group flex-1 min-w-0"
-                    onClick={() => setMesFiltro(isSel ? null : m.key)}
+                    onClick={() => { setMesFiltro(isSel ? null : m.key); setPagina(1); }}
                     title={`${m.label} — ${m.count} contratos — ${fmtEur(Math.round(m.mrr))}`}
                   >
                     {/* MRR hint */}
@@ -182,67 +183,93 @@ const RenovacionesPanel = ({ onAbrirCliente }) => {
                 <span className="text-[9px] text-slate-500 font-mono">
                   Filtrando: {byMes.find(m => m.key === mesFiltro)?.label} — {lista.length} contratos — {fmtEur(filtroMRR)}
                 </span>
-                <button onClick={() => setMesFiltro(null)} className="text-[9px] text-[#D00000] font-mono hover:underline">× limpiar filtro</button>
+                <button onClick={() => { setMesFiltro(null); setPagina(1); }} className="text-[9px] text-[#D00000] font-mono hover:underline">× limpiar filtro</button>
               </div>
             )}
           </div>
 
           {/* CAPA 2 — Lista de contratos */}
-          <div className="bg-slate-900 border border-slate-800 rounded-sm overflow-hidden shrink-0">
-            <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-              <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">
-                {mesFiltro
-                  ? `${lista.length} contratos · ${byMes.find(m => m.key === mesFiltro)?.label}`
-                  : `${lista.length} contratos en el horizonte`}
-              </p>
-              <span className="text-[9px] text-slate-600 font-mono">{fmtEur(filtroMRR)} MRR</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="text-[9px] text-slate-600 uppercase tracking-widest bg-slate-950/50 border-b border-slate-800">
-                  <tr>
-                    <th className="px-4 py-2.5">Cliente</th>
-                    <th className="px-4 py-2.5">Producto</th>
-                    <th className="px-4 py-2.5 font-mono">Vencimiento</th>
-                    <th className="px-4 py-2.5 font-mono">MRR</th>
-                    <th className="px-4 py-2.5 font-mono">Sin contacto</th>
-                    <th className="px-4 py-2.5">Gestor</th>
-                    <th className="px-4 py-2.5 font-mono">Urgencia</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lista.map(r => (
-                    <tr key={r.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
-                      <td className="px-4 py-2.5">
-                        <button
-                          onClick={() => onAbrirCliente(r.cliente_id)}
-                          className="group flex items-center gap-1 text-left"
-                        >
-                          <span className="font-bold text-slate-200 group-hover:text-blue-400 uppercase tracking-wide text-[11px] transition-colors">{r.nombre_comercial}</span>
-                          <ExternalLink size={9} className="text-slate-700 group-hover:text-blue-400 transition-colors shrink-0" />
-                        </button>
-                        {r.telefono && <p className="text-[9px] text-slate-600 font-mono mt-0.5">{r.telefono}</p>}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-400 text-[11px]">{r.producto_nombre || '—'}</td>
-                      <td className="px-4 py-2.5 font-mono text-slate-300 font-bold text-[11px]">{fmtDate(r.fecha_fin)}</td>
-                      <td className="px-4 py-2.5 font-mono text-emerald-400 text-[11px]">{fmtEur(r.importe_mensual)}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[9px] font-mono ${riskClass(r.dias_sin_contacto)}`}>
-                          {r.dias_sin_contacto != null ? `${r.dias_sin_contacto}d` : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-500 text-[11px]">{r.gestor_nombre || '—'}</td>
-                      <td className="px-4 py-2.5">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[9px] font-mono ${urgencyClass(r.dias_restantes)}`}>
-                          {urgencyLabel(r.dias_restantes)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {(() => {
+            const totalPaginas = Math.ceil(lista.length / 25);
+            const paginados = lista.slice((pagina - 1) * 25, pagina * 25);
+            return (
+              <div className="bg-slate-900 border border-slate-800 rounded-sm overflow-hidden shrink-0">
+                <div className="px-4 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+                  <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">
+                    {mesFiltro
+                      ? `${lista.length} contratos · ${byMes.find(m => m.key === mesFiltro)?.label}`
+                      : `${lista.length} contratos en el horizonte`}
+                  </p>
+                  <span className="text-[9px] text-slate-600 font-mono">{fmtEur(filtroMRR)} MRR</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="text-[9px] text-slate-600 uppercase tracking-widest bg-slate-950/50 border-b border-slate-800">
+                      <tr>
+                        <th className="px-4 py-2.5">Cliente</th>
+                        <th className="px-4 py-2.5">Producto</th>
+                        <th className="px-4 py-2.5 font-mono">Vencimiento</th>
+                        <th className="px-4 py-2.5 font-mono">MRR</th>
+                        <th className="px-4 py-2.5 font-mono">Sin contacto</th>
+                        <th className="px-4 py-2.5">Gestor</th>
+                        <th className="px-4 py-2.5 font-mono">Urgencia</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginados.map(r => (
+                        <tr key={r.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => onAbrirCliente(r.cliente_id)}
+                              className="group flex items-center gap-1 text-left"
+                            >
+                              <span className="font-bold text-slate-200 group-hover:text-blue-400 uppercase tracking-wide text-[11px] transition-colors">{r.nombre_comercial}</span>
+                              <ExternalLink size={9} className="text-slate-700 group-hover:text-blue-400 transition-colors shrink-0" />
+                            </button>
+                            {r.telefono && <p className="text-[9px] text-slate-600 font-mono mt-0.5">{r.telefono}</p>}
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-400 text-[11px]">{r.producto_nombre || '—'}</td>
+                          <td className="px-4 py-2.5 font-mono text-slate-300 font-bold text-[11px]">{fmtDate(r.fecha_fin)}</td>
+                          <td className="px-4 py-2.5 font-mono text-emerald-400 text-[11px]">{fmtEur(r.importe_mensual)}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[9px] font-mono ${riskClass(r.dias_sin_contacto)}`}>
+                              {r.dias_sin_contacto != null ? `${r.dias_sin_contacto}d` : '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-500 text-[11px]">{r.gestor_nombre || '—'}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-sm border text-[9px] font-mono ${urgencyClass(r.dias_restantes)}`}>
+                              {urgencyLabel(r.dias_restantes)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {totalPaginas > 1 && (
+                  <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
+                    <span className="text-[10px] text-slate-600 font-mono">
+                      {(pagina - 1) * 25 + 1}–{Math.min(pagina * 25, lista.length)} de {lista.length}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setPagina(p => Math.max(1, p - 1))}
+                        disabled={pagina === 1}
+                        className="px-2 py-1 text-[10px] font-mono border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >‹</button>
+                      <span className="text-[10px] font-mono text-slate-500 px-2">{pagina}/{totalPaginas}</span>
+                      <button
+                        onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                        disabled={pagina === totalPaginas}
+                        className="px-2 py-1 text-[10px] font-mono border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      >›</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

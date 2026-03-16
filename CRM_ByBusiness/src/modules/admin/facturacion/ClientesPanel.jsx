@@ -310,12 +310,13 @@ const ClientesPanel = ({ onAbrirCliente }) => {
   const { user } = useAuth();
   const [clientes, setClientes] = useState(null);
   const [modalCliente, setModalCliente] = useState(null);
+  const [pagina, setPagina] = useState(1);
   const N8N_URL = import.meta.env.VITE_N8N_URL;
 
   const loadClientes = () => {
     fetch(`${N8N_URL}/crm-clientes`)
       .then(r => r.json())
-      .then(d => { if (d.ok) setClientes(d.clientes); })
+      .then(d => { if (d.ok) { setClientes(d.clientes); setPagina(1); } })
       .catch(() => setClientes([]));
   };
 
@@ -340,7 +341,37 @@ const ClientesPanel = ({ onAbrirCliente }) => {
             <EmptyState title="Sin clientes" icon={Users} description="Los clientes aparecerán aquí cuando se cierren ventas" />
           </div>
         ) : (
-          <div>{clientes.map(c => <ClienteRow key={c.id} cliente={c} onNuevaProforma={setModalCliente} onAbrirCliente={onAbrirCliente} />)}</div>
+          <>
+            {(() => {
+              const totalPaginas = Math.ceil(clientes.length / 25);
+              const paginados = clientes.slice((pagina - 1) * 25, pagina * 25);
+              return (
+                <>
+                  <div>{paginados.map(c => <ClienteRow key={c.id} cliente={c} onNuevaProforma={setModalCliente} onAbrirCliente={onAbrirCliente} />)}</div>
+                  {totalPaginas > 1 && (
+                    <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
+                      <span className="text-[10px] text-slate-600 font-mono">
+                        {(pagina - 1) * 25 + 1}–{Math.min(pagina * 25, clientes.length)} de {clientes.length}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setPagina(p => Math.max(1, p - 1))}
+                          disabled={pagina === 1}
+                          className="px-2 py-1 text-[10px] font-mono border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >‹</button>
+                        <span className="text-[10px] font-mono text-slate-500 px-2">{pagina}/{totalPaginas}</span>
+                        <button
+                          onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                          disabled={pagina === totalPaginas}
+                          className="px-2 py-1 text-[10px] font-mono border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        >›</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </>
         )}
       </Card>
 
