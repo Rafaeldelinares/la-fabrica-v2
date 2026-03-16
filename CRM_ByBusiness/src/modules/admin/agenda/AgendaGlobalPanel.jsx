@@ -119,12 +119,13 @@ NuevaCitaModal.propTypes = {
 
 /**
  * Modal de detalle de un evento del calendario.
- * Si se pasa clienteObj, el nombre de la empresa es clickeable y abre la ficha del cliente.
- * @param {{ evento: Object, clienteObj: Object|null, onClose: Function, onAbrirCliente: Function }} props
+ * Si el evento tiene cliente_id, el título (nombre empresa) es clickeable y abre la ficha.
+ * @param {{ evento: Object, onClose: Function, onAbrirCliente: Function }} props
  */
-const EventoDetalle = ({ evento, clienteObj, onClose, onAbrirCliente }) => {
+const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
   if (!evento) return null;
   const cfg = TIPO[evento.tipo] || TIPO.llamada_operador;
+  const tieneCliente = Boolean(evento.cliente_id);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-sm p-5 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -133,13 +134,13 @@ const EventoDetalle = ({ evento, clienteObj, onClose, onAbrirCliente }) => {
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={14} /></button>
         </div>
 
-        {clienteObj ? (
+        {tieneCliente ? (
           <button
-            onClick={() => { onAbrirCliente(clienteObj); onClose(); }}
-            className="group flex items-center gap-1.5 mb-1 text-left"
+            onClick={() => { onAbrirCliente(evento.cliente_id); onClose(); }}
+            className="group flex items-center gap-1.5 mb-1 text-left w-full"
           >
             <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">
-              {clienteObj.nombre_comercial}
+              {evento.titulo}
             </span>
             <ExternalLink size={10} className="text-slate-600 group-hover:text-blue-400 transition-colors shrink-0 mt-px" />
           </button>
@@ -168,7 +169,6 @@ const EventoDetalle = ({ evento, clienteObj, onClose, onAbrirCliente }) => {
 
 EventoDetalle.propTypes = {
   evento:         PropTypes.object,
-  clienteObj:     PropTypes.object,
   onClose:        PropTypes.func.isRequired,
   onAbrirCliente: PropTypes.func.isRequired,
 };
@@ -258,8 +258,11 @@ const AgendaGlobalPanel = () => {
   const [errorCarga, setErrorCarga]       = useState(false);
   const tooltipWrapperRef                 = useRef(null);
 
-  const abrirClienteDesdeAgenda = useCallback((clienteObj) => {
-    setClienteDrawer(clienteObj);
+  const abrirClienteDesdeAgenda = useCallback((clienteId) => {
+    fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok && d.clientes?.length) setClienteDrawer(d.clientes[0]); })
+      .catch(err => { console.error('[AgendaGlobal] error cargando ficha cliente:', err); });
   }, []);
 
   const tooltipHandlers = useMemo(() => ({
@@ -430,7 +433,6 @@ const AgendaGlobalPanel = () => {
       {eventoSel && (
         <EventoDetalle
           evento={eventoSel}
-          clienteObj={clientes.find(x => String(x.id) === String(eventoSel.cliente_id)) ?? null}
           onClose={() => setEventoSel(null)}
           onAbrirCliente={abrirClienteDesdeAgenda}
         />
