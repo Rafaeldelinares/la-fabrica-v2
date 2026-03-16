@@ -41,7 +41,7 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible }) => {
 
   return (
     <>
-      <Card className="flex flex-col bg-slate-900 border-slate-800 !p-0 overflow-hidden">
+      <Card className="flex flex-col h-full bg-slate-900 border-slate-800 !p-0 overflow-hidden">
         {facturas === null ? (
           <div className="flex-1 flex items-center justify-center py-20 animate-pulse">
             <div className="flex flex-col gap-3 items-center">
@@ -59,7 +59,7 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible }) => {
           const paginadas = facturas.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
           return (
             <>
-              <div className="overflow-x-auto">
+              <div className="flex-1 overflow-auto">
                 <table className="w-full text-left text-xs text-slate-400">
                   <thead className="text-[10px] text-slate-500 uppercase font-black tracking-widest bg-slate-950/50 border-b border-slate-800">
                     <tr>
@@ -125,7 +125,7 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible }) => {
                 </table>
               </div>
               {totalPaginas > 1 && (
-                <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
+                <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
                   <span className="text-[10px] text-slate-600 font-mono">
                     {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, facturas.length)} de {facturas.length}
                   </span>
