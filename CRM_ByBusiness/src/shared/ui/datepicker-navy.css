@@ -1,0 +1,96 @@
+/* ── Navy Industrial — react-datepicker overrides ── */
+.crm-datepicker-popper .react-datepicker {
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.crm-datepicker-popper .react-datepicker__header {
+  background-color: #1e293b;
+  border-bottom: 1px solid #334155;
+  border-radius: 0;
+  padding: 8px 0 4px;
+}
+
+.crm-datepicker-popper .react-datepicker__current-month,
+.crm-datepicker-popper .react-datepicker-time__header {
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.crm-datepicker-popper .react-datepicker__day-name {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  width: 1.8rem;
+}
+
+.crm-datepicker-popper .react-datepicker__day {
+  color: #94a3b8;
+  border-radius: 2px;
+  width: 1.8rem;
+  line-height: 1.8rem;
+}
+
+.crm-datepicker-popper .react-datepicker__day:hover {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+
+.crm-datepicker-popper .react-datepicker__day--selected,
+.crm-datepicker-popper .react-datepicker__day--keyboard-selected {
+  background-color: #D00000;
+  color: #fff;
+  font-weight: 900;
+}
+
+.crm-datepicker-popper .react-datepicker__day--today {
+  color: #D00000;
+  font-weight: 900;
+}
+
+.crm-datepicker-popper .react-datepicker__day--outside-month {
+  color: #1e293b;
+}
+
+.crm-datepicker-popper .react-datepicker__navigation-icon::before {
+  border-color: #64748b;
+}
+
+.crm-datepicker-popper .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #f8fafc;
+}
+
+.crm-datepicker-popper .react-datepicker__time-container {
+  border-left: 1px solid #334155;
+}
+
+.crm-datepicker-popper .react-datepicker__time {
+  background-color: #0f172a;
+}
+
+.crm-datepicker-popper .react-datepicker__time-list-item {
+  color: #94a3b8;
+}
+
+.crm-datepicker-popper .react-datepicker__time-list-item:hover {
+  background-color: #1e293b !important;
+  color: #f8fafc;
+}
+
+.crm-datepicker-popper .react-datepicker__time-list-item--selected {
+  background-color: #D00000 !important;
+  color: #fff !important;
+  font-weight: 900;
+}
+
+.crm-datepicker-popper .react-datepicker__triangle {
+  display: none;
+}
