@@ -561,7 +561,7 @@ const UsuariosList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {usuarios.map(u => {
+              {usuarios.filter(u => u.estado !== 'baja').map(u => {
                 const isBaja      = u.estado === 'baja';
                 const isSuspendido = u.estado === 'suspendido';
                 const isAusente   = u.estado === 'activo' && u.estado_llamada === 'ausente';
