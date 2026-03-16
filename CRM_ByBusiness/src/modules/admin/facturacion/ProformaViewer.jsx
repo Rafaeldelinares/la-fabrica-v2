@@ -9,7 +9,7 @@ const DOC_RED = '#8B1E1E';
 /** Datos fiscales del emisor — espejo de public.empresa_config */
 const EMISOR = {
   empresa:   'By Business',
-  nombre:    'Rosa María Passalacqua Herrera',
+  nombre:    'Rosa Maria Passalacqua Herrera',
   nif:       '77423412F',
   dir:       'Calle Cuevas Bajas, s/n',
   cp:        '29004',
