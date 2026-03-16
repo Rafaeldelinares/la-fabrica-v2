@@ -57,13 +57,21 @@ func callScraper(query string, depth int) ([]ScraperResultItem, error) {
 	}
 	orchestratorLog.WithError(err).Warn("Heavy failed. Checking stale cache...")
 
-	// 3. Fallback to Stale Cache (Last Resort - up to 7 days old)
+	// 3. Try Maps Scraper (last resort — simulates real user on maps.google.com)
+	orchestratorLog.Info("Attempting Maps Scraper")
+	results, err = executeMapsJob(query)
+	if err == nil {
+		return results, nil
+	}
+	orchestratorLog.WithError(err).Warn("Maps failed. Checking stale cache...")
+
+	// 4. Fallback to Stale Cache (absolute last resort - up to 7 days old)
 	if cachedData, found := getFallbackFromDB(query, 7); found {
 		orchestratorLog.Info("Recovered data from stale cache")
 		return convertFrontendDataToScraperResult(cachedData), nil
 	}
 
-	return nil, fmt.Errorf("ALL SYSTEMS FAILED: Nano, Heavy, and Cache. Last error: %v", err)
+	return nil, fmt.Errorf("ALL SYSTEMS FAILED: Nano, Heavy, Maps, and Cache. Last error: %v", err)
 }
 
 // Low-level execution of a single scraper job
@@ -235,6 +243,57 @@ func parseScraperCSV(r io.Reader) ([]ScraperResultItem, error) {
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+// executeMapsJob — llama al scraper-maps (búsqueda directa en Google Maps)
+func executeMapsJob(query string) ([]ScraperResultItem, error) {
+	type mapsRequest struct {
+		Query string `json:"query"`
+	}
+	type mapsData struct {
+		Name     string             `json:"name"`
+		Rating   float64            `json:"rating"`
+		Reviews  int                `json:"reviews"`
+		Address  string             `json:"address"`
+		Phone    string             `json:"phone"`
+		Website  string             `json:"website"`
+		Cid      string             `json:"cid"`
+		Breakdown map[string]int    `json:"breakdown"`
+	}
+	type mapsResponse struct {
+		Found bool     `json:"found"`
+		Data  mapsData `json:"data"`
+	}
+
+	body, _ := json.Marshal(mapsRequest{Query: query})
+
+	mapsClient := &http.Client{Timeout: MapsTimeout}
+	resp, err := mapsClient.Post(MapsScraperURL, "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("maps scraper unavailable: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result mapsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("maps scraper decode error: %v", err)
+	}
+	if !result.Found || result.Data.Name == "" {
+		return nil, fmt.Errorf("maps scraper: no result found for '%s'", query)
+	}
+
+	breakdownJSON, _ := json.Marshal(result.Data.Breakdown)
+	item := ScraperResultItem{
+		Title:            result.Data.Name,
+		ReviewRating:     strconv.FormatFloat(result.Data.Rating, 'f', 1, 64),
+		ReviewCount:      strconv.Itoa(result.Data.Reviews),
+		ReviewsPerRating: json.RawMessage(breakdownJSON),
+		Address:          result.Data.Address,
+		Phone:            result.Data.Phone,
+		Website:          result.Data.Website,
+		Cid:              result.Data.Cid,
+	}
+	return []ScraperResultItem{item}, nil
 }
 
 func getValue(row []string, m map[string]int, key string) string {

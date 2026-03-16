@@ -11,10 +11,12 @@ import (
 var (
 	NanoScraperURL  string
 	HeavyScraperURL string
+	MapsScraperURL  string
 	Port            string
 	DB_URL          string
 	NanoTimeout     time.Duration
 	HeavyTimeout    time.Duration
+	MapsTimeout     time.Duration
 )
 
 func init() {
@@ -23,8 +25,9 @@ func init() {
 		log.Println("No .env file found, using defaults where possible")
 	}
 
-	NanoScraperURL = getEnv("NANO_SCRAPER_URL", "http://localhost:8090/api/v1/jobs")
+	NanoScraperURL  = getEnv("NANO_SCRAPER_URL",  "http://localhost:8090/api/v1/jobs")
 	HeavyScraperURL = getEnv("HEAVY_SCRAPER_URL", "http://localhost:8091/api/v1/jobs")
+	MapsScraperURL  = getEnv("MAPS_SCRAPER_URL",  "http://localhost:8094/api/v1/maps/search")
 	Port = getEnv("SERVER_PORT", ":8092")
 
 	// DB_URL is required, we do not provide a default with password for security
@@ -47,6 +50,12 @@ func init() {
 	if err != nil {
 		log.Printf("Invalid HEAVY_TIMEOUT: %v, defaulting to 10m", err)
 		HeavyTimeout = 10 * time.Minute
+	}
+
+	MapsTimeout, err = time.ParseDuration(getEnv("MAPS_TIMEOUT", "90s"))
+	if err != nil {
+		log.Printf("Invalid MAPS_TIMEOUT: %v, defaulting to 90s", err)
+		MapsTimeout = 90 * time.Second
 	}
 }
 

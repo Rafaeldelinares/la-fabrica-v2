@@ -1,0 +1,20 @@
+FROM mcr.microsoft.com/playwright:v1.49.0-jammy
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install --only=production
+
+COPY scraper-base.js ./
+COPY scraper-nano.js ./
+COPY scraper-heavy.js ./
+COPY scraper-maps.js ./
+COPY server.js ./
+
+ENV PORT=8082
+ENV SCRAPER_TYPE=maps
+ENV MAPS_TIMEOUT=45000
+
+EXPOSE 8082
+
+CMD ["node", "server.js"]

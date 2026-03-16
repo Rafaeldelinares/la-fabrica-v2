@@ -2,6 +2,7 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const NanoScraper = require('./scraper-nano');
 const HeavyScraper = require('./scraper-heavy');
+const MapsScraper = require('./scraper-maps');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -11,23 +12,21 @@ app.use(bodyParser.json());
 const jobs = new Map();
 
 // Instancias globales (Lazy init)
-let nanoScraper = null;
+let nanoScraper  = null;
 let heavyScraper = null;
+let mapsScraper  = null;
 
 async function getNano() {
-    if (!nanoScraper) {
-        nanoScraper = new NanoScraper();
-        await nanoScraper.initialize();
-    }
+    if (!nanoScraper) { nanoScraper = new NanoScraper(); await nanoScraper.initialize(); }
     return nanoScraper;
 }
-
 async function getHeavy() {
-    if (!heavyScraper) {
-        heavyScraper = new HeavyScraper();
-        await heavyScraper.initialize();
-    }
+    if (!heavyScraper) { heavyScraper = new HeavyScraper(); await heavyScraper.initialize(); }
     return heavyScraper;
+}
+async function getMaps() {
+    if (!mapsScraper) { mapsScraper = new MapsScraper(); await mapsScraper.initialize(); }
+    return mapsScraper;
 }
 
 // ----------------------------------------------------
@@ -75,6 +74,11 @@ app.post('/api/v1/jobs', async (req, res) => {
                  if (type === 'heavy') {
                      const scraper = await getHeavy();
                      result = await scraper.scrapeGoogleMaps(negocio, ciudad, depth);
+                 } else if (type === 'maps') {
+                     const scraper = await getMaps();
+                     const r = await scraper.scrape(queryFull);
+                     // Adaptar formato maps → formato estándar job result
+                     result = { query: queryFull, found: r.found, is_list: false, level: 4, data: r.data, latency_ms: r.latency_ms, timestamp: new Date().toISOString() };
                  } else {
                      const scraper = await getNano();
                      result = await scraper.scrapeGoogleMaps(negocio, ciudad, depth);
@@ -155,13 +159,27 @@ app.get('/api/v1/jobs/:id/results/csv', (req, res) => {
 // ----------------------------------------------------
 // API NUEVA (Directa) - Por si queremos saltarnos el polling
 // ----------------------------------------------------
+// POST /api/v1/maps/search — Búsqueda directa en Google Maps (síncrona)
+app.post('/api/v1/maps/search', async (req, res) => {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'query required' });
+    try {
+        const scraper = await getMaps();
+        const result  = await scraper.scrape(query);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/health', async (req, res) => {
      res.json({
         status: 'ok',
         jobs_memory: jobs.size,
         scrapers: {
-             nano: nanoScraper ? 'up' : 'down',
-             heavy: heavyScraper ? 'up' : 'down'
+             nano:  nanoScraper  ? 'up' : 'down',
+             heavy: heavyScraper ? 'up' : 'down',
+             maps:  mapsScraper  ? 'up' : 'down',
         }
      });
 });

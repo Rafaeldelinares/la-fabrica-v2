@@ -243,25 +243,43 @@ class PlaywrightScraper {
 
             // Extraer rating
             const rating = await page.evaluate(() => {
-                 // Buscar por aria-label que contenga estrellas
+                 // Buscar por aria-label que contenga estrellas — formato: "4,9 estrellas 49 reseñas"
                  const span = document.querySelector('[aria-label*="estrellas"][aria-label*="reseñas"], [aria-label*="stars"][aria-label*="reviews"]');
                  if (span) {
                      const label = span.getAttribute('aria-label');
                      const match = label.match(/([0-9,.]+)/);
-                     return match ? parseFloat(match[1].replace(',', '.')) : null;
+                     const val = match ? parseFloat(match[1].replace(',', '.')) : null;
+                     if (val !== null && val <= 5) return val;
                  }
-                 // Fallback: buscar texto puro con pattern X.X
+                 // Fallback: buscar texto puro con patrón X,X o X.X (máx 5.0)
                  const ratingText = document.querySelector('.F7nice, .ce4Yce')?.textContent;
                  if (ratingText) {
-                     const match = ratingText.match(/([0-9,.]+)/);
-                     return match ? parseFloat(match[1].replace(',', '.')) : null;
+                     const match = ratingText.match(/\b([0-9],[0-9]|[1-5]\.[0-9])\b/);
+                     if (match) return parseFloat(match[1].replace(',', '.'));
                  }
                  return null;
             }).catch(() => null);
 
+             // Esperar hasta 4s a que cargue el review count (renderizado asíncrono)
+             await page.waitForFunction(() => {
+                const el = document.querySelector('[aria-label*="estrellas"]');
+                return el && /reseñas|reviews/i.test(el.getAttribute('aria-label') || '');
+             }, { timeout: 4000 }).catch(() => null); // no importa si no aparece
+
              // Extraer número de reseñas
              const reviewCount = await page.evaluate(() => {
-                const selectors = ['[aria-label*="estrellas"][aria-label*="reseñas"]', '.F7nice', '.F7nice', 
+                const selectors = [
+                    // Ficha principal: aria-label con ambos datos
+                    '[aria-label*="estrellas"][aria-label*="reseñas"]',
+                    '[aria-label*="stars"][aria-label*="reviews"]',
+                    // Botón nativo de reseñas Google Maps (clase jANrlb o button con jsaction reviews)
+                    'button.jANrlb[data-value]',
+                    'button[jsaction*="reviews"]',
+                    // Texto combinado "4,2(74)" en primera clase de rating
+                    '.F7nice',
+                    // fontBodyMedium primera línea: "4,2(74)Google no verifica..."
+                    '.fontBodyMedium',
+                    // Botones/links con aria-label de reseñas
                     'button[aria-label*="reseñas"]',
                     'button[aria-label*="reviews"]',
                     '[aria-label*="reseñas"]',
@@ -271,9 +289,22 @@ class PlaywrightScraper {
                 for (const s of selectors) {
                     const el = document.querySelector(s);
                     if (el) {
-                        const text = el.getAttribute('aria-label') || el.textContent;
-                        const match = text.match(/([0-9,.]+)/);
-                        if (match) return parseInt(match[1].replace(/[,.]/g, ''));
+                        const text = (el.getAttribute('aria-label') || el.textContent || '').trim();
+                        if (!text) continue;
+                        // P1: número antes de "reseñas/reviews/opiniones" — formato principal
+                        const revMatch = text.match(/([0-9][0-9.,]*)\s*(?:reseñas|reviews|opiniones)/i);
+                        if (revMatch) return parseInt(revMatch[1].replace(/[.,]/g, ''));
+                        // P2: número entre paréntesis — formato "(284)"
+                        const parenMatch = text.match(/\(([0-9,.]+)\)/);
+                        if (parenMatch) return parseInt(parenMatch[1].replace(/[,.]/g, ''));
+                        // P3: texto con 2+ números → el último es el conteo (el primero es el rating)
+                        const allNums = [...text.matchAll(/\b([0-9][0-9,.]*)\b/g)];
+                        if (allNums.length > 1) return parseInt(allNums[allNums.length - 1][1].replace(/[.,]/g, ''));
+                        // P4: número puro en textContent (selector específico de conteo)
+                        if (/^[0-9][0-9.,]*K?$/.test(text)) {
+                            if (text.endsWith('K')) return Math.round(parseFloat(text) * 1000);
+                            return parseInt(text.replace(/[.,]/g, ''));
+                        }
                     }
                 }
                 return null;
