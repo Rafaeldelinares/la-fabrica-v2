@@ -44,3 +44,4 @@ estructura-fabrica.txt
 *.exe
 monitor-go/go_github/
 monitor-go/gmapsdata/
+backups/
