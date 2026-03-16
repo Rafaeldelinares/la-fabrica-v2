@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import FacturaViewer from './FacturaViewer';
-import { FileText, Eye } from 'lucide-react';
+import { FileText, Eye, ExternalLink } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
+
+const N8N = import.meta.env.VITE_N8N_URL;
 
 const fmtEur  = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
 const fmtDate = (d) => fmtFecha(d);
@@ -16,10 +19,13 @@ const ESTADO_BADGE = {
   anulada:  'bg-slate-700 text-slate-500 border-slate-600',
 };
 
-const FacturasPanel = () => {
+/**
+ * Panel de facturas emitidas. El nombre de empresa es clickeable y abre la ficha del cliente.
+ * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
+ */
+const FacturasPanel = ({ onAbrirCliente }) => {
   const [facturas, setFacturas] = useState(null);
   const [viewing, setViewing]   = useState(null);
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
 
   useEffect(() => {
     fetch(`${N8N}/crm-facturas`)
@@ -65,7 +71,17 @@ const FacturasPanel = () => {
                   <tr key={f.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
                     <td className="px-4 py-3 font-mono font-bold text-white">{f.numero}</td>
                     <td className="px-4 py-3">
-                      <p className="font-bold text-slate-200 uppercase tracking-wide">{f.nombre_comercial}</p>
+                      {f.cliente_id ? (
+                        <button
+                          onClick={() => onAbrirCliente(f.cliente_id)}
+                          className="group flex items-center gap-1 text-left"
+                        >
+                          <span className="font-bold text-slate-200 group-hover:text-blue-400 uppercase tracking-wide transition-colors">{f.nombre_comercial}</span>
+                          <ExternalLink size={9} className="text-slate-700 group-hover:text-blue-400 transition-colors shrink-0" />
+                        </button>
+                      ) : (
+                        <p className="font-bold text-slate-200 uppercase tracking-wide">{f.nombre_comercial}</p>
+                      )}
                       {f.receptor_nif && <p className="text-[10px] text-slate-600 font-mono mt-0.5">{f.receptor_nif}</p>}
                     </td>
                     <td className="px-4 py-3 font-mono text-slate-400">{fmtDate(f.fecha_emision)}</td>
@@ -106,5 +122,7 @@ const FacturasPanel = () => {
     </>
   );
 };
+
+FacturasPanel.propTypes = { onAbrirCliente: PropTypes.func.isRequired };
 
 export default FacturasPanel;

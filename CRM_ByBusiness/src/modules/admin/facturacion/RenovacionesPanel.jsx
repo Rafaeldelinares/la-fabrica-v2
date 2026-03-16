@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RefreshCw } from 'lucide-react';
+import PropTypes from 'prop-types';
+import { RefreshCw, ExternalLink } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../utils/dates';
 
 const MESES_OPCIONES = [3, 6, 9, 12, 15, 18, 20];
 
 const fmtDate = (d) => fmtFecha(d);
-const fmtEur  = (n) => n ? `${Number(n).toLocaleString('es-ES')}€` : '—';
+const fmtEur  = (n) => n ? `${parseFloat(n).toFixed(2)} €` : '—';
 
 const mesKey   = (dateStr) => { if (!dateStr) return 'unknown'; const d = new Date(dateStr); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
 const mesLabel = (dateStr) => fmtMesAno(dateStr);
@@ -29,11 +30,15 @@ const riskClass = (dias) => {
   return 'bg-red-500/15 text-red-400 border-red-500/25';
 };
 
-const RenovacionesPanel = () => {
+/**
+ * Panel de renovaciones de contratos. El nombre de empresa es clickeable y abre la ficha.
+ * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
+ */
+const RenovacionesPanel = ({ onAbrirCliente }) => {
   const [renovaciones, setRenovaciones] = useState(null);
   const [meses,        setMeses]        = useState(12);
   const [mesFiltro,    setMesFiltro]    = useState(null);
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N = import.meta.env.VITE_N8N_URL;
 
   const load = () => {
     setRenovaciones(null);
@@ -139,7 +144,7 @@ const RenovacionesPanel = () => {
             <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono mb-3">
               Distribución mensual — <span className="text-slate-700">click en barra para filtrar</span>
             </p>
-            <div className="flex items-end gap-1.5" style={{ height: '7rem' }}>
+            <div className="flex items-end gap-1.5 h-28">
               {byMes.map(m => {
                 const barH = Math.max(8, Math.round((m.count / maxCount) * 80));
                 const isCurr = m.key === currentKey;
@@ -161,8 +166,7 @@ const RenovacionesPanel = () => {
                     </span>
                     {/* Barra */}
                     <div
-                      className={`w-full rounded-sm transition-all ${isSel ? 'bg-white/90' : isCurr ? 'bg-[#D00000]/80 group-hover:bg-[#D00000]' : 'bg-slate-700 group-hover:bg-slate-500'}`}
-                      style={{ height: `${barH}px` }}
+                      className={`w-full rounded-sm transition-all ${isSel ? 'bg-white/90' : isCurr ? 'bg-[#D00000]/80 group-hover:bg-[#D00000]' : 'bg-slate-700 group-hover:bg-slate-500'} h-[${barH}px]`}
                     />
                     {/* Mes label */}
                     <span className={`text-[7px] font-mono uppercase truncate w-full text-center transition-colors ${isSel ? 'text-white' : isCurr ? 'text-[#D00000]' : 'text-slate-600'}`}>
@@ -209,7 +213,13 @@ const RenovacionesPanel = () => {
                   {lista.map(r => (
                     <tr key={r.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
                       <td className="px-4 py-2.5">
-                        <p className="font-bold text-slate-200 uppercase tracking-wide text-[11px]">{r.nombre_comercial}</p>
+                        <button
+                          onClick={() => onAbrirCliente(r.cliente_id)}
+                          className="group flex items-center gap-1 text-left"
+                        >
+                          <span className="font-bold text-slate-200 group-hover:text-blue-400 uppercase tracking-wide text-[11px] transition-colors">{r.nombre_comercial}</span>
+                          <ExternalLink size={9} className="text-slate-700 group-hover:text-blue-400 transition-colors shrink-0" />
+                        </button>
                         {r.telefono && <p className="text-[9px] text-slate-600 font-mono mt-0.5">{r.telefono}</p>}
                       </td>
                       <td className="px-4 py-2.5 text-slate-400 text-[11px]">{r.producto_nombre || '—'}</td>
@@ -237,5 +247,7 @@ const RenovacionesPanel = () => {
     </div>
   );
 };
+
+RenovacionesPanel.propTypes = { onAbrirCliente: PropTypes.func.isRequired };
 
 export default RenovacionesPanel;

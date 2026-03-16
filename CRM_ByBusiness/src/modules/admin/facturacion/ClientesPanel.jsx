@@ -4,7 +4,7 @@ import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ProformaModal from './ProformaModal';
 import ProformaViewer from './ProformaViewer';
-import { Users, ChevronDown, ChevronUp, CheckCircle, Clock, Plus, CreditCard, X, BadgeCheck, FileText, Eye } from 'lucide-react';
+import { Users, ChevronDown, ChevronUp, CheckCircle, Clock, Plus, CreditCard, X, BadgeCheck, FileText, Eye, ExternalLink } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -222,11 +222,12 @@ ProformaRow.propTypes = {
 /**
  * ClienteRow — Fila expandible de cliente en el panel de facturación.
  * Muestra resumen económico (cobrado, pendiente, proformas) y carga las proformas
- * al expandirse. Incluye acceso rápido a crear nueva proforma.
+ * al expandirse. El nombre de empresa es clickeable y abre la ficha del cliente.
  * @param {object}   cliente          - Objeto cliente con totales y datos básicos
  * @param {Function} onNuevaProforma  - Callback invocado con el cliente para abrir ProformaModal
+ * @param {Function} onAbrirCliente   - Callback para abrir ClienteDrawer con el cliente_id
  */
-const ClienteRow = ({ cliente, onNuevaProforma }) => {
+const ClienteRow = ({ cliente, onNuevaProforma, onAbrirCliente }) => {
   const [open, setOpen] = useState(false);
   const [proformas, setProformas] = useState(null);
   const N8N_URL = import.meta.env.VITE_N8N_URL;
@@ -245,10 +246,16 @@ const ClienteRow = ({ cliente, onNuevaProforma }) => {
 
   return (
     <div className="border-b border-slate-800/50 last:border-0">
-      <button onClick={toggle} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-800/20 transition-colors text-left">
+      <div onClick={toggle} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-slate-800/20 transition-colors cursor-pointer">
         <div className="flex items-center gap-4 min-w-0">
           <div className="min-w-0">
-            <p className="font-bold text-slate-200 uppercase text-xs tracking-wide truncate">{cliente.nombre_comercial}</p>
+            <button
+              onClick={e => { e.stopPropagation(); onAbrirCliente(cliente.id); }}
+              className="group flex items-center gap-1 text-left"
+            >
+              <span className="font-bold text-slate-200 group-hover:text-blue-400 uppercase text-xs tracking-wide truncate transition-colors">{cliente.nombre_comercial}</span>
+              <ExternalLink size={9} className="text-slate-700 group-hover:text-blue-400 transition-colors shrink-0" />
+            </button>
             <p className="text-[10px] text-slate-600 font-mono mt-0.5">{cliente.localidad} · {cliente.operador_nombre || '—'}</p>
           </div>
         </div>
@@ -273,7 +280,7 @@ const ClienteRow = ({ cliente, onNuevaProforma }) => {
           </button>
           {open ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
         </div>
-      </button>
+      </div>
 
       {open && (
         <div className="px-4 pb-4 space-y-2">
@@ -288,11 +295,18 @@ const ClienteRow = ({ cliente, onNuevaProforma }) => {
   );
 };
 
+ClienteRow.propTypes = {
+  cliente:         PropTypes.object.isRequired,
+  onNuevaProforma: PropTypes.func.isRequired,
+  onAbrirCliente:  PropTypes.func.isRequired,
+};
+
 /**
  * ClientesPanel — Panel de facturación que lista clientes con sus proformas y pagos.
  * Orquesta la carga de clientes vía n8n y abre el ProformaModal para crear nuevas proformas.
+ * @param {Function} onAbrirCliente - Callback para abrir la ficha del cliente en ClienteDrawer
  */
-const ClientesPanel = () => {
+const ClientesPanel = ({ onAbrirCliente }) => {
   const { user } = useAuth();
   const [clientes, setClientes] = useState(null);
   const [modalCliente, setModalCliente] = useState(null);
@@ -326,7 +340,7 @@ const ClientesPanel = () => {
             <EmptyState title="Sin clientes" icon={Users} description="Los clientes aparecerán aquí cuando se cierren ventas" />
           </div>
         ) : (
-          <div>{clientes.map(c => <ClienteRow key={c.id} cliente={c} onNuevaProforma={setModalCliente} />)}</div>
+          <div>{clientes.map(c => <ClienteRow key={c.id} cliente={c} onNuevaProforma={setModalCliente} onAbrirCliente={onAbrirCliente} />)}</div>
         )}
       </Card>
 
@@ -341,5 +355,7 @@ const ClientesPanel = () => {
     </>
   );
 };
+
+ClientesPanel.propTypes = { onAbrirCliente: PropTypes.func.isRequired };
 
 export default ClientesPanel;
