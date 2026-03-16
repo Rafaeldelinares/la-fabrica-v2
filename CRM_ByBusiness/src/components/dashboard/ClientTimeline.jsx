@@ -1,15 +1,18 @@
 
 import React from 'react';
-import { 
-  Phone, 
-  FileText, 
-  DollarSign, 
-  Clock, 
-  Mail, 
-  AlertCircle, 
+import PropTypes from 'prop-types';
+import {
+  Phone,
+  FileText,
+  DollarSign,
+  Clock,
+  Mail,
+  AlertCircle,
   Calendar,
-  CheckCircle2
+  CheckCircle2,
+  History
 } from 'lucide-react';
+import { fmtFecha, fmtFechaHora } from '../../utils/dates';
 
 const eventConfig = {
   'LLAMADA': { icon: <Phone size={14} />, color: 'bg-blue-500', label: 'Llamada' },
@@ -21,14 +24,15 @@ const eventConfig = {
   'INCIDENCIA': { icon: <AlertCircle size={14} />, color: 'bg-orange-500', label: 'Incidencia' },
 };
 
+/**
+ * Elemento individual dentro del timeline de trazabilidad de un cliente.
+ * @param {{ event: Object, isLast: boolean }} props
+ * @param {Object} props.event - Objeto de evento con tipo, fecha y detalles.
+ * @param {boolean} props.isLast - Si es verdadero, no se dibuja el conector vertical.
+ */
 const TimelineItem = ({ event, isLast }) => {
   const config = eventConfig[event.tipo_evento] || eventConfig['LLAMADA'];
-  const date = new Date(event.fecha_evento).toLocaleString('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const date = fmtFechaHora(event.fecha_evento);
 
   return (
     <div className="relative pl-8 pb-8 last:pb-0 group">
@@ -36,11 +40,11 @@ const TimelineItem = ({ event, isLast }) => {
         <div className="absolute left-[11px] top-6 bottom-0 w-[2px] bg-slate-800 group-hover:bg-slate-700 transition-colors"></div>
       )}
       
-      <div className={`absolute left-0 top-1 w-6 h-6 rounded-full ${config.color} flex items-center justify-center text-white shadow-lg z-10 transform group-hover:scale-110 transition-transform`}>
+      <div className={`absolute left-0 top-1 w-6 h-6 rounded-sm ${config.color} flex items-center justify-center text-white shadow-lg z-10 transform group-hover:scale-110 transition-transform`}>
         {config.icon}
       </div>
 
-      <div className="bg-slate-900/50 border border-slate-800 rounded-lg p-3 hover:border-slate-700 transition-all">
+      <div className="bg-slate-900/50 border border-slate-800 rounded-sm p-3 hover:border-slate-700 transition-all">
         <div className="flex justify-between items-start mb-1">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{config.label}</span>
           <span className="text-[10px] text-slate-600 font-mono">{date}</span>
@@ -52,9 +56,9 @@ const TimelineItem = ({ event, isLast }) => {
           </p>
         )}
         {event.fecha_agendada && (
-          <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-emerald-400/80 bg-emerald-500/5 p-2 rounded border border-emerald-500/10">
+          <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-emerald-400/80 bg-emerald-500/5 p-2 rounded-sm border border-emerald-500/10">
             <Clock size={12} />
-            AGENDADO PARA: {new Date(event.fecha_agendada).toLocaleDateString('es-ES')}
+            AGENDADO PARA: {fmtFecha(event.fecha_agendada)}
           </div>
         )}
       </div>
@@ -62,10 +66,16 @@ const TimelineItem = ({ event, isLast }) => {
   );
 };
 
+/**
+ * Timeline de trazabilidad completa de un cliente.
+ * Muestra todos los eventos (llamadas, ventas, cobros, etc.) en orden cronológico.
+ * @param {{ events: Array }} props
+ * @param {Array} [props.events=[]] - Array de objetos de evento ordenados por fecha.
+ */
 const ClientTimeline = ({ events = [] }) => {
   if (events.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-slate-600 border-2 border-dashed border-slate-900 rounded-xl">
+      <div className="flex flex-col items-center justify-center py-12 text-slate-600 border-2 border-dashed border-slate-900 rounded-sm">
         <History size={48} className="mb-4 opacity-20" />
         <p className="text-xs font-bold uppercase tracking-widest">Sin actividad registrada</p>
       </div>
@@ -88,6 +98,16 @@ const ClientTimeline = ({ events = [] }) => {
       </div>
     </div>
   );
+};
+
+
+TimelineItem.propTypes = {
+  event: PropTypes.object.isRequired,
+  isLast: PropTypes.bool,
+};
+
+ClientTimeline.propTypes = {
+  events: PropTypes.arrayOf(PropTypes.object),
 };
 
 export default ClientTimeline;
