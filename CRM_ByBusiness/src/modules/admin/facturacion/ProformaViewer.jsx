@@ -3,19 +3,6 @@ import PropTypes from 'prop-types';
 import { Printer, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 
-/** Color de acento del documento impreso — dark red corporativo */
-const DOC_RED = '#8B1E1E';
-
-/** Datos fiscales del emisor — espejo de public.empresa_config */
-const EMISOR = {
-  empresa:   'By Business',
-  nombre:    'Rosa Maria Passalacqua Herrera',
-  nif:       '77423412F',
-  dir:       'Calle Cuevas Bajas, s/n',
-  cp:        '29004',
-  municipio: 'MÁLAGA (MÁLAGA)',
-  telefono:  '952856697',
-};
 
 /** Formatea número como precio en euros con dos decimales. */
 const fmtEur = (v) => v != null ? `${parseFloat(v || 0).toFixed(2)} €` : '0,00 €';
@@ -45,6 +32,14 @@ LineaProforma.propTypes = { linea: PropTypes.object.isRequired };
  */
 const ProformaViewer = ({ proforma, cliente, onClose }) => {
   const imprimir = () => window.print();
+
+  const emisorEmpresa   = proforma.emisor_empresa  || 'By Business';
+  const emisorNombre    = proforma.emisor_nombre   || '';
+  const emisorNif       = proforma.emisor_nif      || '';
+  const emisorDir       = proforma.emisor_dir      || '';
+  const emisorCp        = proforma.emisor_cp       || '';
+  const emisorMunicipio = proforma.emisor_municipio || '';
+  const emisorTelefono  = proforma.emisor_telefono  || '';
 
   const totalBruto   = parseFloat(proforma.total || 0);
   const tipoIva      = 21;
@@ -84,21 +79,21 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
           <div id="proforma-print" className="bg-white text-slate-900 shadow-2xl factura-doc">
 
             {/* Franja superior */}
-            <div className="h-1.5 w-full" style={{ backgroundColor: DOC_RED }} />
+            <div className="h-1.5 w-full bg-[#8B1E1E]" />
 
             <div className="px-10 pt-8 pb-10">
 
               {/* Cabecera: empresa | NIF+nombre | logo */}
               <div className="flex justify-between items-start mb-8">
                 <div>
-                  <p className="text-sm font-black text-slate-900 uppercase">{EMISOR.empresa}</p>
-                  <p className="text-xs text-slate-600 mt-0.5">{EMISOR.dir}</p>
-                  <p className="text-xs text-slate-600">{EMISOR.cp} {EMISOR.municipio}</p>
-                  <p className="text-xs text-slate-600">{EMISOR.telefono}</p>
+                  <p className="text-sm font-black text-slate-900 uppercase">{emisorEmpresa}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">{emisorDir}</p>
+                  <p className="text-xs text-slate-600">{emisorCp} {emisorMunicipio}</p>
+                  <p className="text-xs text-slate-600">{emisorTelefono}</p>
                 </div>
                 <div className="text-xs text-slate-700 text-left mx-6">
-                  <p>NIF: {EMISOR.nif}</p>
-                  <p className="mt-0.5 uppercase font-medium" style={{ maxWidth: 160 }}>{EMISOR.nombre}</p>
+                  <p>NIF: {emisorNif}</p>
+                  <p className="mt-0.5 uppercase font-medium max-w-[160px]">{emisorNombre}</p>
                 </div>
                 <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-14 object-contain" />
               </div>
@@ -107,7 +102,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
               <h1 className="text-4xl font-black text-slate-900 mb-1">Proforma</h1>
 
               {/* Fecha */}
-              <p className="text-sm font-bold mb-8" style={{ color: DOC_RED }}>
+              <p className="text-sm font-bold mb-8 text-[#8B1E1E]">
                 {fmtFecha(proforma.fecha || new Date().toISOString())}
               </p>
 
@@ -136,7 +131,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
               {/* Tabla de líneas */}
               <table className="w-full text-sm mb-6 border-collapse">
                 <thead>
-                  <tr style={{ backgroundColor: DOC_RED }}>
+                  <tr className="bg-[#8B1E1E]">
                     <th className="text-left px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider">Descripción</th>
                     <th className="text-center px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-24">Cantidad</th>
                     <th className="text-right px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-32">Precio unitario</th>
@@ -196,9 +191,10 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
       {/* Estilos de impresión */}
       <style>{`
         @media print {
-          body > * { display: none !important; }
+          body * { visibility: hidden; }
+          #proforma-print, #proforma-print * { visibility: visible; }
           .no-print { display: none !important; }
-          #proforma-print { display: block !important; position: fixed; top: 0; left: 0; width: 100%; }
+          #proforma-print { position: fixed; top: 0; left: 0; width: 100%; }
           @page { margin: 0; size: A4; }
         }
       `}</style>

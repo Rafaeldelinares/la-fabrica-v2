@@ -3,9 +3,6 @@ import PropTypes from 'prop-types';
 import { Printer, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 
-/** Color de acento del documento impreso — dark red corporativo */
-const DOC_RED = '#8B1E1E';
-
 /** Formatea número como precio en euros con dos decimales. */
 const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '0,00 €';
 
@@ -72,7 +69,7 @@ const FacturaViewer = ({ factura, onClose }) => {
           <div id="factura-print" className="bg-white text-slate-900 shadow-2xl factura-doc">
 
             {/* Franja superior */}
-            <div className="h-1.5 w-full" style={{ backgroundColor: DOC_RED }} />
+            <div className="h-1.5 w-full bg-[#8B1E1E]" />
 
             <div className="px-10 pt-8 pb-10">
 
@@ -86,7 +83,7 @@ const FacturaViewer = ({ factura, onClose }) => {
                 </div>
                 <div className="text-xs text-slate-700 text-left mx-6">
                   <p>NIF: {emisorNif}</p>
-                  <p className="mt-0.5 uppercase font-medium" style={{ maxWidth: 160 }}>{emisorNombre}</p>
+                  <p className="mt-0.5 uppercase font-medium max-w-[160px]">{emisorNombre}</p>
                 </div>
                 <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-14 object-contain" />
               </div>
@@ -95,7 +92,7 @@ const FacturaViewer = ({ factura, onClose }) => {
               <h1 className="text-4xl font-black text-slate-900 mb-1">Factura</h1>
 
               {/* Fecha */}
-              <p className="text-sm font-bold mb-8" style={{ color: DOC_RED }}>
+              <p className="text-sm font-bold mb-8 text-[#8B1E1E]">
                 {fmtFecha(f.fecha_emision)}
               </p>
 
@@ -123,7 +120,7 @@ const FacturaViewer = ({ factura, onClose }) => {
               {/* Tabla de líneas */}
               <table className="w-full text-sm mb-6 border-collapse">
                 <thead>
-                  <tr style={{ backgroundColor: DOC_RED }}>
+                  <tr className="bg-[#8B1E1E]">
                     <th className="text-left px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider">Descripción</th>
                     <th className="text-center px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-24">Cantidad</th>
                     <th className="text-right px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-32">Precio unitario</th>
@@ -210,9 +207,10 @@ const FacturaViewer = ({ factura, onClose }) => {
       {/* Estilos de impresión */}
       <style>{`
         @media print {
-          body > * { display: none !important; }
+          body * { visibility: hidden; }
+          #factura-print, #factura-print * { visibility: visible; }
           .no-print { display: none !important; }
-          #factura-print { display: block !important; position: fixed; top: 0; left: 0; width: 100%; }
+          #factura-print { position: fixed; top: 0; left: 0; width: 100%; }
           @page { margin: 0; size: A4; }
         }
       `}</style>
