@@ -1,31 +1,57 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { Printer, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 
-const fmtEur  = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '0,00 €';
-const fmtDate = (d) => fmtFecha(d);
+/** Color de acento del documento impreso — dark red corporativo */
+const DOC_RED = '#8B1E1E';
+
+/** Formatea número como precio en euros con dos decimales. */
+const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '0,00 €';
 
 /**
- * Visor/impresor de factura legal española.
- * Cumple campos obligatorios según art. 6 RD 1619/2012 y Ley Crea y Crece.
+ * Fila de línea dentro de la tabla de la factura impresa.
+ * @param {{ linea: Object }} props
+ */
+const LineaFactura = ({ linea }) => (
+  <tr className="border-b border-slate-200">
+    <td className="px-3 py-3 text-sm text-slate-800 align-top">{linea.descripcion}</td>
+    <td className="px-3 py-3 text-sm text-center font-mono text-slate-700">{linea.cantidad}</td>
+    <td className="px-3 py-3 text-sm text-right font-mono text-slate-700">€{parseFloat(linea.precio_unitario).toFixed(2)}</td>
+    <td className="px-3 py-3 text-sm text-right font-mono font-bold text-slate-800">€{parseFloat(linea.subtotal_sin_iva || linea.precio_unitario * linea.cantidad).toFixed(2)}</td>
+  </tr>
+);
+
+LineaFactura.propTypes = { linea: PropTypes.object.isRequired };
+
+/**
+ * Visor e impresor de factura legal — estructura idéntica a la factura de referencia ByBusiness.
+ * Incluye cabecera con logo, bloques emisor/receptor, tabla de líneas, totales y pie.
+ * @param {{ factura: Object, onClose: Function }} props
  */
 const FacturaViewer = ({ factura, onClose }) => {
-  const imprimir = () => {
-    window.print();
-  };
-
+  const imprimir = () => window.print();
   const f = factura;
+
+  const emisorEmpresa  = f.emisor_empresa  || 'By Business';
+  const emisorNombre   = f.emisor_nombre   || '';
+  const emisorNif      = f.emisor_nif      || '';
+  const emisorDir      = f.emisor_dir      || '';
+  const emisorCp       = f.emisor_cp       || '';
+  const emisorMunicipio = f.emisor_municipio || '';
+  const emisorTelefono  = f.emisor_telefono  || '';
 
   return (
     <>
-      {/* Overlay — oculto al imprimir */}
+      {/* ── Modal overlay — oculto al imprimir ── */}
       <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm overflow-y-auto py-8 no-print">
         <div className="w-full max-w-3xl">
+
           {/* Barra de acciones */}
           <div className="flex items-center justify-between mb-4 no-print">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-mono uppercase tracking-widest">FACTURA {f.numero}</span>
-            </div>
+            <span className="text-xs text-slate-400 font-mono uppercase tracking-widest">
+              FACTURA {f.numero}
+            </span>
             <div className="flex gap-2">
               <button
                 onClick={imprimir}
@@ -33,141 +59,170 @@ const FacturaViewer = ({ factura, onClose }) => {
               >
                 <Printer size={13} /> Imprimir / PDF
               </button>
-              <button onClick={onClose} className="p-2 text-slate-500 hover:text-white border border-slate-700 rounded-sm transition-colors">
+              <button
+                onClick={onClose}
+                className="p-2 text-slate-500 hover:text-white border border-slate-700 rounded-sm transition-colors"
+              >
                 <X size={16} />
               </button>
             </div>
           </div>
 
-          {/* DOCUMENTO FACTURA — este es el que se imprime */}
-          <div id="factura-print" className="bg-white text-slate-900 p-10 rounded shadow-2xl factura-doc">
+          {/* ── DOCUMENTO IMPRIMIBLE ── */}
+          <div id="factura-print" className="bg-white text-slate-900 shadow-2xl factura-doc">
 
-            {/* Cabecera */}
-            <div className="flex justify-between items-start mb-8">
-              <div>
-                <h1 className="text-2xl font-black tracking-wider text-slate-900 uppercase">{f.emisor_nombre}</h1>
-                <p className="text-sm text-slate-600 mt-1">{f.emisor_dir}</p>
-                <p className="text-sm text-slate-600">{f.emisor_cp} {f.emisor_municipio}</p>
-                <p className="text-sm font-mono text-slate-700 mt-1">NIF: <strong>{f.emisor_nif}</strong></p>
+            {/* Franja superior */}
+            <div className="h-1.5 w-full" style={{ backgroundColor: DOC_RED }} />
+
+            <div className="px-10 pt-8 pb-10">
+
+              {/* Cabecera: empresa | NIF+nombre | logo */}
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <p className="text-sm font-black text-slate-900 uppercase">{emisorEmpresa}</p>
+                  <p className="text-xs text-slate-600 mt-0.5">{emisorDir}</p>
+                  <p className="text-xs text-slate-600">{emisorCp} {emisorMunicipio?.toUpperCase()}</p>
+                  <p className="text-xs text-slate-600">{emisorTelefono}</p>
+                </div>
+                <div className="text-xs text-slate-700 text-left mx-6">
+                  <p>NIF: {emisorNif}</p>
+                  <p className="mt-0.5 uppercase font-medium" style={{ maxWidth: 160 }}>{emisorNombre}</p>
+                </div>
+                <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-14 object-contain" />
               </div>
-              <div className="text-right">
-                <div className="inline-block border-2 border-slate-900 px-5 py-3 rounded">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest">FACTURA</p>
-                  <p className="text-xl font-black font-mono text-slate-900">{f.numero}</p>
-                  <p className="text-xs text-slate-600 mt-1">Fecha: <strong>{fmtDate(f.fecha_emision)}</strong></p>
-                  <p className="text-xs text-slate-600">Vence: {fmtDate(f.fecha_vencimiento)}</p>
-                </div>
-              </div>
-            </div>
 
-            {/* Línea divisoria */}
-            <div className="border-t-2 border-slate-900 mb-6" />
+              {/* Título */}
+              <h1 className="text-4xl font-black text-slate-900 mb-1">Factura</h1>
 
-            {/* Datos del receptor */}
-            <div className="mb-6 bg-slate-50 p-4 rounded border border-slate-200">
-              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2">Facturar a</p>
-              <p className="font-bold text-slate-900">{f.receptor_nombre || f.nombre_comercial}</p>
-              {f.receptor_nif && <p className="text-sm text-slate-600">CIF/NIF: <strong>{f.receptor_nif}</strong></p>}
-              {f.receptor_dir && <p className="text-sm text-slate-600">{f.receptor_dir}</p>}
-              {f.receptor_municipio && <p className="text-sm text-slate-600">{f.receptor_municipio}</p>}
-            </div>
-
-            {/* Tabla de líneas */}
-            <table className="w-full text-sm mb-6">
-              <thead>
-                <tr className="bg-slate-900 text-white">
-                  <th className="text-left px-3 py-2 font-bold uppercase text-[11px] tracking-wider">Descripción</th>
-                  <th className="text-center px-3 py-2 font-bold uppercase text-[11px] tracking-wider w-16">Cant.</th>
-                  <th className="text-right px-3 py-2 font-bold uppercase text-[11px] tracking-wider w-24">P. Unit.</th>
-                  <th className="text-right px-3 py-2 font-bold uppercase text-[11px] tracking-wider w-16">IVA%</th>
-                  <th className="text-right px-3 py-2 font-bold uppercase text-[11px] tracking-wider w-24">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(f.lineas || []).map((l, i) => (
-                  <tr key={i} className={`border-b border-slate-200 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-                    <td className="px-3 py-2.5 text-slate-800">{l.descripcion}</td>
-                    <td className="px-3 py-2.5 text-center font-mono text-slate-600">{l.cantidad}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-slate-600">{fmtEur(l.precio_unitario)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-slate-600">{l.tipo_iva}%</td>
-                    <td className="px-3 py-2.5 text-right font-mono font-bold text-slate-800">{fmtEur(l.subtotal_sin_iva)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Totales */}
-            <div className="flex justify-end mb-6">
-              <div className="w-72 border border-slate-200 rounded overflow-hidden">
-                <div className="flex justify-between px-4 py-2 bg-slate-50">
-                  <span className="text-sm text-slate-600">Base imponible</span>
-                  <span className="font-mono font-bold text-slate-800">{fmtEur(f.base_imponible)}</span>
-                </div>
-                <div className="flex justify-between px-4 py-2">
-                  <span className="text-sm text-slate-600">IVA ({f.tipo_iva}%)</span>
-                  <span className="font-mono font-bold text-slate-800">{fmtEur(f.cuota_iva)}</span>
-                </div>
-                {parseFloat(f.tipo_irpf) > 0 && (
-                  <div className="flex justify-between px-4 py-2 bg-slate-50">
-                    <span className="text-sm text-slate-600">Ret. IRPF ({f.tipo_irpf}%)</span>
-                    <span className="font-mono font-bold text-red-600">-{fmtEur(f.cuota_irpf)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between px-4 py-3 bg-slate-900 text-white">
-                  <span className="font-bold uppercase tracking-wider text-sm">TOTAL</span>
-                  <span className="font-mono font-black text-lg">{fmtEur(f.total_con_iva)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Plan de pagos fraccionado */}
-            {f.fraccionado && f.num_fracciones > 1 && (
-              <div className="mb-6 border border-slate-200 rounded p-4">
-                <p className="text-[11px] text-slate-500 uppercase tracking-widest font-bold mb-3">Plan de pagos fraccionado</p>
-                <div className="grid gap-1">
-                  {Array.from({ length: f.num_fracciones }, (_, i) => {
-                    const importe = Math.round((parseFloat(f.total_con_iva) / f.num_fracciones) * 100) / 100;
-                    const fecha = new Date(f.fecha_emision);
-                    fecha.setMonth(fecha.getMonth() + i);
-                    return (
-                      <div key={i} className="flex justify-between items-center py-1 border-b border-slate-100 last:border-0 text-sm">
-                        <span className="text-slate-500">Cuota {i + 1}/{f.num_fracciones} — {fmtDate(fecha.toISOString())}</span>
-                        <span className="font-mono font-bold text-slate-800">{fmtEur(importe)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Método de pago + Observaciones */}
-            <div className="border-t border-slate-200 pt-4 space-y-2">
-              {f.metodo_pago && (
-                <p className="text-xs text-slate-600"><strong>Forma de pago:</strong> {f.metodo_pago}</p>
-              )}
-              {f.observaciones && (
-                <p className="text-xs text-slate-600"><strong>Observaciones:</strong> {f.observaciones}</p>
-              )}
-              <p className="text-[10px] text-slate-400 mt-3">
-                Factura emitida al amparo del art. 6 del RD 1619/2012, de 30 de noviembre, por el que se aprueba el Reglamento por el que se regulan las obligaciones de facturación.
+              {/* Fecha */}
+              <p className="text-sm font-bold mb-8" style={{ color: DOC_RED }}>
+                {fmtFecha(f.fecha_emision)}
               </p>
+
+              {/* Destinatario + Nº factura */}
+              <div className="flex justify-between items-start mb-8">
+                <div>
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">A la atención de</p>
+                  <p className="text-sm font-bold text-slate-900 uppercase">{f.receptor_nombre || f.nombre_comercial}</p>
+                  {f.receptor_nif && (
+                    <p className="text-xs text-slate-700 font-bold mt-0.5">{f.receptor_nif}</p>
+                  )}
+                  {f.receptor_dir && (
+                    <p className="text-xs text-slate-600 uppercase mt-0.5">{f.receptor_dir}</p>
+                  )}
+                  {f.receptor_municipio && (
+                    <p className="text-xs text-slate-600 uppercase">{f.receptor_municipio}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">N.º de factura</p>
+                  <p className="text-sm font-bold text-slate-900">{f.numero}</p>
+                </div>
+              </div>
+
+              {/* Tabla de líneas */}
+              <table className="w-full text-sm mb-6 border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: DOC_RED }}>
+                    <th className="text-left px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider">Descripción</th>
+                    <th className="text-center px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-24">Cantidad</th>
+                    <th className="text-right px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-32">Precio unitario</th>
+                    <th className="text-right px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-32">Precio total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(f.lineas || []).map((linea, idx) => (
+                    <LineaFactura key={idx} linea={linea} />
+                  ))}
+                  {/* Filas vacías para dar volumen como en la referencia */}
+                  {(f.lineas || []).length < 4 && Array.from({ length: 4 - (f.lineas || []).length }).map((_, idx) => (
+                    <tr key={`empty-${idx}`} className="border-b border-slate-100">
+                      <td className="px-3 py-4" colSpan={4}>&nbsp;</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Totales */}
+              <div className="flex justify-end mb-8">
+                <div className="w-72 space-y-0">
+                  <div className="flex justify-between px-3 py-2 border-b border-slate-200">
+                    <span className="text-sm text-slate-600">Subtotal</span>
+                    <span className="font-mono font-bold text-slate-800">{fmtEur(f.base_imponible)}</span>
+                  </div>
+                  <div className="flex justify-between px-3 py-2 border-b border-slate-200">
+                    <span className="text-sm text-slate-600">IVA {f.tipo_iva}% Impuestos</span>
+                    <span className="font-mono font-bold text-slate-800">{fmtEur(f.cuota_iva)}</span>
+                  </div>
+                  {parseFloat(f.tipo_irpf) > 0 && (
+                    <div className="flex justify-between px-3 py-2 border-b border-slate-200">
+                      <span className="text-sm text-slate-600">Ret. IRPF ({f.tipo_irpf}%)</span>
+                      <span className="font-mono font-bold text-red-700">-{fmtEur(f.cuota_irpf)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between px-3 py-3 mt-1">
+                    <span className="text-base font-black text-slate-900 uppercase tracking-wider">Total</span>
+                    <span className="font-mono font-black text-2xl text-slate-900">{fmtEur(f.total_con_iva)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Plan de pagos fraccionado */}
+              {f.fraccionado && f.num_fracciones > 1 && (
+                <div className="mb-6 border border-slate-200 p-4">
+                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-3">Plan de pagos fraccionado</p>
+                  <div className="grid gap-1">
+                    {Array.from({ length: f.num_fracciones }, (_, idx) => {
+                      const importe = Math.round((parseFloat(f.total_con_iva) / f.num_fracciones) * 100) / 100;
+                      const fechaCuota = new Date(f.fecha_emision);
+                      fechaCuota.setMonth(fechaCuota.getMonth() + idx);
+                      return (
+                        <div key={idx} className="flex justify-between items-center py-1 border-b border-slate-100 last:border-0 text-xs">
+                          <span className="text-slate-500">Cuota {idx + 1}/{f.num_fracciones} — {fmtFecha(fechaCuota.toISOString())}</span>
+                          <span className="font-mono font-bold text-slate-800">{fmtEur(importe)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Observaciones */}
+              {f.observaciones && (
+                <p className="text-xs text-slate-600 mb-4">
+                  <strong>Observaciones:</strong> {f.observaciones}
+                </p>
+              )}
+
+              <p className="text-[9px] text-slate-400">
+                Factura emitida al amparo del art. 6 del RD 1619/2012, de 30 de noviembre.
+              </p>
+
             </div>
+
+            {/* Franja inferior */}
+            <div className="h-6 w-full bg-slate-900" />
 
           </div>
         </div>
       </div>
 
-      {/* Estilos de impresión — solo el documento, sin overlays */}
+      {/* Estilos de impresión */}
       <style>{`
         @media print {
           body > * { display: none !important; }
           .no-print { display: none !important; }
           #factura-print { display: block !important; position: fixed; top: 0; left: 0; width: 100%; }
-          @page { margin: 1.5cm; size: A4; }
+          @page { margin: 0; size: A4; }
         }
       `}</style>
     </>
   );
+};
+
+FacturaViewer.propTypes = {
+  factura: PropTypes.object.isRequired,
+  onClose: PropTypes.func.isRequired,
 };
 
 export default FacturaViewer;

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ProformaModal from './ProformaModal';
-import { Users, ChevronDown, ChevronUp, CheckCircle, Clock, Plus, CreditCard, X, BadgeCheck, FileText } from 'lucide-react';
+import ProformaViewer from './ProformaViewer';
+import { Users, ChevronDown, ChevronUp, CheckCircle, Clock, Plus, CreditCard, X, BadgeCheck, FileText, Eye } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
 
@@ -82,17 +84,19 @@ const PagoChip = ({ pg, onCobrado }) => {
 
 /**
  * ProformaRow — Fila expandible para una proforma dentro de un ClienteRow.
- * Permite aceptar la proforma, generar la factura y visualizar el plan de pagos.
+ * Permite aceptar la proforma, generar la factura, ver el documento imprimible y el plan de pagos.
  * @param {object}   proforma   - Objeto proforma con líneas, pagos, estado y totales
+ * @param {object}   cliente    - Datos del cliente para el visor de proforma
  * @param {Function} onRefresh  - Callback para recargar la lista de proformas del cliente
  */
-const ProformaRow = ({ proforma, onRefresh }) => {
-  const [open, setOpen]           = useState(false);
-  const [pagos, setPagos]         = useState(proforma.pagos || []);
-  const [estado, setEstado]       = useState(proforma.estado);
-  const [aceptando, setAceptando] = useState(false);
+const ProformaRow = ({ proforma, cliente, onRefresh }) => {
+  const [open, setOpen]             = useState(false);
+  const [pagos, setPagos]           = useState(proforma.pagos || []);
+  const [estado, setEstado]         = useState(proforma.estado);
+  const [aceptando, setAceptando]   = useState(false);
   const [facturando, setFacturando] = useState(false);
-  const [facturaOk, setFacturaOk] = useState(false);
+  const [facturaOk, setFacturaOk]   = useState(false);
+  const [verDoc, setVerDoc]         = useState(false);
   const base = import.meta.env.VITE_N8N_URL;
 
   const aceptar = async (e) => {
@@ -122,6 +126,14 @@ const ProformaRow = ({ proforma, onRefresh }) => {
   };
 
   return (
+    <>
+    {verDoc && (
+      <ProformaViewer
+        proforma={proforma}
+        cliente={cliente}
+        onClose={() => setVerDoc(false)}
+      />
+    )}
     <div className="border border-slate-800 rounded-sm">
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-2.5 text-xs hover:bg-slate-800/30 transition-colors">
@@ -152,6 +164,11 @@ const ProformaRow = ({ proforma, onRefresh }) => {
           {facturaOk && (
             <span className="flex items-center gap-1 text-[10px] text-blue-400 font-mono"><FileText size={10} /> Facturada</span>
           )}
+          <button onClick={e => { e.stopPropagation(); setVerDoc(true); }}
+            className="flex items-center gap-1 text-[10px] font-black text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-2 py-1 rounded-sm transition-colors uppercase tracking-widest"
+          >
+            <Eye size={11} /> Ver
+          </button>
           <span className="font-mono font-bold text-white">{fmtEur(proforma.total)}</span>
           {proforma.fraccionado && <span className="text-[10px] text-slate-500 font-mono">{proforma.num_fracciones} cuotas</span>}
           {open ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
@@ -192,7 +209,14 @@ const ProformaRow = ({ proforma, onRefresh }) => {
         </div>
       )}
     </div>
+    </>
   );
+};
+
+ProformaRow.propTypes = {
+  proforma:  PropTypes.object.isRequired,
+  cliente:   PropTypes.object,
+  onRefresh: PropTypes.func,
 };
 
 /**
@@ -257,7 +281,7 @@ const ClienteRow = ({ cliente, onNuevaProforma }) => {
             <div className="animate-pulse h-10 bg-slate-800 rounded-sm" />
           ) : proformas.length === 0 ? (
             <p className="text-[10px] text-slate-700 italic font-mono uppercase tracking-widest py-2">Sin proformas</p>
-          ) : proformas.map(p => <ProformaRow key={p.id} proforma={p} onRefresh={loadProformas} />)}
+          ) : proformas.map(p => <ProformaRow key={p.id} proforma={p} cliente={cliente} onRefresh={loadProformas} />)}
         </div>
       )}
     </div>
