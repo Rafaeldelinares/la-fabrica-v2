@@ -41,7 +41,7 @@ const FacturaViewer = ({ factura, onClose }) => {
   return (
     <>
       {/* ── Modal overlay — oculto al imprimir ── */}
-      <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm overflow-y-auto py-8 no-print">
+      <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/80 backdrop-blur-sm overflow-y-auto py-8">
         <div className="w-full max-w-3xl">
 
           {/* Barra de acciones */}
