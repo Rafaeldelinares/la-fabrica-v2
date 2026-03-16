@@ -437,7 +437,13 @@ const AgendaGlobalPanel = () => {
           onAbrirCliente={abrirClienteDesdeAgenda}
         />
       )}
-      {clienteDrawer && <ClienteDrawer cliente={clienteDrawer} gestorId={user?.id} onClose={() => setClienteDrawer(null)} onGestorChanged={() => {}} />}
+      {clienteDrawer && (
+        <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setClienteDrawer(null)}>
+          <div className="w-[1080px] max-w-full h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <ClienteDrawer cliente={clienteDrawer} gestorId={user?.id} onClose={() => setClienteDrawer(null)} onGestorChanged={() => {}} />
+          </div>
+        </div>
+      )}
       <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}>
         {tooltipEvento && <TooltipContenido evento={tooltipEvento} />}
       </div>
