@@ -1,28 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import Badge from '../../../shared/ui/Badge';
 import { X, Plus, Trash2, FileText } from 'lucide-react';
 
+// Endpoint n8n — VITE_N8N_URL debe estar definida en producción
+const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+
+/** Formatea un número como precio en euros. */
 const fmtEur = (v) => v != null ? `${parseFloat(v || 0).toFixed(2)} €` : '0.00 €';
 
 const CUOTAS = [1, 2, 3, 4, 6, 12];
 
+/** Fila de línea de proforma: producto, descripción, cantidad, precio, descuento y subtotal. */
 const LineaRow = ({ linea, productos, onChange, onRemove }) => {
+  const calcSubtotal = (cantidad, precio, dto) =>
+    parseFloat(cantidad) * parseFloat(precio) * (1 - parseFloat(dto || 0) / 100);
+
   const handleProducto = (e) => {
     const prod = productos.find(p => p.id === parseInt(e.target.value));
-    if (prod) onChange({ ...linea, producto_id: prod.id, descripcion: prod.nombre, precio_unitario: prod.precio_base, subtotal: prod.precio_base * linea.cantidad });
+    if (prod) onChange({ ...linea, producto_id: prod.id, descripcion: prod.nombre, precio_unitario: prod.precio_base, subtotal: calcSubtotal(linea.cantidad, prod.precio_base, linea.dto_pct) });
     else onChange({ ...linea, producto_id: '', descripcion: '', precio_unitario: 0, subtotal: 0 });
   };
   const handleCant = (e) => {
     const c = parseFloat(e.target.value) || 1;
-    onChange({ ...linea, cantidad: c, subtotal: c * linea.precio_unitario });
+    onChange({ ...linea, cantidad: c, subtotal: calcSubtotal(c, linea.precio_unitario, linea.dto_pct) });
   };
   const handlePrecio = (e) => {
     const p = parseFloat(e.target.value) || 0;
-    onChange({ ...linea, precio_unitario: p, subtotal: linea.cantidad * p });
+    onChange({ ...linea, precio_unitario: p, subtotal: calcSubtotal(linea.cantidad, p, linea.dto_pct) });
+  };
+  const handleDto = (e) => {
+    const d = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0));
+    onChange({ ...linea, dto_pct: d, subtotal: calcSubtotal(linea.cantidad, linea.precio_unitario, d) });
   };
 
   return (
-    <div className="grid grid-cols-[1fr_2fr_60px_80px_80px_32px] gap-2 items-center">
+    <div className="grid grid-cols-[1fr_2fr_60px_80px_56px_80px_32px] gap-2 items-center">
       <select
         value={linea.producto_id}
         onChange={handleProducto}
@@ -51,6 +62,15 @@ const LineaRow = ({ linea, productos, onChange, onRemove }) => {
         onChange={handlePrecio}
         className="bg-slate-950 border border-slate-700 rounded-sm text-[11px] text-slate-200 px-2 py-1.5 outline-none focus:border-[#D00000] font-mono text-right"
       />
+      <div className="relative">
+        <input
+          type="number" min="0" max="100" step="1"
+          value={linea.dto_pct}
+          onChange={handleDto}
+          className={`w-full bg-slate-950 border rounded-sm text-[11px] px-2 pr-4 py-1.5 outline-none font-mono text-right ${linea.dto_pct > 0 ? 'border-amber-500/60 text-amber-400' : 'border-slate-700 text-slate-200'} focus:border-[#D00000]`}
+        />
+        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-500">%</span>
+      </div>
       <span className="text-[11px] font-mono text-white font-bold text-right">{fmtEur(linea.subtotal)}</span>
       <button onClick={onRemove} className="text-slate-600 hover:text-red-500 transition-colors flex items-center justify-center">
         <Trash2 size={13} />
@@ -59,10 +79,10 @@ const LineaRow = ({ linea, productos, onChange, onRemove }) => {
   );
 };
 
-const newLinea = () => ({ _id: Date.now(), producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, subtotal: 0 });
+const newLinea = () => ({ _id: Date.now(), producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, dto_pct: 0, subtotal: 0 });
 
+/** Modal de creación de proforma para un cliente: líneas, pago fraccionado y factura. */
 const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
   const [productos, setProductos] = useState([]);
   const [lineas, setLineas] = useState([newLinea()]);
   const [fraccionado, setFraccionado] = useState(false);
@@ -99,7 +119,7 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
       for (const linea of validLineas) {
         await fetch(`${N8N}/crm-proforma-linea`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ proforma_id: proformaId, producto_id: linea.producto_id || null, descripcion: linea.descripcion, cantidad: linea.cantidad, precio_unitario: linea.precio_unitario }),
+          body: JSON.stringify({ proforma_id: proformaId, producto_id: linea.producto_id || null, descripcion: linea.descripcion, cantidad: linea.cantidad, precio_unitario: linea.precio_unitario, dto_pct: linea.dto_pct || 0 }),
         });
       }
 
@@ -120,7 +140,7 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-3xl bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-3xl bg-slate-900 border border-slate-700 rounded-sm shadow-2xl flex flex-col max-h-[90vh]">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
@@ -139,8 +159,8 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
 
           {/* Cabecera columnas */}
           <div>
-            <div className="grid grid-cols-[1fr_2fr_60px_80px_80px_32px] gap-2 mb-2 text-[10px] text-slate-600 uppercase tracking-widest font-black">
-              <span>Producto</span><span>Descripción</span><span className="text-center">Cant.</span><span className="text-right">Precio</span><span className="text-right">Subtotal</span><span />
+            <div className="grid grid-cols-[1fr_2fr_60px_80px_56px_80px_32px] gap-2 mb-2 text-[10px] text-slate-600 uppercase tracking-widest font-black">
+              <span>Producto</span><span>Descripción</span><span className="text-center">Cant.</span><span className="text-right">Precio</span><span className="text-right">Dto%</span><span className="text-right">Subtotal</span><span />
             </div>
             <div className="space-y-2">
               {lineas.map((l, i) => (
@@ -168,9 +188,9 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
                 <span className="text-xs text-slate-400 uppercase tracking-widest font-bold">Pago fraccionado</span>
                 <button
                   onClick={() => { setFraccionado(f => !f); if (!fraccionado) setNumFracciones(2); else setNumFracciones(1); }}
-                  className={`w-10 h-5 rounded-full transition-colors relative ${fraccionado ? 'bg-[#D00000]' : 'bg-slate-700'}`}
+                  className={`w-10 h-5 rounded-sm transition-colors relative ${fraccionado ? 'bg-[#D00000]' : 'bg-slate-700'}`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${fraccionado ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-sm transition-transform ${fraccionado ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
               </label>
               {fraccionado && (
@@ -189,9 +209,9 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
                 <span className="text-xs text-slate-400 uppercase tracking-widest font-bold">Requiere factura</span>
                 <button
                   onClick={() => setRequiereFactura(f => !f)}
-                  className={`w-10 h-5 rounded-full transition-colors relative ${requiereFactura ? 'bg-[#D00000]' : 'bg-slate-700'}`}
+                  className={`w-10 h-5 rounded-sm transition-colors relative ${requiereFactura ? 'bg-[#D00000]' : 'bg-slate-700'}`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${requiereFactura ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-sm transition-transform ${requiereFactura ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
               </label>
             </div>

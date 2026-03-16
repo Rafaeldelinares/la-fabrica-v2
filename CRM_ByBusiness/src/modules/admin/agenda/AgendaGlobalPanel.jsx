@@ -4,7 +4,7 @@ import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth,
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
-import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock } from 'lucide-react';
 import { useAuth } from '../../../modules/auth/AuthContext';
 
 const localizer = dateFnsLocalizer({
@@ -13,6 +13,7 @@ const localizer = dateFnsLocalizer({
   getDay, locales: { es },
 });
 
+// Endpoint n8n — VITE_N8N_URL debe estar definida en producción
 const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
 
 const TIPO = {
@@ -20,6 +21,9 @@ const TIPO = {
   callback_operador: { color: '#f59e0b', label: 'Callback operador', Icon: Phone         },
   interaccion:       { color: '#10b981', label: 'Interacción',       Icon: MessageSquare },
   llamada_operador:  { color: '#8b5cf6', label: 'Llamada operador',  Icon: Users         },
+  gbp_snapshot:           { color: '#22c55e', label: 'GBP Snapshot',      Icon: Star          },
+  gbp_autorepair:         { color: '#ef4444', label: 'Motor reparado',    Icon: Wrench        },
+  proxima_accion_cliente: { color: '#D00000', label: 'Próxima acción',    Icon: CalendarClock },
 };
 
 const fmtHeader = (date, view) => {
@@ -28,7 +32,7 @@ const fmtHeader = (date, view) => {
   return format(date, 'MMMM yyyy', { locale: es });
 };
 
-/* ── Modal nueva cita ───────────────────────────────────── */
+/** Modal para crear una nueva cita cliente desde el panel de agenda. */
 const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
   const [form, setForm] = useState({ cliente_id: '', fecha_hora: '', motivo: '' });
   const [saving, setSaving] = useState(false);
@@ -49,7 +53,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
+      <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-full max-w-md shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-sm font-black text-white uppercase tracking-widest">Nueva Cita</h2>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={16} /></button>
@@ -87,13 +91,13 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
   );
 };
 
-/* ── Detalle evento ─────────────────────────────────────── */
+/** Modal de detalle de un evento del calendario al hacer clic sobre él. */
 const EventoDetalle = ({ evento, onClose }) => {
   if (!evento) return null;
   const cfg = TIPO[evento.tipo] || TIPO.llamada_operador;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-xl p-5 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
+      <div className="bg-slate-900 border border-slate-700 rounded-sm p-5 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
           <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: cfg.color }}>{cfg.label}</span>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={14} /></button>
@@ -118,7 +122,7 @@ const EventoDetalle = ({ evento, onClose }) => {
   );
 };
 
-/* ── Panel principal ────────────────────────────────────── */
+/** Panel de agenda unificada (admin): visualiza todos los eventos del equipo con filtros por tipo. */
 const AgendaGlobalPanel = () => {
   const { user } = useAuth();
   const [eventos, setEventos]     = useState([]);
@@ -126,7 +130,7 @@ const AgendaGlobalPanel = () => {
   const [loading, setLoading]     = useState(true);
   const [view, setView]           = useState(Views.WEEK);
   const [fecha, setFecha]         = useState(new Date());
-  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true });
+  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true });
   const [modalCita, setModalCita] = useState(false);
   const [eventoSel, setEventoSel] = useState(null);
 
@@ -139,9 +143,10 @@ const AgendaGlobalPanel = () => {
       .then(d => {
         if (d.ok) setEventos(d.eventos.map(e => ({
           ...e,
-          start: new Date(e.start),
-          end:   new Date(e.end),
-          title: e.titulo,
+          start:   new Date(e.start),
+          end:     new Date(e.end),
+          title:   e.titulo,
+          tooltip: e.descripcion ? `${e.titulo} — ${e.descripcion}` : e.titulo,
         })));
       })
       .catch(() => {})
@@ -249,6 +254,7 @@ const AgendaGlobalPanel = () => {
             onNavigate={setFecha}
             onSelectEvent={setEventoSel}
             eventPropGetter={estiloEvento}
+            tooltipAccessor="tooltip"
             culture="es"
             messages={{
               week: 'Semana', day: 'Día', month: 'Mes', today: 'Hoy',
