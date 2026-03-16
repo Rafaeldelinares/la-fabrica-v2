@@ -84,3 +84,13 @@
 /* Scroll */
 .rbc-time-content::-webkit-scrollbar { width: 4px; }
 .rbc-time-content::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+
+/* Colores por tipo de evento — sin inline styles */
+.ev-tipo-cita_cliente           { background-color: #3b82f610 !important; border-left: 3px solid #3b82f6 !important; color: #3b82f6 !important; }
+.ev-tipo-callback_operador      { background-color: #f59e0b10 !important; border-left: 3px solid #f59e0b !important; color: #f59e0b !important; }
+.ev-tipo-interaccion            { background-color: #10b98110 !important; border-left: 3px solid #10b981 !important; color: #10b981 !important; }
+.ev-tipo-llamada_operador       { background-color: #8b5cf610 !important; border-left: 3px solid #8b5cf6 !important; color: #8b5cf6 !important; }
+.ev-tipo-gbp_snapshot           { background-color: #22c55e10 !important; border-left: 3px solid #22c55e !important; color: #22c55e !important; }
+.ev-tipo-gbp_autorepair         { background-color: #ef444410 !important; border-left: 3px solid #ef4444 !important; color: #ef4444 !important; }
+.ev-tipo-proxima_accion_cliente { background-color: #D0000010 !important; border-left: 3px solid #D00000 !important; color: #D00000 !important; }
+.ev-tipo-default                { background-color: #64748b10 !important; border-left: 3px solid #64748b !important; color: #cbd5e1 !important; }

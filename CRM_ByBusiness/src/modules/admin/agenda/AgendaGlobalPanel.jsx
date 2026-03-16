@@ -6,6 +6,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
 import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock } from 'lucide-react';
 import { useAuth } from '../../../modules/auth/AuthContext';
+import DatePickerField from '../../../shared/ui/DatePickerField';
 
 const localizer = dateFnsLocalizer({
   format, parse,
@@ -14,18 +15,19 @@ const localizer = dateFnsLocalizer({
 });
 
 // Endpoint n8n — VITE_N8N_URL debe estar definida en producción
-const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+const N8N = import.meta.env.VITE_N8N_URL;
 
 const TIPO = {
-  cita_cliente:      { color: '#3b82f6', label: 'Cita cliente',      Icon: CalIcon       },
-  callback_operador: { color: '#f59e0b', label: 'Callback operador', Icon: Phone         },
-  interaccion:       { color: '#10b981', label: 'Interacción',       Icon: MessageSquare },
-  llamada_operador:  { color: '#8b5cf6', label: 'Llamada operador',  Icon: Users         },
-  gbp_snapshot:           { color: '#22c55e', label: 'GBP Snapshot',      Icon: Star          },
-  gbp_autorepair:         { color: '#ef4444', label: 'Motor reparado',    Icon: Wrench        },
-  proxima_accion_cliente: { color: '#D00000', label: 'Próxima acción',    Icon: CalendarClock },
+  cita_cliente:           { textClass: 'text-blue-500',    borderClass: 'border-blue-500/40',    bgClass: 'bg-blue-500/10',    label: 'Cita cliente',      Icon: CalIcon       },
+  callback_operador:      { textClass: 'text-amber-400',   borderClass: 'border-amber-400/40',   bgClass: 'bg-amber-400/10',   label: 'Callback operador', Icon: Phone         },
+  interaccion:            { textClass: 'text-emerald-500', borderClass: 'border-emerald-500/40', bgClass: 'bg-emerald-500/10', label: 'Interacción',       Icon: MessageSquare },
+  llamada_operador:       { textClass: 'text-violet-500',  borderClass: 'border-violet-500/40',  bgClass: 'bg-violet-500/10',  label: 'Llamada operador',  Icon: Users         },
+  gbp_snapshot:           { textClass: 'text-green-500',   borderClass: 'border-green-500/40',   bgClass: 'bg-green-500/10',   label: 'GBP Snapshot',      Icon: Star          },
+  gbp_autorepair:         { textClass: 'text-red-500',     borderClass: 'border-red-500/40',     bgClass: 'bg-red-500/10',     label: 'Motor reparado',    Icon: Wrench        },
+  proxima_accion_cliente: { textClass: 'text-[#D00000]',   borderClass: 'border-[#D00000]/40',   bgClass: 'bg-[#D00000]/10',   label: 'Próxima acción',    Icon: CalendarClock },
 };
 
+/** Devuelve el título de la cabecera del calendario según la vista activa (día/semana/mes). */
 const fmtHeader = (date, view) => {
   if (view === Views.DAY)  return format(date, "EEEE d 'de' MMMM yyyy", { locale: es });
   if (view === Views.WEEK) return `Semana del ${format(startOfWeek(date, { weekStartsOn: 1 }), 'd MMM', { locale: es })}`;
@@ -36,18 +38,20 @@ const fmtHeader = (date, view) => {
 const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
   const [form, setForm] = useState({ cliente_id: '', fecha_hora: '', motivo: '' });
   const [saving, setSaving] = useState(false);
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const actualizarCampo = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
 
   const guardar = async () => {
     if (!form.cliente_id || !form.fecha_hora || !form.motivo) return;
     setSaving(true);
     try {
-      const r = await fetch(`${N8N}/crm-crear-cita`, {
+      const response = await fetch(`${N8N}/crm-crear-cita`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, gestor_id: gestorId }),
       });
-      const d = await r.json();
-      if (d.ok) { onCreated(); onClose(); }
+      const data = await response.json();
+      if (data.ok) { onCreated(); onClose(); }
+    } catch {
+      // error de red — mantener modal abierto para reintentar
     } finally { setSaving(false); }
   };
 
@@ -61,7 +65,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
         <div className="space-y-4">
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Cliente</label>
-            <select value={form.cliente_id} onChange={e => set('cliente_id', e.target.value)}
+            <select value={form.cliente_id} onChange={e => actualizarCampo('cliente_id', e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500">
               <option value="">Seleccionar cliente...</option>
               {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre_comercial}</option>)}
@@ -69,12 +73,16 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
           </div>
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Fecha y hora</label>
-            <input type="datetime-local" value={form.fecha_hora} onChange={e => set('fecha_hora', e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500" />
+            <DatePickerField
+              selected={form.fecha_hora ? new Date(form.fecha_hora) : null}
+              onChange={(date) => actualizarCampo('fecha_hora', date ? format(date, "yyyy-MM-dd'T'HH:mm") : '')}
+              showTimeSelect
+              placeholderText="DD/MM/AAAA HH:MM"
+            />
           </div>
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Motivo</label>
-            <input value={form.motivo} onChange={e => set('motivo', e.target.value)}
+            <input value={form.motivo} onChange={e => actualizarCampo('motivo', e.target.value)}
               placeholder="Revisión trimestral, seguimiento contrato..."
               className="w-full bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500" />
           </div>
@@ -99,13 +107,13 @@ const EventoDetalle = ({ evento, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-sm p-5 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: cfg.color }}>{cfg.label}</span>
+          <span className={`text-[10px] font-black uppercase tracking-widest ${cfg.textClass}`}>{cfg.label}</span>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={14} /></button>
         </div>
         <p className="text-sm font-bold text-white mb-1">{evento.titulo}</p>
         <p className="text-xs text-slate-400 mb-3">{evento.descripcion}</p>
         <div className="text-[10px] text-slate-500 font-mono space-y-1">
-          <div>{format(evento.start, "d MMM yyyy · HH:mm", { locale: es })}</div>
+          <div>{format(evento.start, "dd/MM/yyyy · HH:mm")}</div>
           {evento.responsable     && <div>Gestor: {evento.responsable}</div>}
           {evento.operador_nombre && <div>Operador: {evento.operador_nombre}</div>}
           {evento.google_cid      && <div className="text-slate-700">GID: {evento.google_cid}</div>}
@@ -136,9 +144,9 @@ const AgendaGlobalPanel = () => {
 
   const cargar = useCallback(() => {
     setLoading(true);
-    const ini = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
-    const fin = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
-    fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${ini}&fecha_fin=${fin}`)
+    const fechaInicio = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
+    const fechaFin    = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
+    fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
       .then(r => r.json())
       .then(d => {
         if (d.ok) setEventos(d.eventos.map(e => ({
@@ -149,7 +157,7 @@ const AgendaGlobalPanel = () => {
           tooltip: e.descripcion ? `${e.titulo} — ${e.descripcion}` : e.titulo,
         })));
       })
-      .catch(() => {})
+      .catch(() => setEventos([]))
       .finally(() => setLoading(false));
   }, [fecha]);
 
@@ -159,18 +167,13 @@ const AgendaGlobalPanel = () => {
     fetch(`${N8N}/crm-clientes`)
       .then(r => r.json())
       .then(d => { if (d.ok) setClientes(d.clientes); })
-      .catch(() => {});
+      .catch(() => setClientes([]));
   }, []);
 
   const eventosFiltrados = eventos.filter(e => filtros[e.tipo]);
 
   const estiloEvento = useCallback((ev) => ({
-    style: {
-      backgroundColor: (TIPO[ev.tipo]?.color || '#64748b') + '25',
-      borderLeft:       `3px solid ${TIPO[ev.tipo]?.color || '#64748b'}`,
-      color:             TIPO[ev.tipo]?.color || '#cbd5e1',
-      borderRadius:     '3px',
-    }
+    className: `ev-tipo-${ev.tipo ?? 'default'}`,
   }), []);
 
   const navegar = (dir) => {
@@ -208,10 +211,11 @@ const AgendaGlobalPanel = () => {
         <div className="flex items-center gap-1.5 flex-wrap">
           {Object.entries(TIPO).map(([tipo, cfg]) => (
             <button key={tipo} onClick={() => setFiltros(p => ({ ...p, [tipo]: !p[tipo] }))}
-              className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all"
-              style={filtros[tipo]
-                ? { borderColor: cfg.color + '60', backgroundColor: cfg.color + '15', color: cfg.color }
-                : { borderColor: '#1e293b', color: '#334155' }}>
+              className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all ${
+                filtros[tipo]
+                  ? `${cfg.textClass} ${cfg.borderClass} ${cfg.bgClass}`
+                  : 'border-slate-800 text-slate-700'
+              }`}>
               <cfg.Icon size={9} />
               {cfg.label}
               <span className="font-mono ml-0.5 opacity-60">

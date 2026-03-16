@@ -3,18 +3,14 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { ClipboardList, RefreshCw, Phone, PhoneOff, PhoneMissed, Calendar, TrendingUp } from 'lucide-react';
+import { fmtFechaHora } from '../../../utils/dates';
 
-const N8N = () => import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
-
-const fmtFecha = (iso) => new Date(iso).toLocaleString('es-ES', {
-  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-});
-
-const fmtDuracion = (s) => {
-  if (!s) return '—';
-  const m = Math.floor(s / 60);
-  const sec = s % 60;
-  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+/** Formatea una duración en segundos como cadena legible (p.ej. "2m 30s"). */
+const fmtDuracion = (segundos) => {
+  if (!segundos) return '—';
+  const minutos = Math.floor(segundos / 60);
+  const seg = segundos % 60;
+  return minutos > 0 ? `${minutos}m ${seg}s` : `${seg}s`;
 };
 
 const RESULTADO_BADGE = {
@@ -35,30 +31,32 @@ const RESULTADO_ICON = {
   fuera_zona:   PhoneOff,
 };
 
-const FilaLlamada = ({ ll }) => {
-  const Icon = RESULTADO_ICON[ll.resultado] || Phone;
+/** Fila de tabla para una llamada individual en el historial de auditoría. */
+const FilaLlamada = ({ llamada }) => {
+  const Icon = RESULTADO_ICON[llamada.resultado] || Phone;
   return (
     <tr className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
-      <td className="px-4 py-3 font-mono text-slate-600 text-[11px]">{fmtFecha(ll.fecha_llamada)}</td>
+      <td className="px-4 py-3 font-mono text-slate-600 text-[11px]">{fmtFechaHora(llamada.fecha_llamada)}</td>
       <td className="px-4 py-3">
-        <p className="font-bold text-slate-200 uppercase text-xs tracking-wide truncate max-w-[160px]">{ll.nombre_comercial}</p>
-        <p className="text-[10px] text-slate-600 font-mono mt-0.5">{ll.localidad || '—'}</p>
+        <p className="font-bold text-slate-200 uppercase text-xs tracking-wide truncate max-w-[160px]">{llamada.nombre_comercial}</p>
+        <p className="text-[10px] text-slate-600 font-mono mt-0.5">{llamada.localidad || '—'}</p>
       </td>
-      <td className="px-4 py-3 text-xs text-slate-400">{ll.operador_nombre || '—'}</td>
+      <td className="px-4 py-3 text-xs text-slate-400">{llamada.operador_nombre || '—'}</td>
       <td className="px-4 py-3">
-        <Badge className={RESULTADO_BADGE[ll.resultado] || 'bg-slate-800 text-slate-400 border-slate-700'}>
+        <Badge className={RESULTADO_BADGE[llamada.resultado] || 'bg-slate-800 text-slate-400 border-slate-700'}>
           <span className="flex items-center gap-1">
             <Icon size={9} />
-            {ll.resultado?.replace(/_/g, ' ').toUpperCase() || '—'}
+            {llamada.resultado?.replace(/_/g, ' ').toUpperCase() || '—'}
           </span>
         </Badge>
       </td>
-      <td className="px-4 py-3 font-mono text-slate-500 text-[11px]">{fmtDuracion(ll.duracion_segundos)}</td>
-      <td className="px-4 py-3 text-[10px] text-slate-500 max-w-[200px] truncate italic">{ll.notas || '—'}</td>
+      <td className="px-4 py-3 font-mono text-slate-500 text-[11px]">{fmtDuracion(llamada.duracion_segundos)}</td>
+      <td className="px-4 py-3 text-[10px] text-slate-500 max-w-[200px] truncate italic">{llamada.notas || '—'}</td>
     </tr>
   );
 };
 
+/** Chip de KPI con etiqueta y valor resaltado en color. */
 const KpiChip = ({ label, value, color = 'text-white' }) => (
   <div className="flex flex-col gap-0.5 bg-slate-900 border border-slate-800 rounded-sm px-4 py-2.5">
     <span className="text-[9px] text-slate-600 uppercase tracking-widest font-black">{label}</span>
@@ -66,6 +64,7 @@ const KpiChip = ({ label, value, color = 'text-white' }) => (
   </div>
 );
 
+/** Panel de auditoría de llamadas: historial filtrable por operador y resultado con KPIs de conversión. */
 const AuditoriaPanel = () => {
   const [llamadas, setLlamadas] = useState(null);
   const [filtroOp, setFiltroOp] = useState('');
@@ -73,7 +72,7 @@ const AuditoriaPanel = () => {
 
   const cargar = () => {
     setLlamadas(null);
-    const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+    const base = import.meta.env.VITE_N8N_URL;
     fetch(`${base}/crm-auditoria-llamadas`)
       .then(r => r.json())
       .then(d => { if (d.ok) setLlamadas(d.llamadas || []); })
@@ -189,7 +188,7 @@ const AuditoriaPanel = () => {
                 </tr>
               </thead>
               <tbody>
-                {filtradas.map(ll => <FilaLlamada key={ll.id} ll={ll} />)}
+                {filtradas.map(llamada => <FilaLlamada key={llamada.id} llamada={llamada} />)}
               </tbody>
             </table>
           </div>

@@ -3,6 +3,7 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { Users, ExternalLink } from 'lucide-react';
+import { fmtFecha } from '../../../utils/dates';
 
 const ESTADO_CLASSES = {
   nuevo:      'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -24,36 +25,40 @@ const ORIGEN_CLASSES = {
   referido:  'bg-purple-900/40 text-purple-400 border-purple-800',
 };
 
-const fmtFecha = (iso) => {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: '2-digit' });
-};
-
+/** Panel de gestión de candidatos RRHH con filtros por estado y origen y cambio de estado inline. */
 const CandidatosPanel = () => {
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState('');
   const [candidatos, setCandidatos] = useState(null);
   const [total, setTotal] = useState(0);
 
+  /** Actualiza el estado de un candidato en el servidor y refleja el cambio en la UI. */
   const cambiarEstado = async (id, nuevoEstado) => {
-    const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
-    await fetch(`${N8N}/crm-candidato-update`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, estado: nuevoEstado }),
-    });
-    setCandidatos(prev => prev.map(c => c.id === id ? { ...c, estado: nuevoEstado } : c));
+    const N8N = import.meta.env.VITE_N8N_URL;
+    try {
+      const response = await fetch(`${N8N}/crm-candidato-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, estado: nuevoEstado }),
+      });
+      const data = await response.json();
+      if (data.ok) {
+        setCandidatos(prev => prev.map(c => c.id === id ? { ...c, estado: nuevoEstado } : c));
+      }
+    } catch {
+      // error de red — no actualizar la UI
+    }
   };
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (filtroEstado) params.set('estado', filtroEstado);
     if (filtroOrigen) params.set('origen', filtroOrigen);
-    const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+    const N8N = import.meta.env.VITE_N8N_URL;
     fetch(`${N8N}/crm-candidatos-admin?${params}`)
       .then(r => r.json())
       .then(data => { if (data.ok) { setCandidatos(data.candidatos); setTotal(data.total); } })
-      .catch(() => {});
+      .catch(() => setCandidatos([]));
   }, [filtroEstado, filtroOrigen]);
 
   return (
