@@ -34,7 +34,7 @@ const riskClass = (dias) => {
  * Panel de renovaciones de contratos. El nombre de empresa es clickeable y abre la ficha.
  * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
  */
-const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
+const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [renovaciones, setRenovaciones] = useState(null);
   const [meses,        setMeses]        = useState(12);
   const [mesFiltro,    setMesFiltro]    = useState(null);
@@ -54,7 +54,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
       .catch(() => setRenovaciones([]));
   };
 
-  useEffect(load, [meses]);
+  useEffect(load, [meses, reloadKey]);
 
   const currentKey = useMemo(() => {
     const now = new Date();
@@ -283,6 +283,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible }) => {
 RenovacionesPanel.propTypes = {
   onAbrirCliente:   PropTypes.func.isRequired,
   alturaDisponible: PropTypes.number.isRequired,
+  reloadKey:        PropTypes.number.isRequired,
 };
 
 export default RenovacionesPanel;
