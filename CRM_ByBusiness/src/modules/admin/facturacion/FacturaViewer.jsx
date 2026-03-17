@@ -73,19 +73,19 @@ const FacturaViewer = ({ factura, onClose }) => {
 
             <div className="px-10 pt-8 pb-10">
 
-              {/* Cabecera: empresa | NIF+nombre | logo */}
+              {/* Cabecera: logo+dirección | datos fiscales */}
               <div className="flex justify-between items-start mb-8">
                 <div>
-                  <p className="text-sm font-black text-slate-900 uppercase">{emisorEmpresa}</p>
-                  <p className="text-xs text-slate-600 mt-0.5">{emisorDir}</p>
-                  <p className="text-xs text-slate-600">{emisorCp} {emisorMunicipio?.toUpperCase()}</p>
-                  <p className="text-xs text-slate-600">{emisorTelefono}</p>
+                  <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-8 object-contain mb-2" />
+                  <p className="text-[10px] font-bold text-slate-700 uppercase">{emisorEmpresa}</p>
+                  <p className="text-[9px] text-slate-500 mt-0.5">{emisorDir}</p>
+                  <p className="text-[9px] text-slate-500">{emisorCp} {emisorMunicipio?.toUpperCase()}</p>
+                  <p className="text-[9px] text-slate-500">{emisorTelefono}</p>
                 </div>
-                <div className="text-xs text-slate-700 text-left mx-6">
-                  <p>NIF: {emisorNif}</p>
-                  <p className="mt-0.5 uppercase font-medium max-w-[160px]">{emisorNombre}</p>
+                <div className="text-[10px] text-slate-600 text-right">
+                  <p className="font-bold">NIF: {emisorNif}</p>
+                  <p className="mt-0.5 uppercase max-w-[180px] text-right">{emisorNombre}</p>
                 </div>
-                <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-8 object-contain" />
               </div>
 
               {/* Título */}
