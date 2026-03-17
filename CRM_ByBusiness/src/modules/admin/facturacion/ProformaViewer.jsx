@@ -31,7 +31,12 @@ LineaProforma.propTypes = { linea: PropTypes.object.isRequired };
  * @param {{ proforma: Object, cliente: Object, onClose: Function }} props
  */
 const ProformaViewer = ({ proforma, cliente, onClose }) => {
-  const imprimir = () => window.print();
+  const imprimir = () => {
+    const prev = document.title;
+    document.title = `Proforma-${referencia}`;
+    window.print();
+    document.title = prev;
+  };
 
   const emisorEmpresa   = proforma.emisor_empresa  || 'By Business';
   const emisorNombre    = proforma.emisor_nombre   || '';

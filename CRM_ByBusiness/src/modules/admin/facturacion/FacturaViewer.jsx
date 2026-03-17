@@ -27,7 +27,12 @@ LineaFactura.propTypes = { linea: PropTypes.object.isRequired };
  * @param {{ factura: Object, onClose: Function }} props
  */
 const FacturaViewer = ({ factura, onClose }) => {
-  const imprimir = () => window.print();
+  const imprimir = () => {
+    const prev = document.title;
+    document.title = `Factura-${f.numero}`;
+    window.print();
+    document.title = prev;
+  };
   const f = factura;
 
   const emisorEmpresa   = f.emisor_empresa   || 'By Business';
