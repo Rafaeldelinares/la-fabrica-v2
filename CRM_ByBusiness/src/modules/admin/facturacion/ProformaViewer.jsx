@@ -95,7 +95,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
                   <p>NIF: {emisorNif}</p>
                   <p className="mt-0.5 uppercase font-medium max-w-[160px]">{emisorNombre}</p>
                 </div>
-                <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-14 object-contain" />
+                <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-8 object-contain" />
               </div>
 
               {/* Título */}
