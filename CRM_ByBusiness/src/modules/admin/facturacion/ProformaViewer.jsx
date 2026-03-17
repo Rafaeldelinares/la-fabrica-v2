@@ -99,7 +99,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
               </div>
 
               {/* Título */}
-              <h1 className="text-2xl font-black text-slate-900 mb-0.5">Proforma</h1>
+              <h1 className="text-xl font-black text-slate-900 mb-0.5">Proforma</h1>
 
               {/* Fecha */}
               <p className="text-xs font-bold mb-5 text-[#8B1E1E]">
