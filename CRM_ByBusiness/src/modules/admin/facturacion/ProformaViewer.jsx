@@ -15,10 +15,10 @@ const LineaProforma = ({ linea }) => {
   const total = parseFloat(linea.subtotal || linea.cantidad * linea.precio_unitario || 0);
   return (
     <tr className="border-b border-slate-200">
-      <td className="px-3 py-3 text-sm text-slate-800 align-top">{linea.descripcion}</td>
-      <td className="px-3 py-3 text-sm text-center font-mono text-slate-700">{linea.cantidad}</td>
-      <td className="px-3 py-3 text-sm text-right font-mono text-slate-700">€{parseFloat(linea.precio_unitario).toFixed(2)}</td>
-      <td className="px-3 py-3 text-sm text-right font-mono font-bold text-slate-800">€{total.toFixed(2)}</td>
+      <td className="px-2 py-1.5 text-xs text-slate-800 align-top">{linea.descripcion}</td>
+      <td className="px-2 py-1.5 text-xs text-center font-mono text-slate-700">{linea.cantidad}</td>
+      <td className="px-2 py-1.5 text-xs text-right font-mono text-slate-700">€{parseFloat(linea.precio_unitario).toFixed(2)}</td>
+      <td className="px-2 py-1.5 text-xs text-right font-mono font-bold text-slate-800">€{total.toFixed(2)}</td>
     </tr>
   );
 };
@@ -81,10 +81,10 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
             {/* Franja superior */}
             <div className="h-1.5 w-full bg-[#8B1E1E]" />
 
-            <div className="px-10 pt-8 pb-10">
+            <div className="px-8 pt-5 pb-8">
 
               {/* Cabecera: logo+dirección | datos fiscales */}
-              <div className="flex justify-between items-start mb-8">
+              <div className="flex justify-between items-start mb-5">
                 <div>
                   <img src="/bybusiness-logo.png" alt="ByBusiness" className="h-8 object-contain mb-2" />
                   <p className="text-[10px] font-bold text-slate-700 uppercase">{emisorEmpresa}</p>
@@ -99,71 +99,71 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
               </div>
 
               {/* Título */}
-              <h1 className="text-4xl font-black text-slate-900 mb-1">Proforma</h1>
+              <h1 className="text-2xl font-black text-slate-900 mb-0.5">Proforma</h1>
 
               {/* Fecha */}
-              <p className="text-sm font-bold mb-8 text-[#8B1E1E]">
+              <p className="text-xs font-bold mb-5 text-[#8B1E1E]">
                 {fmtFecha(proforma.fecha || new Date().toISOString())}
               </p>
 
               {/* Destinatario + referencia */}
-              <div className="flex justify-between items-start mb-8">
+              <div className="flex justify-between items-start mb-5">
                 <div>
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">A la atención de</p>
-                  <p className="text-sm font-bold text-slate-900 uppercase">{cliente?.nombre_comercial || ''}</p>
+                  <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">A la atención de</p>
+                  <p className="text-xs font-bold text-slate-900 uppercase">{cliente?.nombre_comercial || ''}</p>
                   {cliente?.cif && (
-                    <p className="text-xs text-slate-700 font-bold mt-0.5">{cliente.cif}</p>
+                    <p className="text-[10px] text-slate-700 font-bold mt-0.5">{cliente.cif}</p>
                   )}
                   {cliente?.direccion && (
-                    <p className="text-xs text-slate-600 uppercase mt-0.5">{cliente.direccion}</p>
+                    <p className="text-[10px] text-slate-600 uppercase mt-0.5">{cliente.direccion}</p>
                   )}
                   {cliente?.localidad && (
-                    <p className="text-xs text-slate-600 uppercase">{cliente.localidad}</p>
+                    <p className="text-[10px] text-slate-600 uppercase">{cliente.localidad}</p>
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-1">Ref. proforma</p>
-                  <p className="text-sm font-bold text-slate-900">{referencia}</p>
+                  <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">Ref. proforma</p>
+                  <p className="text-xs font-bold text-slate-900">{referencia}</p>
                   <p className="text-[10px] text-slate-400 mt-1 italic">Documento no fiscal</p>
                 </div>
               </div>
 
               {/* Tabla de líneas */}
-              <table className="w-full text-sm mb-6 border-collapse">
+              <table className="w-full text-xs mb-4 border-collapse">
                 <thead>
                   <tr className="bg-[#8B1E1E]">
-                    <th className="text-left px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider">Descripción</th>
-                    <th className="text-center px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-24">Cantidad</th>
-                    <th className="text-right px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-32">Precio unitario</th>
-                    <th className="text-right px-3 py-2.5 text-white font-bold text-xs uppercase tracking-wider w-32">Precio total</th>
+                    <th className="text-left px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider">Descripción</th>
+                    <th className="text-center px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-16">Cant.</th>
+                    <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-24">P. unitario</th>
+                    <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-24">P. total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lineas.map((linea, idx) => (
                     <LineaProforma key={idx} linea={linea} />
                   ))}
-                  {lineas.length < 4 && Array.from({ length: 4 - lineas.length }).map((_, idx) => (
+                  {lineas.length < 2 && Array.from({ length: 2 - lineas.length }).map((_, idx) => (
                     <tr key={`empty-${idx}`} className="border-b border-slate-100">
-                      <td className="px-3 py-4" colSpan={4}>&nbsp;</td>
+                      <td className="px-2 py-2" colSpan={4}>&nbsp;</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
               {/* Totales */}
-              <div className="flex justify-end mb-8">
-                <div className="w-72 space-y-0">
-                  <div className="flex justify-between px-3 py-2 border-b border-slate-200">
-                    <span className="text-sm text-slate-600">Subtotal</span>
-                    <span className="font-mono font-bold text-slate-800">{fmtEur(baseImponible)}</span>
+              <div className="flex justify-end mb-5">
+                <div className="w-64 space-y-0">
+                  <div className="flex justify-between px-2 py-1.5 border-b border-slate-200">
+                    <span className="text-xs text-slate-600">Subtotal</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(baseImponible)}</span>
                   </div>
-                  <div className="flex justify-between px-3 py-2 border-b border-slate-200">
-                    <span className="text-sm text-slate-600">IVA {tipoIva}% Impuestos</span>
-                    <span className="font-mono font-bold text-slate-800">{fmtEur(cuotaIva)}</span>
+                  <div className="flex justify-between px-2 py-1.5 border-b border-slate-200">
+                    <span className="text-xs text-slate-600">IVA {tipoIva}%</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(cuotaIva)}</span>
                   </div>
-                  <div className="flex justify-between px-3 py-3 mt-1">
-                    <span className="text-base font-black text-slate-900 uppercase tracking-wider">Total</span>
-                    <span className="font-mono font-black text-2xl text-slate-900">{fmtEur(totalBruto)}</span>
+                  <div className="flex justify-between px-2 py-2 mt-1">
+                    <span className="text-sm font-black text-slate-900 uppercase tracking-wider">Total</span>
+                    <span className="font-mono font-black text-lg text-slate-900">{fmtEur(totalBruto)}</span>
                   </div>
                 </div>
               </div>
@@ -182,7 +182,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
             </div>
 
             {/* Franja inferior */}
-            <div className="h-6 w-full bg-slate-900" />
+            <div className="h-4 w-full bg-slate-900" />
 
           </div>
         </div>
