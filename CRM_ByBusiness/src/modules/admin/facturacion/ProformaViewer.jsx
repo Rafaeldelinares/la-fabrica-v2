@@ -173,16 +173,21 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
                 </div>
               </div>
 
-              {/* Notas */}
-              {proforma.notas && (
-                <p className="text-xs text-slate-600 mb-4">
-                  <strong>Notas:</strong> {proforma.notas}
-                </p>
-              )}
-
-              <p className="text-[9px] text-slate-400">
-                Este documento es una proforma y no tiene valor fiscal. La factura se emitirá tras la aceptación.
-              </p>
+              {/* Notas + QR VeriFactu (solo en facturas, aquí placeholder informativo) */}
+              <div className="flex justify-between items-end gap-4 mb-2">
+                <div className="flex-1">
+                  {proforma.notas && (
+                    <p className="text-[10px] text-slate-600 mb-2">
+                      <strong>Notas:</strong> {proforma.notas}
+                    </p>
+                  )}
+                  <p className="text-[9px] text-slate-400">
+                    Este documento es una proforma y no tiene valor fiscal. La factura se emitirá tras la aceptación.
+                  </p>
+                </div>
+                {/* Espacio reservado — el QR VeriFactu aplica a facturas definitivas, no a proformas */}
+                <div className="shrink-0 w-16 h-16" />
+              </div>
 
             </div>
 

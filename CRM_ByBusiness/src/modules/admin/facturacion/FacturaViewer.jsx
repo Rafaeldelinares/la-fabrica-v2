@@ -186,16 +186,26 @@ const FacturaViewer = ({ factura, onClose }) => {
                 </div>
               )}
 
-              {/* Observaciones */}
-              {f.observaciones && (
-                <p className="text-[10px] text-slate-600 mb-3">
-                  <strong>Observaciones:</strong> {f.observaciones}
-                </p>
-              )}
-
-              <p className="text-[8px] text-slate-400">
-                Factura emitida al amparo del art. 6 del RD 1619/2012, de 30 de noviembre.
-              </p>
+              {/* Observaciones + QR VeriFactu */}
+              <div className="flex justify-between items-end gap-4 mb-2">
+                <div className="flex-1">
+                  {f.observaciones && (
+                    <p className="text-[10px] text-slate-600 mb-2">
+                      <strong>Observaciones:</strong> {f.observaciones}
+                    </p>
+                  )}
+                  <p className="text-[8px] text-slate-400">
+                    Factura emitida al amparo del art. 6 del RD 1619/2012, de 30 de noviembre.
+                  </p>
+                </div>
+                {/* Placeholder QR VeriFactu — pendiente homologación AEAT */}
+                <div className="shrink-0 flex flex-col items-center gap-0.5">
+                  <div className="w-16 h-16 border border-dashed border-slate-300 flex items-center justify-center bg-slate-50">
+                    <span className="text-[7px] text-slate-400 text-center leading-tight">QR<br/>VeriFactu</span>
+                  </div>
+                  <span className="text-[7px] text-slate-400">Verificación AEAT</span>
+                </div>
+              </div>
 
             </div>
 
