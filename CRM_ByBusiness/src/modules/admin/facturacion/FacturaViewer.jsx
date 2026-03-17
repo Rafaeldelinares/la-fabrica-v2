@@ -6,6 +6,9 @@ import { fmtFecha } from '../../../utils/dates';
 /** Formatea número como precio en euros con dos decimales. */
 const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '0,00 €';
 
+/** URL base del servicio de generación de QR (sin dependencias externas en prod). */
+const QR_SERVICE = import.meta.env.VITE_QR_SERVICE_URL || 'https://api.qrserver.com/v1/create-qr-code/';
+
 /**
  * Fila de línea dentro de la tabla de la factura impresa.
  * @param {{ linea: Object }} props
@@ -27,21 +30,21 @@ LineaFactura.propTypes = { linea: PropTypes.object.isRequired };
  * @param {{ factura: Object, onClose: Function }} props
  */
 const FacturaViewer = ({ factura, onClose }) => {
+  const emisorEmpresa   = factura.emisor_empresa   || 'By Business';
+  const emisorNombre    = factura.emisor_nombre    || '';
+  const emisorNif       = factura.emisor_nif       || '';
+  const emisorDir       = factura.emisor_dir       || '';
+  const emisorCp        = factura.emisor_cp        || '';
+  const emisorMunicipio = factura.emisor_municipio || '';
+  const emisorTelefono  = factura.emisor_telefono  || '';
+  const lineas          = factura.lineas || [];
+
   const imprimir = () => {
     const prev = document.title;
-    document.title = `Factura-${f.numero}`;
+    document.title = `Factura-${factura.numero}`;
     window.print();
     document.title = prev;
   };
-  const f = factura;
-
-  const emisorEmpresa   = f.emisor_empresa   || 'By Business';
-  const emisorNombre    = f.emisor_nombre    || '';
-  const emisorNif       = f.emisor_nif       || '';
-  const emisorDir       = f.emisor_dir       || '';
-  const emisorCp        = f.emisor_cp        || '';
-  const emisorMunicipio = f.emisor_municipio || '';
-  const emisorTelefono  = f.emisor_telefono  || '';
 
   return (
     <>
@@ -52,7 +55,7 @@ const FacturaViewer = ({ factura, onClose }) => {
           {/* Barra de acciones */}
           <div className="flex items-center justify-between mb-4 no-print">
             <span className="text-xs text-slate-400 font-mono uppercase tracking-widest">
-              FACTURA {f.numero}
+              FACTURA {factura.numero}
             </span>
             <div className="flex gap-2">
               <button
@@ -96,27 +99,27 @@ const FacturaViewer = ({ factura, onClose }) => {
               {/* Título + Fecha */}
               <h1 className="text-xl font-black text-slate-900 mb-0.5">Factura</h1>
               <p className="text-xs font-bold mb-5 text-[#8B1E1E]">
-                {fmtFecha(f.fecha_emision)}
+                {fmtFecha(factura.fecha_emision)}
               </p>
 
               {/* Destinatario + Nº factura */}
               <div className="flex justify-between items-start mb-5">
                 <div>
                   <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">A la atención de</p>
-                  <p className="text-xs font-bold text-slate-900 uppercase">{f.receptor_nombre || f.nombre_comercial}</p>
-                  {f.receptor_nif && (
-                    <p className="text-[10px] text-slate-700 font-bold mt-0.5">{f.receptor_nif}</p>
+                  <p className="text-xs font-bold text-slate-900 uppercase">{factura.receptor_nombre || factura.nombre_comercial}</p>
+                  {factura.receptor_nif && (
+                    <p className="text-[10px] text-slate-700 font-bold mt-0.5">{factura.receptor_nif}</p>
                   )}
-                  {f.receptor_dir && (
-                    <p className="text-[10px] text-slate-600 uppercase mt-0.5">{f.receptor_dir}</p>
+                  {factura.receptor_dir && (
+                    <p className="text-[10px] text-slate-600 uppercase mt-0.5">{factura.receptor_dir}</p>
                   )}
-                  {f.receptor_municipio && (
-                    <p className="text-[10px] text-slate-600 uppercase">{f.receptor_municipio}</p>
+                  {factura.receptor_municipio && (
+                    <p className="text-[10px] text-slate-600 uppercase">{factura.receptor_municipio}</p>
                   )}
                 </div>
                 <div className="text-right">
                   <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-0.5">N.º de factura</p>
-                  <p className="text-xs font-bold text-slate-900">{f.numero}</p>
+                  <p className="text-xs font-bold text-slate-900">{factura.numero}</p>
                 </div>
               </div>
 
@@ -131,10 +134,10 @@ const FacturaViewer = ({ factura, onClose }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {(f.lineas || []).map((linea, idx) => (
-                    <LineaFactura key={idx} linea={linea} />
+                  {lineas.map((linea, idx) => (
+                    <LineaFactura key={linea.id ?? `linea-${idx}`} linea={linea} />
                   ))}
-                  {(f.lineas || []).length < 2 && Array.from({ length: 2 - (f.lineas || []).length }).map((_, idx) => (
+                  {lineas.length < 2 && Array.from({ length: 2 - lineas.length }).map((_, idx) => (
                     <tr key={`empty-${idx}`} className="border-b border-slate-100">
                       <td className="px-2 py-2" colSpan={4}>&nbsp;</td>
                     </tr>
@@ -147,37 +150,37 @@ const FacturaViewer = ({ factura, onClose }) => {
                 <div className="w-64 space-y-0">
                   <div className="flex justify-between px-2 py-1.5 border-b border-slate-200">
                     <span className="text-xs text-slate-600">Subtotal</span>
-                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(f.base_imponible)}</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(factura.base_imponible)}</span>
                   </div>
                   <div className="flex justify-between px-2 py-1.5 border-b border-slate-200">
-                    <span className="text-xs text-slate-600">IVA {f.tipo_iva}%</span>
-                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(f.cuota_iva)}</span>
+                    <span className="text-xs text-slate-600">IVA {factura.tipo_iva}%</span>
+                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(factura.cuota_iva)}</span>
                   </div>
-                  {parseFloat(f.tipo_irpf) > 0 && (
+                  {parseFloat(factura.tipo_irpf) > 0 && (
                     <div className="flex justify-between px-2 py-1.5 border-b border-slate-200">
-                      <span className="text-xs text-slate-600">Ret. IRPF ({f.tipo_irpf}%)</span>
-                      <span className="font-mono font-bold text-red-700 text-xs">-{fmtEur(f.cuota_irpf)}</span>
+                      <span className="text-xs text-slate-600">Ret. IRPF ({factura.tipo_irpf}%)</span>
+                      <span className="font-mono font-bold text-red-700 text-xs">-{fmtEur(factura.cuota_irpf)}</span>
                     </div>
                   )}
                   <div className="flex justify-between px-2 py-2 mt-1">
                     <span className="text-sm font-black text-slate-900 uppercase tracking-wider">Total</span>
-                    <span className="font-mono font-black text-lg text-slate-900">{fmtEur(f.total_con_iva)}</span>
+                    <span className="font-mono font-black text-lg text-slate-900">{fmtEur(factura.total_con_iva)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Plan de pagos fraccionado */}
-              {f.fraccionado && f.num_fracciones > 1 && (
+              {factura.fraccionado && factura.num_fracciones > 1 && (
                 <div className="mb-4 border border-slate-200 p-3">
                   <p className="text-[9px] text-slate-500 uppercase tracking-widest font-bold mb-2">Plan de pagos fraccionado</p>
                   <div className="grid gap-0.5">
-                    {Array.from({ length: f.num_fracciones }, (_, idx) => {
-                      const importe = Math.round((parseFloat(f.total_con_iva) / f.num_fracciones) * 100) / 100;
-                      const fechaCuota = new Date(f.fecha_emision);
+                    {Array.from({ length: factura.num_fracciones }, (_, idx) => {
+                      const importe = Math.round((parseFloat(factura.total_con_iva) / factura.num_fracciones) * 100) / 100;
+                      const fechaCuota = new Date(factura.fecha_emision);
                       fechaCuota.setMonth(fechaCuota.getMonth() + idx);
                       return (
-                        <div key={idx} className="flex justify-between items-center py-0.5 border-b border-slate-100 last:border-0 text-[10px]">
-                          <span className="text-slate-500">Cuota {idx + 1}/{f.num_fracciones} — {fmtFecha(fechaCuota.toISOString())}</span>
+                        <div key={`cuota-${idx}`} className="flex justify-between items-center py-0.5 border-b border-slate-100 last:border-0 text-[10px]">
+                          <span className="text-slate-500">Cuota {idx + 1}/{factura.num_fracciones} — {fmtFecha(fechaCuota.toISOString())}</span>
                           <span className="font-mono font-bold text-slate-800">{fmtEur(importe)}</span>
                         </div>
                       );
@@ -189,20 +192,28 @@ const FacturaViewer = ({ factura, onClose }) => {
               {/* Observaciones + QR VeriFactu */}
               <div className="flex justify-between items-end gap-4 mb-2">
                 <div className="flex-1">
-                  {f.observaciones && (
+                  {factura.observaciones && (
                     <p className="text-[10px] text-slate-600 mb-2">
-                      <strong>Observaciones:</strong> {f.observaciones}
+                      <strong>Observaciones:</strong> {factura.observaciones}
                     </p>
                   )}
                   <p className="text-[8px] text-slate-400">
                     Factura emitida al amparo del art. 6 del RD 1619/2012, de 30 de noviembre.
                   </p>
                 </div>
-                {/* Placeholder QR VeriFactu — pendiente homologación AEAT */}
+                {/* QR VeriFactu — real si existe qr_url, placeholder si no */}
                 <div className="shrink-0 flex flex-col items-center gap-0.5">
-                  <div className="w-16 h-16 border border-dashed border-slate-300 flex items-center justify-center bg-slate-50">
-                    <span className="text-[7px] text-slate-400 text-center leading-tight">QR<br/>VeriFactu</span>
-                  </div>
+                  {factura.qr_url ? (
+                    <img
+                      src={`${QR_SERVICE}?size=64x64&data=${encodeURIComponent(factura.qr_url)}`}
+                      alt="QR VeriFactu AEAT"
+                      className="w-16 h-16"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 border border-dashed border-slate-300 flex items-center justify-center bg-slate-50">
+                      <span className="text-[7px] text-slate-400 text-center leading-tight">QR<br/>VeriFactu</span>
+                    </div>
+                  )}
                   <span className="text-[7px] text-slate-400">Verificación AEAT</span>
                 </div>
               </div>
@@ -216,16 +227,7 @@ const FacturaViewer = ({ factura, onClose }) => {
         </div>
       </div>
 
-      {/* Estilos de impresión */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #factura-print, #factura-print * { visibility: visible; }
-          .no-print { display: none !important; }
-          #factura-print { position: fixed; top: 0; left: 0; width: 100%; }
-          @page { margin: 0; size: A4; }
-        }
-      `}</style>
+      {/* Estilos de impresión en src/index.css */}
     </>
   );
 };

@@ -57,3 +57,14 @@ body {
 .sentiment-bar {
   width: var(--bar-width, 0%);
 }
+
+/* ── Print styles — Factura y Proforma VeriFactu ── */
+@media print {
+  body * { visibility: hidden; }
+  #factura-print, #factura-print * { visibility: visible; }
+  #proforma-print, #proforma-print * { visibility: visible; }
+  .no-print { display: none !important; }
+  #factura-print { position: fixed; top: 0; left: 0; width: 100%; }
+  #proforma-print { position: fixed; top: 0; left: 0; width: 100%; }
+  @page { margin: 0; size: A4; }
+}

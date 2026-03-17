@@ -31,13 +31,6 @@ LineaProforma.propTypes = { linea: PropTypes.object.isRequired };
  * @param {{ proforma: Object, cliente: Object, onClose: Function }} props
  */
 const ProformaViewer = ({ proforma, cliente, onClose }) => {
-  const imprimir = () => {
-    const prev = document.title;
-    document.title = `Proforma-${referencia}`;
-    window.print();
-    document.title = prev;
-  };
-
   const emisorEmpresa   = proforma.emisor_empresa  || 'By Business';
   const emisorNombre    = proforma.emisor_nombre   || '';
   const emisorNif       = proforma.emisor_nif      || '';
@@ -46,12 +39,19 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
   const emisorMunicipio = proforma.emisor_municipio || '';
   const emisorTelefono  = proforma.emisor_telefono  || '';
 
-  const totalBruto   = parseFloat(proforma.total || 0);
-  const tipoIva      = 21;
+  const totalBruto    = parseFloat(proforma.total || 0);
+  const tipoIva       = 21;
   const baseImponible = Math.round((totalBruto / (1 + tipoIva / 100)) * 100) / 100;
-  const cuotaIva     = Math.round((totalBruto - baseImponible) * 100) / 100;
-  const lineas       = proforma.lineas || [];
-  const referencia   = proforma.numero || `PRO-${String(proforma.id).padStart(4, '0')}`;
+  const cuotaIva      = Math.round((totalBruto - baseImponible) * 100) / 100;
+  const lineas        = proforma.lineas || [];
+  const referencia    = proforma.numero || `PRO-${String(proforma.id).padStart(4, '0')}`;
+
+  const imprimir = () => {
+    const prev = document.title;
+    document.title = `Proforma-${referencia}`;
+    window.print();
+    document.title = prev;
+  };
 
   return (
     <>
@@ -145,7 +145,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
                 </thead>
                 <tbody>
                   {lineas.map((linea, idx) => (
-                    <LineaProforma key={idx} linea={linea} />
+                    <LineaProforma key={linea.id ?? `linea-${idx}`} linea={linea} />
                   ))}
                   {lineas.length < 2 && Array.from({ length: 2 - lineas.length }).map((_, idx) => (
                     <tr key={`empty-${idx}`} className="border-b border-slate-100">
@@ -198,16 +198,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
         </div>
       </div>
 
-      {/* Estilos de impresión */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden; }
-          #proforma-print, #proforma-print * { visibility: visible; }
-          .no-print { display: none !important; }
-          #proforma-print { position: fixed; top: 0; left: 0; width: 100%; }
-          @page { margin: 0; size: A4; }
-        }
-      `}</style>
+      {/* Estilos de impresión en src/index.css */}
     </>
   );
 };
