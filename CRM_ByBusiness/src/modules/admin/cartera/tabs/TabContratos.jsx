@@ -5,17 +5,28 @@ import { FileText, Plus } from 'lucide-react';
 import DatePickerField from '../../../../shared/ui/DatePickerField';
 import { fmtFecha } from '../../../../utils/dates';
 
+const ESTADOS_CONTRATO = ['activo', 'pausado', 'cancelado'];
+
+const estadoClase = (estado) => {
+  if (estado === 'activo')    return 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400';
+  if (estado === 'cancelado') return 'bg-red-500/10 border-red-500/20 text-red-400';
+  if (estado === 'pausado')   return 'bg-amber-400/10 border-amber-400/20 text-amber-400';
+  return 'bg-slate-800 border-slate-700 text-slate-400';
+};
+
 /**
- * TabContratos — Pestaña de contratos activos del cliente con opción de añadir nuevos servicios.
+ * TabContratos — Pestaña de contratos activos del cliente.
+ * Permite añadir nuevos servicios y cambiar el estado de contratos existentes.
  * @param {{ cliente: object, n8nUrl: string }} props
  */
 const TabContratos = ({ cliente, n8nUrl }) => {
   const [contratos, setContratos] = useState(null);
   const [nuevoOpen, setNuevoOpen] = useState(false);
   const [nuevoForm, setNuevoForm] = useState({ tipo_servicio: '', importe_mensual: '', fecha_inicio: '', meses: '12' });
-  const [guardandoNuevo, setGuardandoNuevo] = useState(false);
-  const [errorGuardar, setErrorGuardar] = useState(null);
-  const [errorCarga,   setErrorCarga]   = useState(null);
+  const [guardandoNuevo,   setGuardandoNuevo]   = useState(false);
+  const [errorGuardar,     setErrorGuardar]     = useState(null);
+  const [errorCarga,       setErrorCarga]       = useState(null);
+  const [cambiandoEstado,  setCambiandoEstado]  = useState(null);
 
   const cargarContratos = () => {
     setErrorCarga(null);
@@ -26,6 +37,20 @@ const TabContratos = ({ cliente, n8nUrl }) => {
   };
 
   useEffect(() => { cargarContratos(); }, [cliente.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCambiarEstado = (contrato, nuevoEstado) => {
+    if (contrato.estado === nuevoEstado) return;
+    setCambiandoEstado(contrato.id);
+    fetch(`${n8nUrl}/crm-contrato-actualizar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contrato_id: contrato.id, estado: nuevoEstado }),
+    })
+      .then(res => res.json())
+      .then(d => { if (d.ok) cargarContratos(); })
+      .catch(() => {})
+      .finally(() => setCambiandoEstado(null));
+  };
 
   const handleNuevoContrato = async () => {
     if (!nuevoForm.tipo_servicio || !nuevoForm.fecha_inicio) return;
@@ -39,11 +64,11 @@ const TabContratos = ({ cliente, n8nUrl }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cliente_id: cliente.id,
-          tipo_servicio: nuevoForm.tipo_servicio,
+          cliente_id:      cliente.id,
+          tipo_servicio:   nuevoForm.tipo_servicio,
           importe_mensual: parseFloat(nuevoForm.importe_mensual) || null,
-          fecha_inicio: nuevoForm.fecha_inicio,
-          fecha_fin: fechaFin.toISOString().slice(0, 10),
+          fecha_inicio:    nuevoForm.fecha_inicio,
+          fecha_fin:       fechaFin.toISOString().slice(0, 10),
         }),
       });
       const data = await response.json();
@@ -83,6 +108,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
           : diasFin !== null && diasFin <= 60
           ? 'text-amber-400'
           : 'text-slate-400';
+        const cargando = cambiandoEstado === c.id;
         return (
           <div key={c.id || i} className="border border-slate-700 rounded-sm bg-slate-900/50">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
@@ -92,14 +118,23 @@ const TabContratos = ({ cliente, n8nUrl }) => {
                   {c.tipo_servicio || c.servicio || c.tipo || '—'}
                 </p>
               </div>
-              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-sm border ${
-                c.estado === 'activo'    ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
-                c.estado === 'cancelado' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                c.estado === 'pausado'   ? 'bg-amber-400/10 border-amber-400/20 text-amber-400' :
-                'bg-slate-800 border-slate-700 text-slate-400'
-              }`}>
-                {c.estado || 'activo'}
-              </span>
+              {/* Selector de estado inline */}
+              <div className="flex items-center gap-1">
+                {ESTADOS_CONTRATO.map(est => (
+                  <button
+                    key={est}
+                    onClick={() => handleCambiarEstado(c, est)}
+                    disabled={cargando}
+                    className={`text-[9px] font-mono px-2 py-0.5 rounded-sm border transition-colors disabled:opacity-40 ${
+                      (c.estado || 'activo') === est
+                        ? estadoClase(est)
+                        : 'bg-transparent border-slate-800 text-slate-600 hover:border-slate-600 hover:text-slate-400'
+                    }`}
+                  >
+                    {est}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="grid grid-cols-3 px-4 py-3 gap-x-4">
               <div>
