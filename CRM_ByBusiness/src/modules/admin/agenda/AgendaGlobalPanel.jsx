@@ -16,14 +16,34 @@ const TIPOS_OPERADOR = new Set(['interaccion', 'llamada_operador', 'callback_ope
 /** Tipos de evento admin — se distribuyen 10:00–14:00 si llegan a las 00:00. */
 const TIPOS_ADMIN    = new Set(['cita_cliente', 'proxima_accion_cliente']);
 
+/** Granularidad de slots en minutos. */
+const SLOT_MIN = 15;
+
+/**
+ * Convierte "HH:MM:SS" o "HH:MM" a minutos desde medianoche.
+ * @param {string} horaTexto
+ * @returns {number}
+ */
+const horaAMinutos = (horaTexto) => {
+  const partes = horaTexto.split(':');
+  return parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10);
+};
+
 /**
  * Si un evento llega con hora 00:00 (sin hora real en DB), redistribuye
  * su start/end a una franja horaria razonable de forma determinista.
  * El offset se calcula a partir del ID para que sea estable entre recargas.
- * @param {{ id: string, tipo: string, start: Date, end: Date }} evento
+ *
+ * Si el evento tiene gestor_id y horarios contiene su agenda para ese día,
+ * se distribuye dentro de sus bloques de trabajo reales.
+ * Fallback: TIPOS_OPERADOR → 10:00–20:00, TIPOS_ADMIN → 10:00–14:00.
+ *
+ * @param {{ id: string, tipo: string, start: Date, end: Date, gestor_id?: number }} evento
+ * @param {Map<number, Array<{dia_semana: number, hora_inicio: string, hora_fin: string}>>} horarios
+ *   Mapa de usuario_id → bloques del usuario.
  * @returns {{ start: Date, end: Date }}
  */
-const redistribuirHora = (evento) => {
+const redistribuirHora = (evento, horarios) => {
   const start = new Date(evento.start);
   if (start.getHours() !== 0 || start.getMinutes() !== 0) return { start, end: new Date(evento.end) };
 
@@ -31,10 +51,53 @@ const redistribuirHora = (evento) => {
   const esAdmin    = TIPOS_ADMIN.has(evento.tipo);
   if (!esOperador && !esAdmin) return { start, end: new Date(evento.end) };
 
-  const idNumerico  = parseInt(String(evento.id).replace(/\D/g, '') || '0', 10);
-  const rangoMin    = esOperador ? 600 : 240;
-  const offsetMin   = idNumerico % rangoMin;
-  const horaBase    = 10 * 60 + offsetMin;
+  const idNumerico = parseInt(String(evento.id).replace(/\D/g, '') || '0', 10);
+  const gestorId   = evento.gestor_id ? parseInt(evento.gestor_id, 10) : null;
+
+  // Índice de día de semana (0 = lunes, 6 = domingo) a partir del start
+  // JS getDay(): 0=dom,1=lun,...,6=sab → convertir: (getDay() + 6) % 7
+  const diaSemana = (start.getDay() + 6) % 7;
+
+  // Intentar usar horario real del gestor
+  if (gestorId && horarios) {
+    const bloquesGestor = (horarios.get(gestorId) || [])
+      .filter(bloque => bloque.dia_semana === diaSemana);
+
+    if (bloquesGestor.length > 0) {
+      // Calcular capacidad total de slots en los bloques del día
+      const totalSlotsDisponibles = bloquesGestor.reduce((acumulado, bloque) => {
+        const inicioMin = horaAMinutos(bloque.hora_inicio);
+        const finMin    = horaAMinutos(bloque.hora_fin);
+        return acumulado + Math.floor((finMin - inicioMin) / SLOT_MIN);
+      }, 0);
+
+      if (totalSlotsDisponibles > 0) {
+        const slotElegido = idNumerico % totalSlotsDisponibles;
+        let slotContador = 0;
+
+        for (const bloque of bloquesGestor) {
+          const inicioMin = horaAMinutos(bloque.hora_inicio);
+          const finMin    = horaAMinutos(bloque.hora_fin);
+          const slotsEnBloque = Math.floor((finMin - inicioMin) / SLOT_MIN);
+
+          if (slotElegido < slotContador + slotsEnBloque) {
+            const slotEnBloque = slotElegido - slotContador;
+            const minutosFinal = inicioMin + slotEnBloque * SLOT_MIN;
+            const nuevaStart   = new Date(start);
+            nuevaStart.setHours(Math.floor(minutosFinal / 60), minutosFinal % 60, 0, 0);
+            const nuevaEnd = new Date(nuevaStart.getTime() + SLOT_MIN * 60 * 1000);
+            return { start: nuevaStart, end: nuevaEnd };
+          }
+          slotContador += slotsEnBloque;
+        }
+      }
+    }
+  }
+
+  // Fallback: lógica original por tipo
+  const rangoMin  = esOperador ? 600 : 240;
+  const offsetMin = idNumerico % rangoMin;
+  const horaBase  = 10 * 60 + offsetMin;
 
   const nuevaStart = new Date(start);
   nuevaStart.setHours(Math.floor(horaBase / 60), horaBase % 60, 0, 0);
@@ -289,6 +352,11 @@ const AgendaGlobalPanel = () => {
   const [tooltipEvento, setTooltipEvento] = useState(null);
   const [errorCarga, setErrorCarga]       = useState(false);
   const tooltipWrapperRef                 = useRef(null);
+  /**
+   * Caché de horarios de trabajo: Map<usuario_id, Array<{dia_semana, hora_inicio, hora_fin}>>.
+   * Se puebla al montar el panel y no requiere re-render.
+   */
+  const horariosRef = useRef(new Map());
 
   const abrirClienteDesdeAgenda = useCallback((clienteId) => {
     fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
@@ -316,7 +384,10 @@ const AgendaGlobalPanel = () => {
       .then(res => res.json())
       .then(data => {
         if (data.ok) setEventos(data.eventos.map(evento => {
-          const { start, end } = redistribuirHora({ ...evento, start: new Date(evento.start), end: new Date(evento.end) });
+          const { start, end } = redistribuirHora(
+            { ...evento, start: new Date(evento.start), end: new Date(evento.end) },
+            horariosRef.current
+          );
           return {
             ...evento,
             start,
@@ -337,6 +408,28 @@ const AgendaGlobalPanel = () => {
       .then(res => res.json())
       .then(data => { if (data.ok) setClientes(data.clientes); })
       .catch(() => { setClientes([]); });
+  }, []);
+
+  // Carga horarios de trabajo de todos los usuarios al montar el panel.
+  // Se almacena en un ref para no forzar re-renders innecesarios.
+  useEffect(() => {
+    fetch(`${N8N}/crm-horarios-todos`)
+      .then(res => res.json())
+      .then(datos => {
+        if (!datos.ok) return;
+        const mapaHorarios = new Map();
+        datos.horarios.forEach(bloque => {
+          const usuarioId = bloque.usuario_id;
+          if (!mapaHorarios.has(usuarioId)) mapaHorarios.set(usuarioId, []);
+          mapaHorarios.get(usuarioId).push({
+            dia_semana:  bloque.dia_semana,
+            hora_inicio: bloque.hora_inicio,
+            hora_fin:    bloque.hora_fin,
+          });
+        });
+        horariosRef.current = mapaHorarios;
+      })
+      .catch(() => { horariosRef.current = new Map(); });
   }, []);
 
   const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo]);
