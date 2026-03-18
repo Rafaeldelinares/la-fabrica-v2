@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Database, Zap, Cpu, CheckCircle2, ShieldCheck,
-  ChevronLeft, ChevronRight, Home, Layers, Mail, Briefcase
+  ChevronLeft, ChevronRight, Home, Layers, Mail, Briefcase, Scale
 } from 'lucide-react';
 import Footer from './components/layout/Footer';
 import WhatsAppWidget from './components/widgets/WhatsAppWidget';
@@ -53,13 +54,14 @@ const SectionDots = ({ step }) => {
 };
 
 // ── Bottom Navigation — solo mobile ──────────────────────────────────────────
-const MobileBottomNav = ({ step, setStep, onContact, onATS }) => {
+const MobileBottomNav = ({ step, setStep, onContact, onATS, onLegal }) => {
   const tabs = [
     { label: 'Inicio',    icon: Home,      action: () => setStep(0), active: step === 0 },
     { label: 'Servicios', icon: Layers,    action: () => setStep(1), active: step >= 1 && step <= 3 },
     { label: 'Stack',     icon: Cpu,       action: () => setStep(4), active: step >= 4 && step <= 8 },
     { label: 'Trabaja',   icon: Briefcase, action: onATS,            active: false },
     { label: 'Contactar', icon: Mail,      action: onContact,        active: false },
+    { label: 'Legal',     icon: Scale,     action: onLegal,          active: false },
   ];
   return (
     <nav className="lg:hidden flex-none h-16 bg-white border-t border-slate-100 flex relative z-[200]">
@@ -78,6 +80,25 @@ const MobileBottomNav = ({ step, setStep, onContact, onATS }) => {
       ))}
     </nav>
   );
+};
+
+MobileProgressBar.propTypes = {
+  step:     PropTypes.number.isRequired,
+  total:    PropTypes.number.isRequired,
+  isPaused: PropTypes.bool.isRequired,
+  duration: PropTypes.number.isRequired,
+};
+
+SectionDots.propTypes = {
+  step: PropTypes.number.isRequired,
+};
+
+MobileBottomNav.propTypes = {
+  step:      PropTypes.number.isRequired,
+  setStep:   PropTypes.func.isRequired,
+  onContact: PropTypes.func.isRequired,
+  onATS:     PropTypes.func.isRequired,
+  onLegal:   PropTypes.func.isRequired,
 };
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -212,7 +233,6 @@ function App() {
     }
     try {
       const webhookUrl = import.meta.env.VITE_API_URL || 'http://localhost:5678/webhook/lead-captura';
-      console.log("🚀 Disparando datos a:", webhookUrl);
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -225,8 +245,7 @@ function App() {
       } else {
         throw new Error('Error en el servidor');
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       alert("Error al enviar la solicitud. Verifique la conexión con el motor n8n.");
     }
   };
@@ -459,6 +478,7 @@ function App() {
         setStep={setStep}
         onContact={() => { refreshCaptcha(); setShowContactModal(true); }}
         onATS={() => { refreshCaptcha(); setShowCandidatoModal(true); }}
+        onLegal={() => setShowLegalModal(true)}
       />
 
       {/* Modales */}
