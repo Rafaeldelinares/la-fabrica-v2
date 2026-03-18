@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import PropTypes from 'prop-types';
 import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, Info } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import Card from '../../../shared/ui/Card';
@@ -15,6 +16,10 @@ const SEMAFORO_CONFIG = {
   rojo:  { dot: 'bg-red-500',     badge: 'bg-red-500/10    text-red-400    border-red-500/20',     label: 'Críticos',  tooltip: 'Sin contacto más de 60 días, sin ningún registro, o con pagos vencidos.' },
 };
 
+/**
+ * StatTooltip — Tooltip flotante sobre el ícono de info de una stat card.
+ * @param {{ text: string }} props
+ */
 const StatTooltip = ({ text }) => (
   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 z-20 pointer-events-none opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
     <div className="bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-[10px] text-slate-300 font-mono leading-relaxed shadow-xl">
@@ -24,6 +29,11 @@ const StatTooltip = ({ text }) => (
   </div>
 );
 
+StatTooltip.propTypes = {
+  /** Texto explicativo del semáforo que se muestra en el tooltip */
+  text: PropTypes.string.isRequired,
+};
+
 const fmtDias = (dias) => {
   if (dias === null || dias === undefined) return '—';
   if (dias === 0) return 'Hoy';
@@ -32,11 +42,22 @@ const fmtDias = (dias) => {
 };
 
 
+/**
+ * SortIcon — Indicador visual del campo ordenado actualmente en la tabla.
+ * @param {{ field: string, sort: { field: string, dir: string } }} props
+ */
 const SortIcon = ({ field, sort }) => {
   if (sort.field !== field) return <ChevronsUpDown size={10} className="text-slate-700 ml-1" />;
   return sort.dir === 'asc'
     ? <ChevronUp size={10} className="text-[#D00000] ml-1" />
     : <ChevronDown size={10} className="text-[#D00000] ml-1" />;
+};
+
+SortIcon.propTypes = {
+  /** Campo por el que se está ordenando actualmente */
+  field: PropTypes.string.isRequired,
+  /** Estado actual del sort: { field, dir } */
+  sort:  PropTypes.shape({ field: PropTypes.string.isRequired, dir: PropTypes.oneOf(['asc', 'desc']).isRequired }).isRequired,
 };
 
 /**
@@ -54,14 +75,15 @@ const CarteraPanel = () => {
   const [nuevoCliente, setNuevoCliente] = useState(false);
   const [sort, setSort]                 = useState({ field: 'nombre_comercial', dir: 'asc' });
   const [pagina, setPagina]             = useState(1);
+  const [error, setError]               = useState('');
 
   const N8N = import.meta.env.VITE_N8N_URL;
 
   useEffect(() => {
     fetch(`${N8N}/crm-cartera-get`)
       .then(r => r.json())
-      .then(d => { if (d.ok) setClientes(d.clientes); })
-      .catch(() => setClientes([]));
+      .then(d => { if (d.ok) setClientes(d.clientes); else setError('Error al cargar la cartera — respuesta inesperada'); })
+      .catch(() => { setClientes([]); setError('Error al cargar la cartera — comprueba la conexión'); });
   // N8N es constante de módulo, no reactiva
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -130,6 +152,13 @@ const CarteraPanel = () => {
       {/* PANEL — tabla (siempre ocupa todo el ancho) */}
       <div className="flex flex-col gap-4 w-full overflow-hidden">
 
+        {/* Error banner */}
+        {error && (
+          <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
+            {error}
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between shrink-0">
           <h2 className="text-sm font-black text-white uppercase tracking-widest">CARTERA DE CLIENTES</h2>
@@ -184,7 +213,7 @@ const CarteraPanel = () => {
                   : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
               }`}
             >
-              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.dot}`} />
+              <div className={`w-2.5 h-2.5 rounded-sm shrink-0 ${s.dot}`} />
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">{s.label}</p>
                 <p className="text-xl font-black text-white font-mono leading-tight">{clientes === null ? '—' : s.value}</p>
@@ -247,7 +276,7 @@ const CarteraPanel = () => {
                       }`}
                     >
                       <td className="px-4 py-4">
-                        <div className={`w-2.5 h-2.5 rounded-full ${SEMAFORO_CONFIG[c.semaforo]?.dot || 'bg-slate-600'}`} />
+                        <div className={`w-2.5 h-2.5 rounded-sm ${SEMAFORO_CONFIG[c.semaforo]?.dot || 'bg-slate-600'}`} />
                       </td>
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
@@ -377,7 +406,7 @@ const CarteraPanel = () => {
                       if (nuevo) setSeleccionado(nuevo);
                     }
                   })
-                  .catch(() => {});
+                  .catch(() => { setError('Error al recargar la cartera después del alta'); });
               }}
             />
           </div>
@@ -386,5 +415,8 @@ const CarteraPanel = () => {
     </div>
   );
 };
+
+/** Panel autónomo — no recibe props externas */
+CarteraPanel.propTypes = {};
 
 export default CarteraPanel;

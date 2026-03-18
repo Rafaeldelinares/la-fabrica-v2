@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -31,13 +32,17 @@ const LeadsPanel = () => {
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
     const [leads, setLeads] = useState(null);
     const [total, setTotal] = useState(0);
+    const [error, setError] = useState('');
 
     useEffect(() => {
         const N8N = import.meta.env.VITE_N8N_URL;
         fetch(`${N8N}/crm-leads-admin`)
             .then(r => r.json())
-            .then(data => { if (data.ok) { setLeads(data.leads); setTotal(data.total); } })
-            .catch(() => setLeads([]));
+            .then(data => {
+                if (data.ok) { setLeads(data.leads); setTotal(data.total); setError(''); }
+                else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
+            })
+            .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexión'); });
     }, []);
 
     const leadsFiltrados = (leads ?? []).filter(lead =>
@@ -47,6 +52,12 @@ const LeadsPanel = () => {
 
     return (
         <div className="flex flex-col gap-4 h-full overflow-y-auto p-6 bg-slate-950 font-sans">
+
+            {error && (
+                <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
+                    {error}
+                </div>
+            )}
 
             {/* Barra superior */}
             <div className="flex items-center justify-between">
@@ -147,5 +158,8 @@ const LeadsPanel = () => {
         </div>
     );
 };
+
+/** Panel autónomo — no recibe props externas */
+LeadsPanel.propTypes = {};
 
 export default LeadsPanel;

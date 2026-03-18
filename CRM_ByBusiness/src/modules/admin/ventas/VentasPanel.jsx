@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -11,21 +12,27 @@ const ESTADO_CLASSES = {
   cancelado: 'bg-red-500/10 text-red-500 border-red-500/20',
 };
 
+/**
+ * VentasPanel — Panel de relación de ventas del CRM.
+ * Lista clientes convertidos con filtros por estado y operador.
+ * Consume crm-ventas y crm-operadores-lista vía n8n.
+ */
 const VentasPanel = () => {
   const [filtroEstado, setFiltroEstado]       = useState('');
   const [filtroOperador, setFiltroOperador]   = useState('');
   const [ventas, setVentas]                   = useState(null);
   const [total, setTotal]                     = useState(0);
   const [operadores, setOperadores]           = useState([]);
+  const [error, setError]                     = useState('');
 
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N = import.meta.env.VITE_N8N_URL;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetch(`${N8N}/crm-operadores-lista`)
       .then(r => r.json())
       .then(d => { if (d.ok) setOperadores(d.operadores); })
-      .catch(() => setOperadores([]));
+      .catch(() => { setOperadores([]); setError('Error al cargar operadores — el filtro estará vacío'); });
   }, []);
 
   useEffect(() => {
@@ -34,12 +41,21 @@ const VentasPanel = () => {
     if (filtroOperador)  params.set('operador_id', filtroOperador);
     fetch(`${N8N}/crm-ventas?${params}`)
       .then(r => r.json())
-      .then(d => { if (d.ok) { setVentas(d.ventas); setTotal(d.total); } })
-      .catch(() => setVentas([]));
+      .then(d => {
+        if (d.ok) { setVentas(d.ventas); setTotal(d.total); setError(''); }
+        else { setVentas([]); setError('Error al cargar ventas — respuesta inesperada del servidor'); }
+      })
+      .catch(() => { setVentas([]); setError('Error al cargar ventas — comprueba la conexión'); });
   }, [filtroEstado, filtroOperador]);
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto bg-slate-950 font-sans">
+
+      {error && (
+        <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
+          {error}
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -133,5 +149,8 @@ const VentasPanel = () => {
     </div>
   );
 };
+
+/** Panel autónomo — no recibe props externas */
+VentasPanel.propTypes = {};
 
 export default VentasPanel;

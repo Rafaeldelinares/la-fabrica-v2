@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, CheckCircle, Building2, Phone, Mail, Globe, MapPin, User, FileText, BadgeCheck } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import PropTypes from 'prop-types';
+import { X, Plus, CheckCircle, Building2, Phone, MapPin, User, BadgeCheck } from 'lucide-react';
 
 const PROVINCIAS = [
   'Álava','Albacete','Alicante','Almería','Asturias','Ávila','Badajoz','Barcelona','Burgos',
@@ -27,8 +28,14 @@ const Input = ({ ...props }) => (
   />
 );
 
+/**
+ * NuevoClienteDrawer — Drawer de alta de nueva empresa en la cartera de clientes.
+ * Recoge los datos comerciales, de contacto y ubicación, y los envía vía n8n.
+ * @param {{ onClose: Function, onCreado: Function }} props
+ */
 const NuevoClienteDrawer = ({ onClose, onCreado }) => {
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N = import.meta.env.VITE_N8N_URL;
+  const creadoTimerRef = useRef(null);
 
   const [form, setForm] = useState({
     nombre_comercial: '',
@@ -49,6 +56,8 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
   const [guardado,  setGuardado]  = useState(false);
   const [error,     setError]     = useState('');
 
+  useEffect(() => () => { if (creadoTimerRef.current) clearTimeout(creadoTimerRef.current); }, []);
+
   useEffect(() => {
     fetch(`${N8N}/crm-usuarios-get`)
       .then(r => r.json())
@@ -57,7 +66,7 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
           setGestores(d.usuarios.filter(u => ['admin', 'operador'].includes(u.rol)));
         }
       })
-      .catch(() => {});
+      .catch(() => { setError('Error al cargar gestores — el selector estará vacío'); });
   }, []);
 
   const set = (field) => (e) => setForm(f => ({ ...f, [field]: e.target.value }));
@@ -81,7 +90,7 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
       const d = await r.json();
       if (d.ok) {
         setGuardado(true);
-        setTimeout(() => onCreado(d.cliente), 1200);
+        creadoTimerRef.current = setTimeout(() => onCreado(d.cliente), 1200);
       } else {
         setError(d.error || 'Error al crear el cliente.');
       }
@@ -98,7 +107,7 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full bg-slate-600 shrink-0" />
+          <div className="w-3 h-3 rounded-sm bg-slate-600 shrink-0" />
           <div>
             <p className="text-sm font-black text-white uppercase tracking-wide leading-tight">Nueva Empresa</p>
             <p className="text-[10px] text-slate-500 font-mono mt-0.5">Alta de cliente en cartera</p>
@@ -233,6 +242,13 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
       </div>
     </div>
   );
+};
+
+NuevoClienteDrawer.propTypes = {
+  /** Callback al cerrar el drawer */
+  onClose:  PropTypes.func.isRequired,
+  /** Callback invocado con el objeto cliente recién creado */
+  onCreado: PropTypes.func.isRequired,
 };
 
 export default NuevoClienteDrawer;

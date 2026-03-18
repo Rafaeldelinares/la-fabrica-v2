@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { X, Plus, Trash2, FileText } from 'lucide-react';
 
-// Endpoint n8n — VITE_N8N_URL debe estar definida en producción
-const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+const N8N = import.meta.env.VITE_N8N_URL;
 
 /** Formatea un número como precio en euros. */
 const fmtEur = (v) => v != null ? `${parseFloat(v || 0).toFixed(2)} €` : '0.00 €';
@@ -79,6 +79,13 @@ const LineaRow = ({ linea, productos, onChange, onRemove }) => {
   );
 };
 
+LineaRow.propTypes = {
+  linea:     PropTypes.object.isRequired,
+  productos: PropTypes.array.isRequired,
+  onChange:  PropTypes.func.isRequired,
+  onRemove:  PropTypes.func.isRequired,
+};
+
 const newLinea = () => ({ _id: Date.now(), producto_id: '', descripcion: '', cantidad: 1, precio_unitario: 0, dto_pct: 0, subtotal: 0 });
 
 /** Modal de creación de proforma para un cliente: líneas, pago fraccionado y factura. */
@@ -90,6 +97,7 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
   const [requiereFactura, setRequiereFactura] = useState(false);
   const [notas, setNotas] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingMsg, setSavingMsg] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -101,40 +109,61 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
 
   const total = lineas.reduce((s, l) => s + (parseFloat(l.subtotal) || 0), 0);
 
+  const rollback = async (proformaId) => {
+    try {
+      await fetch(`${N8N}/crm-proforma-borrar`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proforma_id: proformaId }),
+      });
+    } catch { /* rollback best-effort */ }
+  };
+
   const handleSubmit = async () => {
     const validLineas = lineas.filter(l => l.descripcion && l.precio_unitario > 0);
     if (validLineas.length === 0) { setError('Añade al menos una línea válida'); return; }
     setSaving(true); setError('');
+
+    let proformaId = null;
     try {
-      // 1. Crear proforma
+      // Paso 1 — crear cabecera
+      setSavingMsg('Creando proforma...');
       const r1 = await fetch(`${N8N}/crm-proforma-crear`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: cliente.id, operador_id: operadorId, fraccionado, num_fracciones: fraccionado ? numFracciones : 1, requiere_factura: requiereFactura, notas }),
       });
       const d1 = await r1.json();
       if (!d1.ok) throw new Error(d1.error || 'Error creando proforma');
-      const proformaId = d1.proforma.id;
+      proformaId = d1.proforma.id;
 
-      // 2. Añadir líneas
-      for (const linea of validLineas) {
-        await fetch(`${N8N}/crm-proforma-linea`, {
+      // Paso 2 — añadir líneas
+      for (let i = 0; i < validLineas.length; i++) {
+        setSavingMsg(`Añadiendo líneas (${i + 1}/${validLineas.length})...`);
+        const linea = validLineas[i];
+        const r2 = await fetch(`${N8N}/crm-proforma-linea`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ proforma_id: proformaId, producto_id: linea.producto_id || null, descripcion: linea.descripcion, cantidad: linea.cantidad, precio_unitario: linea.precio_unitario, dto_pct: linea.dto_pct || 0 }),
         });
+        const d2 = await r2.json();
+        if (d2.ok === false) throw new Error(d2.error || `Error añadiendo línea ${i + 1}`);
       }
 
-      // 3. Generar pagos
-      await fetch(`${N8N}/crm-pagos-generar`, {
+      // Paso 3 — generar plan de pagos
+      setSavingMsg('Generando plan de pagos...');
+      const r3 = await fetch(`${N8N}/crm-pagos-generar`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ proforma_id: proformaId }),
       });
+      const d3 = await r3.json();
+      if (d3.ok === false) throw new Error(d3.error || 'Error generando plan de pagos');
 
       onCreated && onCreated();
       onClose();
     } catch (e) {
-      setError(e.message);
+      if (proformaId) await rollback(proformaId);
+      setError(e.message + (proformaId ? ' — proforma revertida' : ''));
     } finally {
       setSaving(false);
+      setSavingMsg('');
     }
   };
 
@@ -230,7 +259,8 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800">
           <div>
-            {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
+            {error && <p className="text-xs text-red-400 font-mono mb-1">{error}</p>}
+            {saving && savingMsg && <p className="text-[10px] text-slate-500 font-mono mb-1">{savingMsg}</p>}
             <p className="text-[10px] text-slate-500 uppercase tracking-widest">Total proforma</p>
             <p className="text-xl font-black font-mono text-white">{fmtEur(total)}</p>
             {fraccionado && numFracciones > 1 && (
@@ -246,13 +276,24 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
               disabled={saving}
               className="px-6 py-2 text-xs font-black text-white bg-[#D00000] hover:bg-red-700 rounded-sm transition-colors uppercase tracking-widest disabled:opacity-50"
             >
-              {saving ? 'Guardando...' : 'Crear Proforma'}
+              {saving ? savingMsg || 'Guardando...' : 'Crear Proforma'}
             </button>
           </div>
         </div>
       </div>
     </div>
   );
+};
+
+ProformaModal.propTypes = {
+  /** Objeto cliente con id y nombre_comercial */
+  cliente:    PropTypes.shape({ id: PropTypes.number.isRequired, nombre_comercial: PropTypes.string }).isRequired,
+  /** ID del operador que crea la proforma */
+  operadorId: PropTypes.number,
+  /** Callback al cerrar el modal */
+  onClose:    PropTypes.func.isRequired,
+  /** Callback invocado tras crear la proforma con éxito */
+  onCreated:  PropTypes.func,
 };
 
 export default ProformaModal;

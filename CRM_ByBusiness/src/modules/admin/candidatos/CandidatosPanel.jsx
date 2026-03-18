@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -31,6 +32,7 @@ const CandidatosPanel = () => {
   const [filtroOrigen, setFiltroOrigen] = useState('');
   const [candidatos, setCandidatos] = useState(null);
   const [total, setTotal] = useState(0);
+  const [error, setError] = useState('');
 
   /** Actualiza el estado de un candidato en el servidor y refleja el cambio en la UI. */
   const cambiarEstado = async (id, nuevoEstado) => {
@@ -46,7 +48,7 @@ const CandidatosPanel = () => {
         setCandidatos(prev => prev.map(c => c.id === id ? { ...c, estado: nuevoEstado } : c));
       }
     } catch {
-      // error de red — no actualizar la UI
+      setError('Error al actualizar estado del candidato — comprueba la conexión');
     }
   };
 
@@ -57,12 +59,22 @@ const CandidatosPanel = () => {
     const N8N = import.meta.env.VITE_N8N_URL;
     fetch(`${N8N}/crm-candidatos-admin?${params}`)
       .then(r => r.json())
-      .then(data => { if (data.ok) { setCandidatos(data.candidatos); setTotal(data.total); } })
-      .catch(() => setCandidatos([]));
+      .then(data => {
+        if (data.ok) { setCandidatos(data.candidatos); setTotal(data.total); setError(''); }
+        else { setCandidatos([]); setError('Error al cargar candidatos — respuesta inesperada del servidor'); }
+      })
+      .catch(() => { setCandidatos([]); setError('Error al cargar candidatos — comprueba la conexión'); });
   }, [filtroEstado, filtroOrigen]);
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto bg-slate-950 font-sans">
+
+      {/* Error banner */}
+      {error && (
+        <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
+          {error}
+        </div>
+      )}
 
       {/* Barra superior */}
       <div className="flex items-center justify-between">
@@ -190,5 +202,8 @@ const CandidatosPanel = () => {
     </div>
   );
 };
+
+/** Panel autónomo — no recibe props externas */
+CandidatosPanel.propTypes = {};
 
 export default CandidatosPanel;

@@ -295,6 +295,80 @@ ReactivarModal.propTypes = {
 };
 
 /**
+ * Modal de verificación TOTP para confirmar que el usuario escaneó el QR de 2FA.
+ * Bloquea el cierre hasta que el código de 6 dígitos sea validado con éxito.
+ * @param {{ qrModal: Object, onVerificado: Function, onError: Function }} props
+ */
+const Modal2FA = ({ qrModal, onVerificado, onError }) => {
+  const [codigo, setCodigo]       = useState('');
+  const [verificando, setVerificando] = useState(false);
+  const [errorLocal, setErrorLocal]   = useState('');
+
+  const verificar = async () => {
+    if (codigo.length !== 6) return;
+    setVerificando(true);
+    setErrorLocal('');
+    try {
+      const r = await fetch(`${N8N}/crm-verificar-2fa`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario_id: qrModal.usuarioId, codigo, secret: qrModal.secret }),
+      });
+      const d = await r.json();
+      if (d.ok) { onVerificado(); }
+      else { setErrorLocal('Código incorrecto, inténtalo de nuevo'); setCodigo(''); }
+    } catch { setErrorLocal('Error de conexión'); }
+    finally { setVerificando(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-80 flex flex-col items-center gap-4">
+        <div className="flex items-center w-full">
+          <span className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1">
+            <ShieldCheck size={14} className="text-emerald-400" /> Activar 2FA — {qrModal.nombre}
+          </span>
+        </div>
+        <p className="text-[10px] text-slate-400 text-center">
+          Escanea el QR con tu app autenticadora y después introduce el código de 6 dígitos para confirmar.
+        </p>
+        <div className="p-3 bg-white rounded-sm">
+          <QRCodeSVG
+            value={new OTPAuth.TOTP({ issuer: 'ByBusiness', label: qrModal.email, algorithm: 'SHA1', digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(qrModal.secret) }).toString()}
+            size={160} level="M"
+          />
+        </div>
+        <p className="text-[9px] text-slate-600 font-mono text-center break-all">{qrModal.secret}</p>
+        <input
+          type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoFocus
+          value={codigo}
+          onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onKeyDown={e => e.key === 'Enter' && verificar()}
+          placeholder="000000"
+          className="w-full bg-slate-950 border border-slate-700 rounded-sm px-3 py-2 text-sm font-mono text-white text-center tracking-[0.4em] outline-none focus:border-emerald-500 placeholder:text-slate-700 placeholder:tracking-normal"
+        />
+        {errorLocal && (
+          <p className="text-[10px] text-red-400 font-mono text-center w-full">{errorLocal}</p>
+        )}
+        <button onClick={verificar} disabled={verificando || codigo.length !== 6}
+          className="w-full text-xs font-bold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white py-2 rounded-sm uppercase tracking-wider">
+          {verificando ? 'Verificando...' : 'Verificar y activar'}
+        </button>
+        <button onClick={() => onError('2FA cancelado — el usuario no verificó el código')}
+          className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
+          Cancelar configuración
+        </button>
+      </div>
+    </div>
+  );
+};
+
+Modal2FA.propTypes = {
+  qrModal:      PropTypes.shape({ usuarioId: PropTypes.number.isRequired, nombre: PropTypes.string.isRequired, email: PropTypes.string.isRequired, secret: PropTypes.string.isRequired }).isRequired,
+  onVerificado: PropTypes.func.isRequired,
+  onError:      PropTypes.func.isRequired,
+};
+
+/**
  * Panel de administración de usuarios del CRM.
  * Gestiona altas, ediciones, ausencias temporales, reactivaciones y bajas definitivas.
  * Incluye 2FA por usuario y delegación de gestiones en ausencias/bajas.
@@ -413,7 +487,7 @@ const UsuariosList = () => {
     try {
       const r = await fetch(`${N8N}/crm-activar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id }) });
       const d = await r.json();
-      if (d.ok) { setQrModal({ nombre: u.nombre, email: u.email, secret: d.totp_secret }); cargar(); }
+      if (d.ok) { setQrModal({ usuarioId: u.id, nombre: u.nombre, email: u.email, secret: d.totp_secret, verificado: false }); }
     } catch (err) { setError('Error al activar 2FA'); }
   };
 
@@ -453,32 +527,7 @@ const UsuariosList = () => {
           onGuardado={() => setModalHorario(null)}
         />
       )}
-      {qrModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-80 flex flex-col items-center gap-4">
-            <div className="flex items-center justify-between w-full">
-              <span className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1">
-                <ShieldCheck size={14} className="text-emerald-400" /> 2FA Activado
-              </span>
-              <button onClick={() => setQrModal(null)}><X size={14} className="text-slate-500 hover:text-white" /></button>
-            </div>
-            <p className="text-[10px] text-slate-400 text-center">
-              Muestra este QR a <span className="text-white font-bold">{qrModal.nombre}</span> para que lo escanee con Google Authenticator.
-            </p>
-            <div className="p-3 bg-white rounded-sm">
-              <QRCodeSVG
-                value={new OTPAuth.TOTP({ issuer: 'ByBusiness', label: qrModal.email, algorithm: 'SHA1', digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(qrModal.secret) }).toString()}
-                size={160} level="M"
-              />
-            </div>
-            <p className="text-[9px] text-slate-600 font-mono text-center break-all">{qrModal.secret}</p>
-            <button onClick={() => setQrModal(null)}
-              className="w-full text-xs font-bold bg-emerald-700 hover:bg-emerald-600 text-white py-2 rounded-sm">
-              ENTENDIDO
-            </button>
-          </div>
-        </div>
-      )}
+      {qrModal && <Modal2FA qrModal={qrModal} onVerificado={() => { setQrModal(null); cargar(); }} onError={(msg) => { setQrModal(null); setError(msg); }} />}
 
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -585,7 +634,7 @@ const UsuariosList = () => {
                             {(u.nombre || u.email).charAt(0).toUpperCase()}
                           </div>
                           {!isInactivo && (
-                            <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-slate-900 ${ESTADO_DOT[u.estado_llamada] || 'bg-slate-600'}`} />
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-sm border border-slate-900 ${ESTADO_DOT[u.estado_llamada] || 'bg-slate-600'}`} />
                           )}
                         </div>
                         <div>
@@ -693,5 +742,8 @@ const UsuariosList = () => {
     </div>
   );
 };
+
+/** Panel autónomo — no recibe props externas */
+UsuariosList.propTypes = {};
 
 export default UsuariosList;

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Stat from '../../../shared/ui/Stat';
 import Badge from '../../../shared/ui/Badge';
@@ -9,18 +10,25 @@ const PRIORIDAD_CLASSES = {
   baja:   'bg-slate-800 text-slate-500 border-slate-700',
 };
 
+/**
+ * DashboardPanel — Panel principal de administración con KPIs de negocio,
+ * últimos leads, actividad de operadores y métricas de captación web.
+ * Consume crm-kpi-dashboard, crm-leads-admin y crm-actividad-operadores vía n8n.
+ */
 const DashboardPanel = () => {
   const [kpis, setKpis]           = useState(null);
   const [leads, setLeads]         = useState([]);
   const [actividad, setActividad] = useState(null);
+  const [errorKpis, setErrorKpis]         = useState('');
+  const [errorActividad, setErrorActividad] = useState('');
 
-  const N8N = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const N8N = import.meta.env.VITE_N8N_URL;
 
   useEffect(() => {
     fetch(`${N8N}/crm-kpi-dashboard`)
       .then(r => r.json())
-      .then(d => { if (d.ok) setKpis(d.kpis); })
-      .catch(() => {});
+      .then(d => { if (d.ok) setKpis(d.kpis); else setErrorKpis('Error al cargar KPIs del dashboard'); })
+      .catch(() => setErrorKpis('Error al cargar KPIs — comprueba la conexión'));
 
     fetch(`${N8N}/crm-leads-admin?limit=5`)
       .then(r => r.json())
@@ -29,8 +37,8 @@ const DashboardPanel = () => {
 
     fetch(`${N8N}/crm-actividad-operadores`)
       .then(r => r.json())
-      .then(d => { if (d.ok) setActividad(d); })
-      .catch(() => {});
+      .then(d => { if (d.ok) setActividad(d); else setErrorActividad('Error al cargar actividad de operadores'); })
+      .catch(() => setErrorActividad('Error al cargar actividad — comprueba la conexión'));
   }, []);
 
   const tasa = actividad && actividad.total_llamadas_hoy > 0
@@ -39,6 +47,18 @@ const DashboardPanel = () => {
 
   return (
     <div className="flex flex-col gap-6 h-full overflow-y-auto bg-slate-950 font-sans">
+
+      {/* Error banners */}
+      {errorKpis && (
+        <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
+          {errorKpis}
+        </div>
+      )}
+      {errorActividad && (
+        <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
+          {errorActividad}
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -128,5 +148,8 @@ const DashboardPanel = () => {
     </div>
   );
 };
+
+/** Panel autónomo — no recibe props externas */
+DashboardPanel.propTypes = {};
 
 export default DashboardPanel;
