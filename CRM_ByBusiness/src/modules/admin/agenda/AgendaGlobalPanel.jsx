@@ -4,7 +4,7 @@ import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth,
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
-import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../../modules/auth/AuthContext';
 import DatePickerField from '../../../shared/ui/DatePickerField';
@@ -28,6 +28,7 @@ const TIPO = {
   gbp_snapshot:           { textClass: 'text-green-500',   borderClass: 'border-green-500/40',   bgClass: 'bg-green-500/10',   label: 'GBP Snapshot',      Icon: Star          },
   gbp_autorepair:         { textClass: 'text-red-500',     borderClass: 'border-red-500/40',     bgClass: 'bg-red-500/10',     label: 'Motor reparado',    Icon: Wrench        },
   proxima_accion_cliente: { textClass: 'text-[#D00000]',   borderClass: 'border-[#D00000]/40',   bgClass: 'bg-[#D00000]/10',   label: 'Próxima acción',    Icon: CalendarClock },
+  backup_sistema:         { textClass: 'text-cyan-400',    borderClass: 'border-cyan-400/40',    bgClass: 'bg-cyan-400/10',    label: 'Backup sistema',    Icon: HardDrive     },
 };
 
 /** Devuelve el título de la cabecera del calendario según la vista activa (día/semana/mes). */
@@ -250,7 +251,7 @@ const AgendaGlobalPanel = () => {
   const [loading, setLoading]     = useState(true);
   const [view, setView]           = useState(Views.WEEK);
   const [fecha, setFecha]         = useState(new Date());
-  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true });
+  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true, backup_sistema: true });
   const [modalCita, setModalCita]         = useState(false);
   const [eventoSel, setEventoSel]         = useState(null);
   const [clienteDrawer, setClienteDrawer] = useState(null);
