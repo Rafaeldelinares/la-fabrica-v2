@@ -19,21 +19,23 @@ const TIPOS = [
 ];
 
 /**
- * Modal para registrar una nueva interacción con un cliente.
- * Permite especificar opcionalmente la fecha y hora exacta del evento;
- * si se omite, el servidor usará NOW().
+ * Modal para registrar una nueva interacción o editar una existente.
+ * En modo edición, recibe `interaccion` con los datos a precargar.
  *
- * @param {object} props
- * @param {object} props.cliente - Objeto cliente con al menos {id, nombre_comercial}
- * @param {number} [props.gestorId] - ID del gestor que registra la interacción
- * @param {Function} props.onClose - Callback para cerrar el modal
- * @param {Function} props.onSaved - Callback invocado con la interacción guardada
+ * @param {object}   props
+ * @param {object}   props.cliente       - Objeto cliente con al menos {id, nombre_comercial}
+ * @param {number}   [props.gestorId]    - ID del gestor que registra la interacción
+ * @param {object}   [props.interaccion] - Si se pasa, el modal opera en modo edición
+ * @param {Function} props.onClose       - Callback para cerrar el modal
+ * @param {Function} props.onSaved       - Callback invocado tras guardar
  */
-const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
-  const [tipo, setTipo]                   = useState('llamada');
-  const [resumen, setResumen]             = useState('');
-  const [acuerdo, setAcuerdo]             = useState('');
-  const [proximaAccion, setProximaAccion] = useState('');
+const RegistrarInteraccionModal = ({ cliente, gestorId, interaccion, onClose, onSaved }) => {
+  const esEdicion = Boolean(interaccion);
+
+  const [tipo, setTipo]                   = useState(interaccion?.tipo || 'llamada');
+  const [resumen, setResumen]             = useState(interaccion?.resumen || '');
+  const [acuerdo, setAcuerdo]             = useState(interaccion?.acuerdo_alcanzado || '');
+  const [proximaAccion, setProximaAccion] = useState(interaccion?.proxima_accion || '');
   const [fechaHora, setFechaHora]         = useState(null);
   const [saving, setSaving]               = useState(false);
   const [error, setError]                 = useState('');
@@ -44,18 +46,32 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${N8N}/crm-registrar-interaccion`, {
+      const url = esEdicion
+        ? `${N8N}/crm-interaccion-editar`
+        : `${N8N}/crm-registrar-interaccion`;
+
+      const body = esEdicion
+        ? {
+            interaccion_id:    interaccion.evento_id,
+            tipo,
+            resumen:           resumen.trim(),
+            acuerdo_alcanzado: acuerdo.trim() || null,
+            proxima_accion:    proximaAccion.trim() || null,
+          }
+        : {
+            cliente_id:        cliente.id,
+            gestor_id:         gestorId,
+            tipo,
+            resumen:           resumen.trim(),
+            acuerdo_alcanzado: acuerdo.trim() || null,
+            proxima_accion:    proximaAccion.trim() || null,
+            fecha_hora:        fechaHora ? formatISO(fechaHora) : null,
+          };
+
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id:        cliente.id,
-          gestor_id:         gestorId,
-          tipo,
-          resumen:           resumen.trim(),
-          acuerdo_alcanzado: acuerdo.trim() || null,
-          proxima_accion:    proximaAccion.trim() || null,
-          fecha_hora:        fechaHora ? formatISO(fechaHora) : null,
-        }),
+        body: JSON.stringify(body),
       });
       const d = await res.json();
       if (d.ok) { onSaved(d.interaccion); }
@@ -73,7 +89,9 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
           <div>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">Registrar interacción</p>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-mono">
+              {esEdicion ? 'Editar interacción' : 'Registrar interacción'}
+            </p>
             <p className="text-sm font-bold text-white uppercase tracking-wide mt-0.5">{cliente.nombre_comercial}</p>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
@@ -141,18 +159,20 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
             />
           </div>
 
-          {/* Fecha y hora */}
-          <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-widest font-mono block mb-2">
-              Fecha y hora <span className="text-slate-600 normal-case tracking-normal">(opcional — por defecto ahora)</span>
-            </label>
-            <DatePickerField
-              selected={fechaHora}
-              onChange={setFechaHora}
-              showTimeSelect
-              placeholderText="DD/MM/AAAA HH:MM — ahora si vacío"
-            />
-          </div>
+          {/* Fecha y hora — solo en modo creación */}
+          {!esEdicion && (
+            <div>
+              <label className="text-[10px] text-slate-500 uppercase tracking-widest font-mono block mb-2">
+                Fecha y hora <span className="text-slate-600 normal-case tracking-normal">(opcional — por defecto ahora)</span>
+              </label>
+              <DatePickerField
+                selected={fechaHora}
+                onChange={setFechaHora}
+                showTimeSelect
+                placeholderText="DD/MM/AAAA HH:MM — ahora si vacío"
+              />
+            </div>
+          )}
 
           {error && <p className="text-xs text-red-400 font-mono">{error}</p>}
 
@@ -164,7 +184,7 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
             <button type="submit" disabled={saving}
               className="flex items-center gap-2 px-5 py-2 bg-[#D00000] hover:bg-[#B00000] text-white text-xs font-mono uppercase tracking-widest rounded-sm transition-colors disabled:opacity-50">
               <Send size={14} />
-              {saving ? 'Guardando…' : 'Guardar'}
+              {saving ? 'Guardando…' : esEdicion ? 'Actualizar' : 'Guardar'}
             </button>
           </div>
         </form>
@@ -174,10 +194,11 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
 };
 
 RegistrarInteraccionModal.propTypes = {
-  cliente:   PropTypes.object.isRequired,
-  gestorId:  PropTypes.number,
-  onClose:   PropTypes.func.isRequired,
-  onSaved:   PropTypes.func.isRequired,
+  cliente:     PropTypes.object.isRequired,
+  gestorId:    PropTypes.number,
+  interaccion: PropTypes.object,
+  onClose:     PropTypes.func.isRequired,
+  onSaved:     PropTypes.func.isRequired,
 };
 
 export default RegistrarInteraccionModal;
