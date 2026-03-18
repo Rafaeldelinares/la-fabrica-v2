@@ -11,4 +11,4 @@ EXCLUDE_PATTERNS="node_modules,vendor,.git,dist,build,*.test.go,*.spec.js,*.d.ts
 RULES_FILE="AGENTS.md"
 
 STRICT_MODE="true"
-TIMEOUT="120"
+TIMEOUT="180"
