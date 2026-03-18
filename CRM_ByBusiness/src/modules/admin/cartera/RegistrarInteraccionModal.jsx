@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { X, Send } from 'lucide-react';
+import { formatISO } from 'date-fns';
+import DatePickerField from '../../../shared/ui/DatePickerField';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
+/**
+ * Mapa de tipos de interacción disponibles en el CRM.
+ * @type {Array<{value: string, label: string}>}
+ */
 const TIPOS = [
   { value: 'llamada',  label: 'Llamada' },
   { value: 'email',    label: 'Email' },
@@ -12,11 +18,23 @@ const TIPOS = [
   { value: 'acuerdo',  label: 'Acuerdo' },
 ];
 
+/**
+ * Modal para registrar una nueva interacción con un cliente.
+ * Permite especificar opcionalmente la fecha y hora exacta del evento;
+ * si se omite, el servidor usará NOW().
+ *
+ * @param {object} props
+ * @param {object} props.cliente - Objeto cliente con al menos {id, nombre_comercial}
+ * @param {number} [props.gestorId] - ID del gestor que registra la interacción
+ * @param {Function} props.onClose - Callback para cerrar el modal
+ * @param {Function} props.onSaved - Callback invocado con la interacción guardada
+ */
 const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
   const [tipo, setTipo]                   = useState('llamada');
   const [resumen, setResumen]             = useState('');
   const [acuerdo, setAcuerdo]             = useState('');
   const [proximaAccion, setProximaAccion] = useState('');
+  const [fechaHora, setFechaHora]         = useState(null);
   const [saving, setSaving]               = useState(false);
   const [error, setError]                 = useState('');
 
@@ -36,6 +54,7 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
           resumen:           resumen.trim(),
           acuerdo_alcanzado: acuerdo.trim() || null,
           proxima_accion:    proximaAccion.trim() || null,
+          fecha_hora:        fechaHora ? formatISO(fechaHora) : null,
         }),
       });
       const d = await res.json();
@@ -119,6 +138,19 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, onClose, onSaved }) => {
               onChange={e => setProximaAccion(e.target.value)}
               placeholder="Opcional — p.ej. Llamar el 20 Mar para confirmar"
               className="w-full bg-slate-950 border border-slate-700 rounded-sm text-sm text-slate-200 px-3 py-2.5 outline-none focus:border-[#D00000] placeholder:text-slate-600 font-mono"
+            />
+          </div>
+
+          {/* Fecha y hora */}
+          <div>
+            <label className="text-[10px] text-slate-500 uppercase tracking-widest font-mono block mb-2">
+              Fecha y hora <span className="text-slate-600 normal-case tracking-normal">(opcional — por defecto ahora)</span>
+            </label>
+            <DatePickerField
+              selected={fechaHora}
+              onChange={setFechaHora}
+              showTimeSelect
+              placeholderText="DD/MM/AAAA HH:MM — ahora si vacío"
             />
           </div>
 
