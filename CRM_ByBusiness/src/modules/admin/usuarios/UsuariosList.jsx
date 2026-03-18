@@ -45,19 +45,21 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
   const [asignaciones, setAsignaciones] = useState({});
   const [paso, setPaso]             = useState(1);
   const [cargando, setCargando]     = useState(true);
+  const [errorCarga, setErrorCarga] = useState(null);
 
   useEffect(() => {
     setCargando(true);
+    setErrorCarga(null);
     fetch(`${N8N_GEST}?operador_id=${usuario.id}`)
-      .then(r => r.json())
-      .then(d => {
-        const gs = Array.isArray(d.gestiones) ? d.gestiones : [];
+      .then(res => res.json())
+      .then(resData => {
+        const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setGestiones(gs);
         const init = {};
-        gs.forEach((g, i) => { init[i] = { cubridor_id: '', nuevas_al_cubridor: true }; });
+        gs.forEach((gestItem, gestIdx) => { init[gestIdx] = { cubridor_id: '', nuevas_al_cubridor: true }; });
         setAsignaciones(init);
       })
-      .catch(() => setGestiones([]))
+      .catch(() => { setGestiones([]); setErrorCarga('Error al cargar gestiones activas'); })
       .finally(() => setCargando(false));
   }, [usuario.id]);
 
@@ -66,11 +68,11 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
 
   const handleConfirm = () => {
     if (paso === 1 && modo === 'baja' && gestiones?.length > 0) { setPaso(2); return; }
-    const delegaciones = (gestiones || []).map((g, i) => ({
-      tipo:              g.tipo,
-      referencia_id:     g.referencia_id,
-      cubridor_id:       parseInt(asignaciones[i]?.cubridor_id) || null,
-      nuevas_al_cubridor: asignaciones[i]?.nuevas_al_cubridor ?? true,
+    const delegaciones = (gestiones || []).map((gestion, gestionIdx) => ({
+      tipo:              gestion.tipo,
+      referencia_id:     gestion.referencia_id,
+      cubridor_id:       parseInt(asignaciones[gestionIdx]?.cubridor_id) || null,
+      nuevas_al_cubridor: asignaciones[gestionIdx]?.nuevas_al_cubridor ?? true,
     }));
     onConfirm(delegaciones);
   };
@@ -113,10 +115,10 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
                 Volver
               </button>
               <button onClick={() => onConfirm(Object.values(asignaciones).length > 0
-                  ? (gestiones || []).map((g, i) => ({
-                      tipo: g.tipo, referencia_id: g.referencia_id,
-                      cubridor_id: parseInt(asignaciones[i]?.cubridor_id) || null,
-                      nuevas_al_cubridor: asignaciones[i]?.nuevas_al_cubridor ?? true,
+                  ? (gestiones || []).map((gestion, gestionIdx) => ({
+                      tipo: gestion.tipo, referencia_id: gestion.referencia_id,
+                      cubridor_id: parseInt(asignaciones[gestionIdx]?.cubridor_id) || null,
+                      nuevas_al_cubridor: asignaciones[gestionIdx]?.nuevas_al_cubridor ?? true,
                     }))
                   : [])}
                 className="text-xs font-black px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-sm uppercase tracking-wider">
@@ -152,26 +154,27 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
                 {!cargando && gestiones?.length === 0 && (
                   <p className="text-[10px] text-slate-500 italic">Sin gestiones activas en cartera ni citas pendientes.</p>
                 )}
-                {!cargando && gestiones?.map((g, i) => (
-                  <div key={i} className="flex items-center gap-2 py-2 border-b border-slate-800">
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-sm font-black uppercase ${g.tipo === 'cliente' ? 'bg-blue-900/40 text-blue-400' : 'bg-purple-900/40 text-purple-400'}`}>
-                      {g.tipo}
+                {errorCarga && <p className="text-[10px] text-red-400 font-mono">{errorCarga}</p>}
+                {!cargando && gestiones?.map((gestion, gestionIdx) => (
+                  <div key={gestionIdx} className="flex items-center gap-2 py-2 border-b border-slate-800">
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-sm font-black uppercase ${gestion.tipo === 'cliente' ? 'bg-blue-900/40 text-blue-400' : 'bg-purple-900/40 text-purple-400'}`}>
+                      {gestion.tipo}
                     </span>
-                    <span className="text-[10px] text-slate-300 flex-1 truncate">{g.nombre}</span>
+                    <span className="text-[10px] text-slate-300 flex-1 truncate">{gestion.nombre}</span>
                     <select
-                      value={asignaciones[i]?.cubridor_id || ''}
-                      onChange={e => setAsignaciones(prev => ({ ...prev, [i]: { ...prev[i], cubridor_id: e.target.value } }))}
+                      value={asignaciones[gestionIdx]?.cubridor_id || ''}
+                      onChange={e => setAsignaciones(prev => ({ ...prev, [gestionIdx]: { ...prev[gestionIdx], cubridor_id: e.target.value } }))}
                       className="bg-slate-950 border border-slate-700 rounded-sm px-2 py-1 text-[10px] text-slate-300 outline-none focus:border-slate-500 min-w-[120px]"
                     >
                       <option value="">— Cubridor —</option>
-                      {adminsActivos.filter(a => a.id !== usuario.id).map(a => (
-                        <option key={a.id} value={a.id}>{a.nombre}</option>
+                      {adminsActivos.filter(admin => admin.id !== usuario.id).map(admin => (
+                        <option key={admin.id} value={admin.id}>{admin.nombre}</option>
                       ))}
                     </select>
                     <label className="flex items-center gap-1 text-[9px] text-slate-500 cursor-pointer">
                       <input type="checkbox"
-                        checked={asignaciones[i]?.nuevas_al_cubridor ?? true}
-                        onChange={e => setAsignaciones(prev => ({ ...prev, [i]: { ...prev[i], nuevas_al_cubridor: e.target.checked } }))}
+                        checked={asignaciones[gestionIdx]?.nuevas_al_cubridor ?? true}
+                        onChange={e => setAsignaciones(prev => ({ ...prev, [gestionIdx]: { ...prev[gestionIdx], nuevas_al_cubridor: e.target.checked } }))}
                         className="accent-blue-500"
                       />
                       Nuevas→cubridor
@@ -221,19 +224,21 @@ const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
   const [delegaciones, setDelegaciones] = useState(null);
   const [resoluciones, setResoluciones] = useState({});
   const [cargando, setCargando]         = useState(true);
+  const [errorCarga, setErrorCarga]     = useState(null);
 
   useEffect(() => {
     setCargando(true);
+    setErrorCarga(null);
     fetch(`${N8N_GEST}?operador_id=${usuario.id}`)
-      .then(r => r.json())
-      .then(d => {
-        const gs = Array.isArray(d.gestiones) ? d.gestiones : [];
+      .then(res => res.json())
+      .then(resData => {
+        const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setDelegaciones(gs);
         const init = {};
-        gs.forEach((g, i) => { init[i] = 'devuelta'; });
+        gs.forEach((_, delegIdx) => { init[delegIdx] = 'devuelta'; });
         setResoluciones(init);
       })
-      .catch(() => setDelegaciones([]))
+      .catch(() => { setDelegaciones([]); setErrorCarga('Error al cargar delegaciones activas'); })
       .finally(() => setCargando(false));
   }, [usuario.id]);
 
@@ -249,18 +254,19 @@ const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
 
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
           {cargando && <div className="h-10 bg-slate-800/50 rounded-sm animate-pulse" />}
+          {errorCarga && <p className="text-[10px] text-red-400 font-mono">{errorCarga}</p>}
           {!cargando && delegaciones?.length === 0 && (
             <p className="text-[10px] text-slate-500 italic">Sin delegaciones activas. Se reactivará directamente.</p>
           )}
-          {!cargando && delegaciones?.map((g, i) => (
-            <div key={i} className="flex items-center gap-2 py-2 border-b border-slate-800">
-              <span className={`text-[8px] px-1.5 py-0.5 rounded-sm font-black uppercase ${g.tipo === 'cliente' ? 'bg-blue-900/40 text-blue-400' : 'bg-purple-900/40 text-purple-400'}`}>
-                {g.tipo}
+          {!cargando && delegaciones?.map((delegacion, delegIdx) => (
+            <div key={delegIdx} className="flex items-center gap-2 py-2 border-b border-slate-800">
+              <span className={`text-[8px] px-1.5 py-0.5 rounded-sm font-black uppercase ${delegacion.tipo === 'cliente' ? 'bg-blue-900/40 text-blue-400' : 'bg-purple-900/40 text-purple-400'}`}>
+                {delegacion.tipo}
               </span>
-              <span className="text-[10px] text-slate-300 flex-1 truncate">{g.nombre}</span>
+              <span className="text-[10px] text-slate-300 flex-1 truncate">{delegacion.nombre}</span>
               <select
-                value={resoluciones[i] || 'devuelta'}
-                onChange={e => setResoluciones(prev => ({ ...prev, [i]: e.target.value }))}
+                value={resoluciones[delegIdx] || 'devuelta'}
+                onChange={e => setResoluciones(prev => ({ ...prev, [delegIdx]: e.target.value }))}
                 className="bg-slate-950 border border-slate-700 rounded-sm px-2 py-1 text-[10px] text-slate-300 outline-none focus:border-slate-500"
               >
                 <option value="devuelta">Devolver al titular</option>
@@ -309,12 +315,12 @@ const Modal2FA = ({ qrModal, onVerificado, onError }) => {
     setVerificando(true);
     setErrorLocal('');
     try {
-      const r = await fetch(`${N8N}/crm-verificar-2fa`, {
+      const response = await fetch(`${N8N}/crm-verificar-2fa`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: qrModal.usuarioId, codigo, secret: qrModal.secret }),
+        body: JSON.stringify({ usuario_id: qrModal.usuarioId, codigo }),
       });
-      const d = await r.json();
-      if (d.ok) { onVerificado(); }
+      const data = await response.json();
+      if (data.ok) { onVerificado(); }
       else { setErrorLocal('Código incorrecto, inténtalo de nuevo'); setCodigo(''); }
     } catch { setErrorLocal('Error de conexión'); }
     finally { setVerificando(false); }
@@ -397,8 +403,8 @@ const UsuariosList = () => {
     setLoading(true);
     setError(null);
     fetch(`${N8N}/crm-usuarios-get`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setUsuarios(d.usuarios); else setError('Error al cargar usuarios'); })
+      .then(res => res.json())
+      .then(resData => { if (resData.ok) setUsuarios(resData.usuarios); else setError('Error al cargar usuarios'); })
       .catch(() => setError('Error de conexión'))
       .finally(() => setLoading(false));
   }, []);
@@ -412,97 +418,97 @@ const UsuariosList = () => {
   };
 
   const abrirCrear  = () => { setFormData(emptyForm); setShowPwd(false); setModo('crear'); };
-  const abrirEditar = (u) => { setFormData({ nombre: u.nombre, email: u.email, password: '', rol: u.rol, id: u.id }); setShowPwd(false); setModo('editar'); };
+  const abrirEditar = (usr) => { setFormData({ nombre: usr.nombre, email: usr.email, password: '', rol: usr.rol, id: usr.id }); setShowPwd(false); setModo('editar'); };
   const cerrar      = () => { setModo(null); setFormData(emptyForm); };
 
   const guardar = async () => {
     if (!formData.nombre || !formData.email || (modo === 'crear' && !formData.password)) return;
     setSaving(true);
     try {
-      const url = modo === 'crear' ? `${N8N}/crm-crear-usuario` : `${N8N}/crm-editar-usuario`;
-      const r   = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
-      const d   = await r.json();
-      if (modo === 'crear' && !d.ok) { setError('Email ya en uso'); return; }
+      const url      = modo === 'crear' ? `${N8N}/crm-crear-usuario` : `${N8N}/crm-editar-usuario`;
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData) });
+      const data     = await response.json();
+      if (modo === 'crear' && !data.ok) { setError('Email ya en uso'); return; }
       cargar(); cerrar();
-    } catch (err) { setError('Error al guardar'); }
+    } catch { setError('Error al guardar'); }
     finally { setSaving(false); }
   };
 
   const confirmarAusencia = async (delegaciones) => {
-    const u = modalAusencia;
+    const operador = modalAusencia;
     setModalAusencia(null);
-    const adminsEmails = usuarios.filter(x => x.rol === 'admin' && x.estado === 'activo').map(x => x.email).join(',');
+    const adminsEmails = usuarios.filter(usr => usr.rol === 'admin' && usr.estado === 'activo').map(usr => usr.email).join(',');
     try {
       await fetch(N8N_AUS, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ausencia_crear', operador_id: u.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
+        body: JSON.stringify({ action: 'ausencia_crear', operador_id: operador.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
       });
       cargar();
-      mostrarInfo(`✓ ${u.nombre} marcado como ausente. Delegaciones creadas.`);
-    } catch (err) { setError('Error al marcar ausencia'); }
+      mostrarInfo(`✓ ${operador.nombre} marcado como ausente. Delegaciones creadas.`);
+    } catch { setError('Error al marcar ausencia'); }
   };
 
   const confirmarBaja = async (delegaciones) => {
-    const u = modalBaja;
+    const operador = modalBaja;
     setModalBaja(null);
-    const adminsEmails   = usuarios.filter(x => x.rol === 'admin' && x.estado === 'activo').map(x => x.email).join(',');
+    const adminsEmails = usuarios.filter(usr => usr.rol === 'admin' && usr.estado === 'activo').map(usr => usr.email).join(',');
     try {
       await fetch(N8N_AUS, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'baja', operador_id: u.id, operador_nombre: u.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
+        body: JSON.stringify({ action: 'baja', operador_id: operador.id, operador_nombre: operador.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
       });
       cargar();
-      mostrarInfo(`✓ ${u.nombre} dado de baja definitivamente.`);
-    } catch (err) { setError('Error al dar de baja'); }
+      mostrarInfo(`✓ ${operador.nombre} dado de baja definitivamente.`);
+    } catch { setError('Error al dar de baja'); }
   };
 
   const confirmarReactivar = async (resoluciones) => {
-    const u = modalReactivar;
+    const operador = modalReactivar;
     setModalReactivar(null);
     try {
       await fetch(N8N_AUS, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ausencia_reactivar', operador_id: u.id, resoluciones }),
+        body: JSON.stringify({ action: 'ausencia_reactivar', operador_id: operador.id, resoluciones }),
       });
       cargar();
-      mostrarInfo(`✓ ${u.nombre} reactivado.`);
-    } catch (err) { setError('Error al reactivar'); }
+      mostrarInfo(`✓ ${operador.nombre} reactivado.`);
+    } catch { setError('Error al reactivar'); }
   };
 
   const suspender = async (id) => {
     try {
       await fetch(`${N8N}/crm-eliminar-usuario`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
       cargar();
-    } catch (err) { setError('Error al suspender'); }
+    } catch { setError('Error al suspender'); }
   };
 
   const reactivarSuspendido = async (id) => {
     try {
       await fetch(`${N8N}/crm-reactivar-usuario`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
       cargar();
-    } catch (err) { setError('Error al reactivar'); }
+    } catch { setError('Error al reactivar'); }
   };
 
-  const activar2fa = async (u) => {
+  const activar2fa = async (usuario) => {
     try {
-      const r = await fetch(`${N8N}/crm-activar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id }) });
-      const d = await r.json();
-      if (d.ok) { setQrModal({ usuarioId: u.id, nombre: u.nombre, email: u.email, secret: d.totp_secret, verificado: false }); }
-    } catch (err) { setError('Error al activar 2FA'); }
+      const response = await fetch(`${N8N}/crm-activar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: usuario.id }) });
+      const data = await response.json();
+      if (data.ok) { setQrModal({ usuarioId: usuario.id, nombre: usuario.nombre, email: usuario.email, secret: data.totp_secret, verificado: false }); }
+    } catch { setError('Error al activar 2FA'); }
   };
 
   const desactivar2fa = async (id) => {
     try {
       await fetch(`${N8N}/crm-desactivar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
       cargar();
-    } catch (err) { setError('Error al desactivar 2FA'); }
+    } catch { setError('Error al desactivar 2FA'); }
   };
 
-  const activos     = usuarios.filter(u => u.estado === 'activo');
-  const ausentes    = usuarios.filter(u => u.estado === 'activo' && u.estado_llamada === 'ausente');
-  const suspendidos = usuarios.filter(u => u.estado === 'suspendido');
-  const bajas       = usuarios.filter(u => u.estado === 'baja');
-  const adminsActivos = usuarios.filter(u => u.rol === 'admin' && u.estado === 'activo' && u.estado_llamada !== 'ausente');
+  const activos     = usuarios.filter(usr => usr.estado === 'activo');
+  const ausentes    = usuarios.filter(usr => usr.estado === 'activo' && usr.estado_llamada === 'ausente');
+  const suspendidos = usuarios.filter(usr => usr.estado === 'suspendido');
+  const bajas       = usuarios.filter(usr => usr.estado === 'baja');
+  const adminsActivos = usuarios.filter(usr => usr.rol === 'admin' && usr.estado === 'activo' && usr.estado_llamada !== 'ausente');
 
   return (
     <div className="flex flex-col h-full gap-4">
@@ -619,35 +625,35 @@ const UsuariosList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50">
-              {usuarios.filter(u => u.estado !== 'baja').map(u => {
-                const isBaja      = u.estado === 'baja';
-                const isSuspendido = u.estado === 'suspendido';
-                const isAusente   = u.estado === 'activo' && u.estado_llamada === 'ausente';
+              {usuarios.filter(usr => usr.estado !== 'baja').map(usr => {
+                const isBaja      = usr.estado === 'baja';
+                const isSuspendido = usr.estado === 'suspendido';
+                const isAusente   = usr.estado === 'activo' && usr.estado_llamada === 'ausente';
                 const isInactivo  = isBaja || isSuspendido;
 
                 return (
-                  <tr key={u.id} className={`group hover:bg-slate-800/30 transition-colors ${isInactivo ? 'opacity-35' : ''}`}>
+                  <tr key={usr.id} className={`group hover:bg-slate-800/30 transition-colors ${isInactivo ? 'opacity-35' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="relative">
                           <div className="w-7 h-7 rounded-sm bg-slate-800 flex items-center justify-center text-[#D00000] font-black text-xs">
-                            {(u.nombre || u.email).charAt(0).toUpperCase()}
+                            {(usr.nombre || usr.email).charAt(0).toUpperCase()}
                           </div>
                           {!isInactivo && (
-                            <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-sm border border-slate-900 ${ESTADO_DOT[u.estado_llamada] || 'bg-slate-600'}`} />
+                            <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-sm border border-slate-900 ${ESTADO_DOT[usr.estado_llamada] || 'bg-slate-600'}`} />
                           )}
                         </div>
                         <div>
-                          <span className="text-xs font-bold text-white block">{u.nombre}</span>
+                          <span className="text-xs font-bold text-white block">{usr.nombre}</span>
                           {isAusente && <span className="text-[8px] text-orange-400 uppercase font-black tracking-widest">Ausente</span>}
                           {isBaja    && <span className="text-[8px] text-red-500 uppercase font-black tracking-widest">Baja</span>}
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-400 font-mono">{u.email}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400 font-mono">{usr.email}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-sm ${ROLE_COLORS[u.rol] || 'bg-slate-800 text-slate-400'}`}>
-                        {ROLES.find(r => r.value === u.rol)?.label || u.rol}
+                      <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-sm ${ROLE_COLORS[usr.rol] || 'bg-slate-800 text-slate-400'}`}>
+                        {ROLES.find(role => role.value === usr.rol)?.label || usr.rol}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -655,13 +661,13 @@ const UsuariosList = () => {
                         {isBaja ? 'Baja' : isSuspendido ? 'Suspendido' : isAusente ? 'Ausente' : 'Activo'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-[10px] text-slate-600 font-mono">{u.created_at ? fmtFecha(u.created_at) : '—'}</td>
+                    <td className="px-4 py-3 text-[10px] text-slate-600 font-mono">{usr.created_at ? fmtFecha(usr.created_at) : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
 
                         {/* Editar — solo activos no ausentes */}
                         {!isInactivo && !isAusente && (
-                          <button onClick={() => abrirEditar(u)} title="Editar"
+                          <button onClick={() => abrirEditar(usr)} title="Editar"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-blue-400 transition-colors">
                             <Edit2 size={13} />
                           </button>
@@ -669,7 +675,7 @@ const UsuariosList = () => {
 
                         {/* Horario — activos (cualquier estado) */}
                         {!isInactivo && (
-                          <button onClick={() => setModalHorario(u)} title="Gestionar horario"
+                          <button onClick={() => setModalHorario(usr)} title="Gestionar horario"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-cyan-400 transition-colors">
                             <Clock size={13} />
                           </button>
@@ -677,7 +683,7 @@ const UsuariosList = () => {
 
                         {/* Marcar ausente — activos no ausentes */}
                         {!isInactivo && !isAusente && (
-                          <button onClick={() => setModalAusencia(u)} title="Marcar ausente"
+                          <button onClick={() => setModalAusencia(usr)} title="Marcar ausente"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-orange-400 transition-colors">
                             <PauseCircle size={13} />
                           </button>
@@ -685,7 +691,7 @@ const UsuariosList = () => {
 
                         {/* Reactivar ausente */}
                         {isAusente && (
-                          <button onClick={() => setModalReactivar(u)} title="Reactivar"
+                          <button onClick={() => setModalReactivar(usr)} title="Reactivar"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
                             <PlayCircle size={13} />
                           </button>
@@ -693,7 +699,7 @@ const UsuariosList = () => {
 
                         {/* Reactivar suspendido */}
                         {isSuspendido && (
-                          <button onClick={() => reactivarSuspendido(u.id)} title="Reactivar"
+                          <button onClick={() => reactivarSuspendido(usr.id)} title="Reactivar"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
                             <PlayCircle size={13} />
                           </button>
@@ -701,13 +707,13 @@ const UsuariosList = () => {
 
                         {/* 2FA — solo activos */}
                         {!isInactivo && (
-                          u.totp_habilitado ? (
-                            <button onClick={() => desactivar2fa(u.id)} title="Desactivar 2FA"
+                          usr.totp_habilitado ? (
+                            <button onClick={() => desactivar2fa(usr.id)} title="Desactivar 2FA"
                               className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
                               <ShieldCheck size={13} />
                             </button>
                           ) : (
-                            <button onClick={() => activar2fa(u)} title="Activar 2FA"
+                            <button onClick={() => activar2fa(usr)} title="Activar 2FA"
                               className="p-1.5 hover:bg-slate-700 rounded-sm text-slate-500 hover:text-emerald-400 transition-colors">
                               <ShieldOff size={13} />
                             </button>
@@ -716,7 +722,7 @@ const UsuariosList = () => {
 
                         {/* Suspender — activos no ausentes (hover only) */}
                         {!isInactivo && !isAusente && (
-                          <button onClick={() => suspender(u.id)} title="Suspender"
+                          <button onClick={() => suspender(usr.id)} title="Suspender"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-amber-500 transition-colors opacity-0 group-hover:opacity-100">
                             <Trash2 size={13} />
                           </button>
@@ -724,7 +730,7 @@ const UsuariosList = () => {
 
                         {/* Dar de baja definitiva — activos o suspendidos (hover only) */}
                         {!isBaja && (
-                          <button onClick={() => setModalBaja(u)} title="Dar de baja definitiva"
+                          <button onClick={() => setModalBaja(usr)} title="Dar de baja definitiva"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-red-500 transition-colors opacity-0 group-hover:opacity-100">
                             <UserX size={13} />
                           </button>

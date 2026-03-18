@@ -32,3 +32,11 @@ export const fmtHora = (value) => {
   const d = toDate(value);
   return d ? format(d, 'HH:mm') : '—';
 };
+
+/** Formatea un número de días de antigüedad como texto legible: "Hoy", "Ayer", "Hace N días". */
+export const fmtDias = (dias) => {
+  if (dias === null || dias === undefined) return 'Sin contacto';
+  if (dias === 0) return 'Hoy';
+  if (dias === 1) return 'Ayer';
+  return `Hace ${dias} días`;
+};

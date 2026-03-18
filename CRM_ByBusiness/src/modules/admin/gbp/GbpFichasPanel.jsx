@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { RefreshCw, Plus, MapPin, Star, AlertCircle } from 'lucide-react';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { fmtFecha } from '../../../utils/dates';
@@ -9,6 +10,7 @@ const ESTADO_COLOR = {
   baja:    'bg-slate-700/30 text-slate-500 border-slate-700/30',
 };
 
+/** Muestra la valoración numérica de una ficha GBP en formato estrella. */
 const RatingStars = ({ value }) => {
   if (!value) return <span className="text-slate-600 font-mono text-[10px]">—</span>;
   return (
@@ -18,19 +20,26 @@ const RatingStars = ({ value }) => {
   );
 };
 
+/**
+ * Panel de listado de fichas GBP de toda la cartera con filtros por estado.
+ * Permite acceder al detalle de cada ficha o iniciar el proceso de alta.
+ * @param {{ onSelectFicha: Function }} props
+ */
 const GbpFichasPanel = ({ onSelectFicha }) => {
-  const [fichas, setFichas] = useState(null);
+  const [fichas,       setFichas]       = useState(null);
   const [filtroEstado, setFiltroEstado] = useState('');
+  const [error,        setError]        = useState(null);
   const base = import.meta.env.VITE_N8N_URL;
 
   /** Carga las fichas GBP desde n8n, filtrando por estado si está seleccionado. */
   const cargar = () => {
     setFichas(null);
+    setError(null);
     const params = filtroEstado ? `?estado=${filtroEstado}` : '';
     fetch(`${base}/crm-gbp-fichas${params}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setFichas(d.fichas); })
-      .catch(() => setFichas([]));
+      .then(res => res.json())
+      .then(data => { if (data.ok) setFichas(data.fichas); else setFichas([]); })
+      .catch(() => { setFichas([]); setError('Error al cargar fichas GBP'); });
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -38,6 +47,7 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
 
   return (
     <div className="flex flex-col gap-4 h-full">
+      {error && <p className="text-[10px] text-red-400 font-mono">{error}</p>}
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-1">
@@ -126,6 +136,12 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
       )}
     </div>
   );
+};
+
+RatingStars.propTypes = { value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]) };
+
+GbpFichasPanel.propTypes = {
+  onSelectFicha: PropTypes.func.isRequired,
 };
 
 export default GbpFichasPanel;

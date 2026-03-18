@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { MapPin, Star, MessageSquare, FileText, RefreshCw } from 'lucide-react';
 
-const Stat = ({ label, value, icon: Icon, color = 'text-white', sub }) => (
+/** Tarjeta de KPI individual con icono, valor y subtítulo opcional. */
+const Stat = ({ label, value, icon: Icon, color = 'text-white', sub = null }) => (
   <div className="bg-slate-900 border border-slate-800 rounded-sm p-4 flex flex-col gap-2">
     <div className="flex items-center justify-between">
       <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">{label}</p>
@@ -12,16 +14,22 @@ const Stat = ({ label, value, icon: Icon, color = 'text-white', sub }) => (
   </div>
 );
 
+/**
+ * Panel de KPIs globales de Google Business Profile para la cartera.
+ * Muestra fichas activas, reseñas pendientes, rating promedio y posts del día.
+ */
 const GbpDashboardPanel = () => {
-  const [kpis, setKpis] = useState(null);
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+  const [kpis,  setKpis]  = useState(null);
+  const [error, setError] = useState(null);
+  const base = import.meta.env.VITE_N8N_URL;
 
   const cargar = () => {
     setKpis(null);
+    setError(null);
     fetch(`${base}/crm-gbp-kpis`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setKpis(d.kpis); })
-      .catch(() => setKpis({}));
+      .then(res => res.json())
+      .then(data => { if (data.ok) setKpis(data.kpis); else setKpis({}); })
+      .catch(() => { setKpis({}); setError('Error al cargar KPIs de GBP'); });
   };
 
   useEffect(cargar, []);
@@ -34,6 +42,7 @@ const GbpDashboardPanel = () => {
 
   return (
     <div className="flex flex-col gap-4">
+      {error && <p className="text-[10px] text-red-400 font-mono">{error}</p>}
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Resumen de cartera GBP</p>
         <button onClick={cargar} className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-white transition-colors font-mono uppercase px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm">
@@ -49,5 +58,16 @@ const GbpDashboardPanel = () => {
     </div>
   );
 };
+
+Stat.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  icon:  PropTypes.elementType.isRequired,
+  color: PropTypes.string,
+  sub:   PropTypes.string,
+};
+
+
+GbpDashboardPanel.propTypes = {};
 
 export default GbpDashboardPanel;
