@@ -22,7 +22,7 @@ const Footer = ({ onContact, onATS, onLegal }) => (
             alt="ia-bybusiness logo"
           />
           <p className="border-l border-slate-100 pl-4 text-[10px] font-black uppercase tracking-widest text-slate-400">
-            © 2026 IA-BYBUSINESS DIGITAL MASTER
+            © 2026 IA-BYBUSINESS pertenece a ByBusiness
           </p>
         </div>
 
