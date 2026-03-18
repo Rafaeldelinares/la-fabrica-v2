@@ -44,9 +44,9 @@
 }
 .rbc-time-header { background: #0f172a; border-bottom: 1px solid #1e293b; }
 .rbc-time-header-content { border-left: 1px solid #1e293b; }
-.rbc-time-content { border-top: 1px solid #1e293b; }
+.rbc-time-content { border-top: 1px solid #1e293b; overflow: hidden; display: flex; }
 .rbc-time-content > * + * > * { border-left: 1px solid #1e293b; }
-.rbc-timeslot-group { border-bottom: 1px solid #1e293b; min-height: 40px; }
+.rbc-timeslot-group { border-bottom: 1px solid #1e293b; min-height: 0; flex: 1; }
 .rbc-time-slot { color: #334155; font-size: 9px; font-family: 'JetBrains Mono', monospace; }
 .rbc-label { color: #334155; font-size: 9px; padding: 0 6px; }
 .rbc-day-slot .rbc-time-slot { border-top: 1px solid #0f172a; }
