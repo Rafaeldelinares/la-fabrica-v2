@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Briefcase, Scale, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Mail, Briefcase, ArrowRight, ShieldCheck } from 'lucide-react';
 
 export const ContactModal = ({ isOpen, onClose, captcha, onSubmit, captchaInput, setCaptchaInput }) => {
   const [accepted, setAccepted] = useState(true);
@@ -117,18 +117,4 @@ export const ATSModal = ({ isOpen, onClose, captcha, onSubmit, captchaInput, set
   );
 };
 
-export const LegalModal = ({ isOpen, onClose }) => {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-[200] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6">
-       <div className="bg-white rounded-[40px] p-12 max-w-xl w-full relative border border-white/20 shadow-2xl animate-in zoom-in duration-300">
-          <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-8"><Scale className="w-8 h-8" /></div>
-          <h2 className="text-3xl font-black mb-6 uppercase tracking-tighter">Marco Legal IA</h2>
-          <p className="text-[10px] text-slate-500 leading-loose font-bold uppercase tracking-widest mb-8">
-            Nuestra plataforma opera bajo criterios estrictos de transparencia. La extracción de métricas se basa en datos públicos recopilados bajo el principio de interés legítimo (**Art. 6.1.f del RGPD de España y la UE**).
-          </p>
-          <button onClick={onClose} className="w-full bg-slate-900 text-white py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all">ACEPTAR TÉRMINOS</button>
-       </div>
-    </div>
-  );
-};
+export { LegalModal } from './LegalModal';
