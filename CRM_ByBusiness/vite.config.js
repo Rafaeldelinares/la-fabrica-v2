@@ -12,5 +12,16 @@ export default defineConfig({
     host: true,
     port: 5174,
     strictPort: true,
-  }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react':    ['react', 'react-dom'],
+          'vendor-calendar': ['react-big-calendar', 'date-fns'],
+          'vendor-query':    ['@tanstack/react-query'],
+        },
+      },
+    },
+  },
 })
