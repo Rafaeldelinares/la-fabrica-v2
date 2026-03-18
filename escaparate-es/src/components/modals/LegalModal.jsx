@@ -11,7 +11,8 @@ function TabAvisoLegal() {
     <div className="space-y-5 text-[11px] text-slate-600 leading-relaxed">
       <section>
         <h3 className="font-black text-slate-900 uppercase tracking-widest text-[10px] mb-2">Titular del sitio web</h3>
-        <p><strong>Denominación social:</strong> AGENCIA PARTNER BY BUSINESS SL.</p>
+        <p><strong>Titular:</strong> Rosa María Passalacqua Herrera</p>
+        <p><strong>Nombre comercial:</strong> ByBusiness / Agencia Partner ByBusiness</p>
         <p><strong>NIF:</strong> 77423412F</p>
         <p><strong>Domicilio:</strong> Calle Cuevas Bajas, 4 · Edificio Picasso · Planta 1ª, Oficina 7 · Málaga</p>
         <p><strong>Email:</strong> info@bybusiness.es</p>
@@ -21,8 +22,9 @@ function TabAvisoLegal() {
       <section>
         <h3 className="font-black text-slate-900 uppercase tracking-widest text-[10px] mb-2">Marca ia-bybusiness</h3>
         <p>
-          <strong>ia-bybusiness</strong> es una marca y plataforma tecnológica de AGENCIA PARTNER BY BUSINESS SL.
-          Los dominios <em>ia-bybusiness.com</em> e <em>ia-bybusiness.es</em> son operados íntegramente por dicha sociedad.
+          <strong>ia-bybusiness</strong> es una marca y plataforma tecnológica de <strong>Agencia Partner ByBusiness</strong>,
+          actividad ejercida por Rosa María Passalacqua Herrera (NIF: 77423412F).
+          Los dominios <em>ia-bybusiness.com</em> e <em>ia-bybusiness.es</em> son operados íntegramente por dicha titular.
         </p>
       </section>
       <section>
@@ -43,7 +45,7 @@ function TabPrivacidad() {
     <div className="space-y-5 text-[11px] text-slate-600 leading-relaxed">
       <section>
         <h3 className="font-black text-slate-900 uppercase tracking-widest text-[10px] mb-2">Responsable del tratamiento</h3>
-        <p>AGENCIA PARTNER BY BUSINESS SL. · info@bybusiness.es · 952 856 697</p>
+        <p>Rosa María Passalacqua Herrera (Agencia Partner ByBusiness) · info@bybusiness.es · 952 856 697</p>
       </section>
       <section>
         <h3 className="font-black text-slate-900 uppercase tracking-widest text-[10px] mb-2">Finalidades y base jurídica</h3>
