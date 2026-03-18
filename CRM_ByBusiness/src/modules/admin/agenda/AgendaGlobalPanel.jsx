@@ -11,6 +11,37 @@ import DatePickerField from '../../../shared/ui/DatePickerField';
 import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
 
+/** Tipos de evento operador — se distribuyen 10:00–20:00 si llegan a las 00:00. */
+const TIPOS_OPERADOR = new Set(['interaccion', 'llamada_operador', 'callback_operador']);
+/** Tipos de evento admin — se distribuyen 10:00–14:00 si llegan a las 00:00. */
+const TIPOS_ADMIN    = new Set(['cita_cliente', 'proxima_accion_cliente']);
+
+/**
+ * Si un evento llega con hora 00:00 (sin hora real en DB), redistribuye
+ * su start/end a una franja horaria razonable de forma determinista.
+ * El offset se calcula a partir del ID para que sea estable entre recargas.
+ * @param {{ id: string, tipo: string, start: Date, end: Date }} evento
+ * @returns {{ start: Date, end: Date }}
+ */
+const redistribuirHora = (evento) => {
+  const start = new Date(evento.start);
+  if (start.getHours() !== 0 || start.getMinutes() !== 0) return { start, end: new Date(evento.end) };
+
+  const esOperador = TIPOS_OPERADOR.has(evento.tipo);
+  const esAdmin    = TIPOS_ADMIN.has(evento.tipo);
+  if (!esOperador && !esAdmin) return { start, end: new Date(evento.end) };
+
+  const idNumerico  = parseInt(String(evento.id).replace(/\D/g, '') || '0', 10);
+  const rangoMin    = esOperador ? 600 : 240;
+  const offsetMin   = idNumerico % rangoMin;
+  const horaBase    = 10 * 60 + offsetMin;
+
+  const nuevaStart = new Date(start);
+  nuevaStart.setHours(Math.floor(horaBase / 60), horaBase % 60, 0, 0);
+  const nuevaEnd = new Date(nuevaStart.getTime() + 60 * 60 * 1000);
+  return { start: nuevaStart, end: nuevaEnd };
+};
+
 const localizer = dateFnsLocalizer({
   format, parse,
   startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 1 }),
@@ -57,8 +88,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
       const data = await response.json();
       if (data.ok) { onCreated(); onClose(); }
       else { setErrorGuardar(true); }
-    } catch (err) {
-      console.error('[NuevaCitaModal] error de red al crear cita:', err);
+    } catch {
       setErrorGuardar(true);
     } finally { setSaving(false); }
   };
@@ -81,7 +111,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
             <select value={form.cliente_id} onChange={e => actualizarCampo('cliente_id', e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-xs text-slate-200 outline-none focus:border-blue-500">
               <option value="">Seleccionar cliente...</option>
-              {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre_comercial}</option>)}
+              {clientes.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre_comercial}</option>)}
             </select>
           </div>
           <div>
@@ -126,13 +156,13 @@ NuevaCitaModal.propTypes = {
  */
 const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
   if (!evento) return null;
-  const cfg = TIPO[evento.tipo] || TIPO.llamada_operador;
+  const tipoConfig = TIPO[evento.tipo] || TIPO.llamada_operador;
   const tieneCliente = Boolean(evento.cliente_id);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div className="bg-slate-900 border border-slate-700 rounded-sm p-5 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-3">
-          <span className={`text-[10px] font-black uppercase tracking-widest ${cfg.textClass}`}>{cfg.label}</span>
+          <span className={`text-[10px] font-black uppercase tracking-widest ${tipoConfig.textClass}`}>{tipoConfig.label}</span>
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={14} /></button>
         </div>
 
@@ -184,17 +214,17 @@ const TooltipCtx = React.createContext({ set: null, clear: null });
  * @param {{ evento: Object }} props
  */
 const TooltipContenido = ({ evento }) => {
-  const cfg = TIPO[evento.tipo] || TIPO.llamada_operador;
-  const { Icon } = cfg;
+  const tipoConfig = TIPO[evento.tipo] || TIPO.llamada_operador;
+  const { Icon } = tipoConfig;
   const desc = evento.descripcion
     ? (evento.descripcion.length > 80 ? `${evento.descripcion.slice(0, 77)}…` : evento.descripcion)
     : null;
 
   return (
-    <div className={`bg-slate-900 border ${cfg.borderClass} rounded-sm shadow-2xl p-3 w-64`}>
-      <div className={`flex items-center gap-1.5 mb-2 ${cfg.textClass}`}>
+    <div className={`bg-slate-900 border ${tipoConfig.borderClass} rounded-sm shadow-2xl p-3 w-64`}>
+      <div className={`flex items-center gap-1.5 mb-2 ${tipoConfig.textClass}`}>
         <Icon size={10} />
-        <span className="text-[9px] font-black uppercase tracking-widest">{cfg.label}</span>
+        <span className="text-[9px] font-black uppercase tracking-widest">{tipoConfig.label}</span>
       </div>
       <p className="text-xs font-bold text-white mb-2 leading-tight">{evento.titulo}</p>
       <p className="text-[10px] font-mono text-slate-400 mb-1.5">{fmtFechaHora(evento.start)}</p>
@@ -226,8 +256,8 @@ TooltipContenido.propTypes = { evento: PropTypes.object.isRequired };
  */
 const EventoTag = ({ event }) => {
   const { set, clear } = React.useContext(TooltipCtx);
-  const cfg = TIPO[event.tipo] || TIPO.llamada_operador;
-  const { Icon } = cfg;
+  const tipoConfig = TIPO[event.tipo] || TIPO.llamada_operador;
+  const { Icon } = tipoConfig;
   return (
     <div
       className="flex items-center gap-1 overflow-hidden w-full h-full px-0.5"
@@ -252,7 +282,7 @@ const AgendaGlobalPanel = () => {
   const [loading, setLoading]     = useState(true);
   const [view, setView]           = useState(Views.WEEK);
   const [fecha, setFecha]         = useState(new Date());
-  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true, backup_sistema: true });
+  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true, backup_sistema: true, gbp_snapshot: true, gbp_autorepair: true });
   const [modalCita, setModalCita]         = useState(false);
   const [eventoSel, setEventoSel]         = useState(null);
   const [clienteDrawer, setClienteDrawer] = useState(null);
@@ -264,7 +294,7 @@ const AgendaGlobalPanel = () => {
     fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
       .then(res => res.json())
       .then(data => { if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]); })
-      .catch(err => { console.error('[AgendaGlobal] error cargando ficha cliente:', err); });
+      .catch(() => { setClienteDrawer(null); });
   }, []);
 
   const tooltipHandlers = useMemo(() => ({
@@ -285,15 +315,18 @@ const AgendaGlobalPanel = () => {
     fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
       .then(res => res.json())
       .then(data => {
-        if (data.ok) setEventos(data.eventos.map(evento => ({
-          ...evento,
-          start:   new Date(evento.start),
-          end:     new Date(evento.end),
-          title:   evento.titulo,
-          tooltip: evento.descripcion ? `${evento.titulo} — ${evento.descripcion}` : evento.titulo,
-        })));
+        if (data.ok) setEventos(data.eventos.map(evento => {
+          const { start, end } = redistribuirHora({ ...evento, start: new Date(evento.start), end: new Date(evento.end) });
+          return {
+            ...evento,
+            start,
+            end,
+            title:   evento.titulo,
+            tooltip: evento.descripcion ? `${evento.titulo} — ${evento.descripcion}` : evento.titulo,
+          };
+        }));
       })
-      .catch(err => { console.error('[AgendaGlobal] error cargando eventos:', err); setEventos([]); setErrorCarga(true); })
+      .catch(() => { setEventos([]); setErrorCarga(true); })
       .finally(() => setLoading(false));
   }, [fecha]);
 
@@ -303,13 +336,13 @@ const AgendaGlobalPanel = () => {
     fetch(`${N8N}/crm-clientes`)
       .then(res => res.json())
       .then(data => { if (data.ok) setClientes(data.clientes); })
-      .catch(err => { console.error('[AgendaGlobal] error cargando clientes:', err); setClientes([]); });
+      .catch(() => { setClientes([]); });
   }, []);
 
-  const eventosFiltrados = eventos.filter(e => filtros[e.tipo]);
+  const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo]);
 
-  const estiloEvento = useCallback((ev) => ({
-    className: `ev-tipo-${ev.tipo ?? 'default'}`,
+  const estiloEvento = useCallback((evento) => ({
+    className: `ev-tipo-${evento.tipo ?? 'default'}`,
   }), []);
 
   const navegar = (dir) => {
@@ -345,13 +378,13 @@ const AgendaGlobalPanel = () => {
 
         {/* Vistas + acción */}
         <div className="flex items-center gap-1.5">
-          {[['DÍA', Views.DAY], ['SEMANA', Views.WEEK], ['MES', Views.MONTH]].map(([lbl, v]) => (
-            <button key={v} onClick={() => setView(v)}
+          {[['DÍA', Views.DAY], ['SEMANA', Views.WEEK], ['MES', Views.MONTH]].map(([etiqueta, vista]) => (
+            <button key={vista} onClick={() => setView(vista)}
               className={`text-[9px] font-black px-2.5 py-1.5 rounded-sm border transition-colors uppercase tracking-widest ${
-                view === v
+                view === vista
                   ? 'bg-[#D00000]/10 text-white border-[#D00000]/40'
                   : 'text-slate-500 border-slate-700 hover:text-white hover:border-slate-500'
-              }`}>{lbl}</button>
+              }`}>{etiqueta}</button>
           ))}
           <button onClick={() => setModalCita(true)}
             className="flex items-center gap-1 text-[9px] font-black text-white bg-blue-600 hover:bg-blue-500 px-2.5 py-1.5 rounded-sm transition-colors uppercase tracking-widest ml-1">
@@ -362,17 +395,17 @@ const AgendaGlobalPanel = () => {
 
       {/* ── Toolbar fila 2: filtros por tipo (wrap a 2 líneas si hace falta) ── */}
       <div className="flex items-center justify-center gap-1.5 flex-wrap">
-        {Object.entries(TIPO).map(([tipo, cfg]) => (
-          <button key={tipo} onClick={() => setFiltros(p => ({ ...p, [tipo]: !p[tipo] }))}
+        {Object.entries(TIPO).map(([tipo, tipoConfig]) => (
+          <button key={tipo} onClick={() => setFiltros(prev => ({ ...prev, [tipo]: !prev[tipo] }))}
             className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all ${
               filtros[tipo]
-                ? `${cfg.textClass} ${cfg.borderClass} ${cfg.bgClass}`
+                ? `${tipoConfig.textClass} ${tipoConfig.borderClass} ${tipoConfig.bgClass}`
                 : 'border-slate-800 text-slate-700'
             }`}>
-            <cfg.Icon size={9} />
-            {cfg.label}
+            <tipoConfig.Icon size={9} />
+            {tipoConfig.label}
             <span className="font-mono ml-0.5 opacity-60">
-              {eventosFiltrados.filter(e => e.tipo === tipo).length}
+              {eventosFiltrados.filter(eventoFiltrado => eventoFiltrado.tipo === tipo).length}
             </span>
           </button>
         ))}
