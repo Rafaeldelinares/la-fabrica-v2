@@ -46,7 +46,7 @@ const horaAMinutos = (horaTexto) => {
  */
 const redistribuirHora = (evento, horarios) => {
   const start = new Date(evento.start);
-  if (start.getHours() !== 0 || start.getMinutes() !== 0) return { start, end: new Date(evento.end) };
+  if (start.getHours() >= 9) return { start, end: new Date(evento.end) };
 
   const esOperador = TIPOS_OPERADOR.has(evento.tipo);
   const esAdmin    = TIPOS_ADMIN.has(evento.tipo);
