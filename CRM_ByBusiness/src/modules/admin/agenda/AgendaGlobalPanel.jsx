@@ -261,8 +261,8 @@ const AgendaGlobalPanel = () => {
 
   const abrirClienteDesdeAgenda = useCallback((clienteId) => {
     fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok && d.clientes?.length) setClienteDrawer(d.clientes[0]); })
+      .then(res => res.json())
+      .then(data => { if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]); })
       .catch(err => { console.error('[AgendaGlobal] error cargando ficha cliente:', err); });
   }, []);
 
@@ -282,14 +282,14 @@ const AgendaGlobalPanel = () => {
     const fechaInicio = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
     const fechaFin    = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
     fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok) setEventos(d.eventos.map(e => ({
-          ...e,
-          start:   new Date(e.start),
-          end:     new Date(e.end),
-          title:   e.titulo,
-          tooltip: e.descripcion ? `${e.titulo} — ${e.descripcion}` : e.titulo,
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) setEventos(data.eventos.map(evento => ({
+          ...evento,
+          start:   new Date(evento.start),
+          end:     new Date(evento.end),
+          title:   evento.titulo,
+          tooltip: evento.descripcion ? `${evento.titulo} — ${evento.descripcion}` : evento.titulo,
         })));
       })
       .catch(err => { console.error('[AgendaGlobal] error cargando eventos:', err); setEventos([]); setErrorCarga(true); })
@@ -300,8 +300,8 @@ const AgendaGlobalPanel = () => {
 
   useEffect(() => {
     fetch(`${N8N}/crm-clientes`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setClientes(d.clientes); })
+      .then(res => res.json())
+      .then(data => { if (data.ok) setClientes(data.clientes); })
       .catch(err => { console.error('[AgendaGlobal] error cargando clientes:', err); setClientes([]); });
   }, []);
 
@@ -312,19 +312,19 @@ const AgendaGlobalPanel = () => {
   }), []);
 
   const navegar = (dir) => {
-    if (view === Views.MONTH) setFecha(d => dir > 0 ? addMonths(d, 1) : subMonths(d, 1));
-    else setFecha(d => {
-      const n = new Date(d);
-      n.setDate(n.getDate() + dir * (view === Views.DAY ? 1 : 7));
-      return n;
+    if (view === Views.MONTH) setFecha(fechaActual => dir > 0 ? addMonths(fechaActual, 1) : subMonths(fechaActual, 1));
+    else setFecha(fechaActual => {
+      const nuevaFecha = new Date(fechaActual);
+      nuevaFecha.setDate(nuevaFecha.getDate() + dir * (view === Views.DAY ? 1 : 7));
+      return nuevaFecha;
     });
   };
 
   return (
     <div className="flex flex-col h-full gap-3">
 
-      {/* ── Toolbar ── */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      {/* ── Toolbar fila 1: navegación + vistas ── */}
+      <div className="flex items-center justify-between gap-2">
         {/* Navegación */}
         <div className="flex items-center gap-2">
           <button onClick={() => navegar(-1)} className="p-1.5 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 rounded-sm transition-colors">
@@ -342,24 +342,6 @@ const AgendaGlobalPanel = () => {
           </button>
         </div>
 
-        {/* Filtros por tipo */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {Object.entries(TIPO).map(([tipo, cfg]) => (
-            <button key={tipo} onClick={() => setFiltros(p => ({ ...p, [tipo]: !p[tipo] }))}
-              className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all ${
-                filtros[tipo]
-                  ? `${cfg.textClass} ${cfg.borderClass} ${cfg.bgClass}`
-                  : 'border-slate-800 text-slate-700'
-              }`}>
-              <cfg.Icon size={9} />
-              {cfg.label}
-              <span className="font-mono ml-0.5 opacity-60">
-                {eventosFiltrados.filter(e => e.tipo === tipo).length}
-              </span>
-            </button>
-          ))}
-        </div>
-
         {/* Vistas + acción */}
         <div className="flex items-center gap-1.5">
           {[['DÍA', Views.DAY], ['SEMANA', Views.WEEK], ['MES', Views.MONTH]].map(([lbl, v]) => (
@@ -375,6 +357,24 @@ const AgendaGlobalPanel = () => {
             <Plus size={10} /> Cita
           </button>
         </div>
+      </div>
+
+      {/* ── Toolbar fila 2: filtros por tipo (wrap a 2 líneas si hace falta) ── */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {Object.entries(TIPO).map(([tipo, cfg]) => (
+          <button key={tipo} onClick={() => setFiltros(p => ({ ...p, [tipo]: !p[tipo] }))}
+            className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all ${
+              filtros[tipo]
+                ? `${cfg.textClass} ${cfg.borderClass} ${cfg.bgClass}`
+                : 'border-slate-800 text-slate-700'
+            }`}>
+            <cfg.Icon size={9} />
+            {cfg.label}
+            <span className="font-mono ml-0.5 opacity-60">
+              {eventosFiltrados.filter(e => e.tipo === tipo).length}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* ── Calendario ── */}
