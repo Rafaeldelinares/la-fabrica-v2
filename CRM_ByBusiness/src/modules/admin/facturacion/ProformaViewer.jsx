@@ -9,21 +9,27 @@ const fmtEur = (v) => v != null ? `${parseFloat(v || 0).toFixed(2)} €` : '0,00
 
 /**
  * Fila de línea dentro de la tabla de la proforma impresa.
- * @param {{ linea: Object }} props
+ * @param {{ linea: Object, hayDescuentos: boolean }} props
  */
-const LineaProforma = ({ linea }) => {
+const LineaProforma = ({ linea, hayDescuentos }) => {
   const total = parseFloat(linea.subtotal || linea.cantidad * linea.precio_unitario || 0);
+  const dto   = parseFloat(linea.dto_pct || 0);
   return (
     <tr className="border-b border-slate-200">
       <td className="px-2 py-1.5 text-xs text-slate-800 align-top">{linea.descripcion}</td>
       <td className="px-2 py-1.5 text-xs text-center font-mono text-slate-700">{linea.cantidad}</td>
       <td className="px-2 py-1.5 text-xs text-right font-mono text-slate-700">€{parseFloat(linea.precio_unitario).toFixed(2)}</td>
+      {hayDescuentos && (
+        <td className="px-2 py-1.5 text-xs text-right font-mono text-amber-700">
+          {dto > 0 ? `${dto}%` : '—'}
+        </td>
+      )}
       <td className="px-2 py-1.5 text-xs text-right font-mono font-bold text-slate-800">€{total.toFixed(2)}</td>
     </tr>
   );
 };
 
-LineaProforma.propTypes = { linea: PropTypes.object.isRequired };
+LineaProforma.propTypes = { linea: PropTypes.object.isRequired, hayDescuentos: PropTypes.bool };
 
 /**
  * Visor e impresor de proforma — misma estructura visual que la factura ByBusiness.
@@ -44,6 +50,7 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
   const baseImponible = Math.round((totalBruto / (1 + tipoIva / 100)) * 100) / 100;
   const cuotaIva      = Math.round((totalBruto - baseImponible) * 100) / 100;
   const lineas        = proforma.lineas || [];
+  const hayDescuentos = lineas.some(l => parseFloat(l.dto_pct || 0) > 0);
   const referencia    = proforma.numero || `PRO-${String(proforma.id).padStart(4, '0')}`;
 
   const imprimir = () => {
@@ -140,16 +147,17 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
                     <th className="text-left px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider">Descripción</th>
                     <th className="text-center px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-16">Cant.</th>
                     <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-24">P. unitario</th>
+                    {hayDescuentos && <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-16">Dto%</th>}
                     <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-24">P. total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lineas.map((linea, idx) => (
-                    <LineaProforma key={linea.id ?? `linea-${idx}`} linea={linea} />
+                    <LineaProforma key={linea.id ?? `linea-${idx}`} linea={linea} hayDescuentos={hayDescuentos} />
                   ))}
                   {lineas.length < 2 && Array.from({ length: 2 - lineas.length }).map((_, idx) => (
                     <tr key={`empty-${idx}`} className="border-b border-slate-100">
-                      <td className="px-2 py-2" colSpan={4}>&nbsp;</td>
+                      <td className="px-2 py-2" colSpan={hayDescuentos ? 5 : 4}>&nbsp;</td>
                     </tr>
                   ))}
                 </tbody>

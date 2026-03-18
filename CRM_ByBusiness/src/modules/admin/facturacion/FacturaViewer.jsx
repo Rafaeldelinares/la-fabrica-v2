@@ -11,18 +11,26 @@ const QR_SERVICE = import.meta.env.VITE_QR_SERVICE_URL || 'https://api.qrserver.
 
 /**
  * Fila de línea dentro de la tabla de la factura impresa.
- * @param {{ linea: Object }} props
+ * @param {{ linea: Object, hayDescuentos: boolean }} props
  */
-const LineaFactura = ({ linea }) => (
-  <tr className="border-b border-slate-200">
-    <td className="px-2 py-1.5 text-xs text-slate-800 align-top">{linea.descripcion}</td>
-    <td className="px-2 py-1.5 text-xs text-center font-mono text-slate-700">{linea.cantidad}</td>
-    <td className="px-2 py-1.5 text-xs text-right font-mono text-slate-700">€{parseFloat(linea.precio_unitario).toFixed(2)}</td>
-    <td className="px-2 py-1.5 text-xs text-right font-mono font-bold text-slate-800">€{parseFloat(linea.subtotal_sin_iva || linea.precio_unitario * linea.cantidad).toFixed(2)}</td>
-  </tr>
-);
+const LineaFactura = ({ linea, hayDescuentos }) => {
+  const dto = parseFloat(linea.dto_pct || 0);
+  return (
+    <tr className="border-b border-slate-200">
+      <td className="px-2 py-1.5 text-xs text-slate-800 align-top">{linea.descripcion}</td>
+      <td className="px-2 py-1.5 text-xs text-center font-mono text-slate-700">{linea.cantidad}</td>
+      <td className="px-2 py-1.5 text-xs text-right font-mono text-slate-700">€{parseFloat(linea.precio_unitario).toFixed(2)}</td>
+      {hayDescuentos && (
+        <td className="px-2 py-1.5 text-xs text-right font-mono text-amber-700">
+          {dto > 0 ? `${dto}%` : '—'}
+        </td>
+      )}
+      <td className="px-2 py-1.5 text-xs text-right font-mono font-bold text-slate-800">€{parseFloat(linea.subtotal_sin_iva || linea.precio_unitario * linea.cantidad).toFixed(2)}</td>
+    </tr>
+  );
+};
 
-LineaFactura.propTypes = { linea: PropTypes.object.isRequired };
+LineaFactura.propTypes = { linea: PropTypes.object.isRequired, hayDescuentos: PropTypes.bool };
 
 /**
  * Visor e impresor de factura legal — estructura idéntica a la factura de referencia ByBusiness.
@@ -38,6 +46,7 @@ const FacturaViewer = ({ factura, onClose }) => {
   const emisorMunicipio = factura.emisor_municipio || '';
   const emisorTelefono  = factura.emisor_telefono  || '';
   const lineas          = factura.lineas || [];
+  const hayDescuentos   = lineas.some(l => parseFloat(l.dto_pct || 0) > 0);
 
   const imprimir = () => {
     const prev = document.title;
@@ -130,16 +139,17 @@ const FacturaViewer = ({ factura, onClose }) => {
                     <th className="text-left px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider">Descripción</th>
                     <th className="text-center px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-16">Cant.</th>
                     <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-24">P. unitario</th>
+                    {hayDescuentos && <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-16">Dto%</th>}
                     <th className="text-right px-2 py-1.5 text-white font-bold text-[10px] uppercase tracking-wider w-24">P. total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {lineas.map((linea, idx) => (
-                    <LineaFactura key={linea.id ?? `linea-${idx}`} linea={linea} />
+                    <LineaFactura key={linea.id ?? `linea-${idx}`} linea={linea} hayDescuentos={hayDescuentos} />
                   ))}
                   {lineas.length < 2 && Array.from({ length: 2 - lineas.length }).map((_, idx) => (
                     <tr key={`empty-${idx}`} className="border-b border-slate-100">
-                      <td className="px-2 py-2" colSpan={4}>&nbsp;</td>
+                      <td className="px-2 py-2" colSpan={hayDescuentos ? 5 : 4}>&nbsp;</td>
                     </tr>
                   ))}
                 </tbody>
