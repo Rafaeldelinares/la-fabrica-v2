@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { Users, UserPlus, Edit2, Trash2, Save, X, RefreshCw, Eye, EyeOff,
-  PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff, UserX, ChevronRight } from 'lucide-react';
+  PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff, UserX, ChevronRight, Clock } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import * as OTPAuth from 'otpauth';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
+import HorarioModal from './HorarioModal';
 
 const N8N      = import.meta.env.VITE_N8N_URL;
 const N8N_AUS  = import.meta.env.VITE_N8N_AUSENCIAS_URL;
@@ -314,6 +315,7 @@ const UsuariosList = () => {
   const [modalBaja, setModalBaja]         = useState(null);
   const [modalReactivar, setModalReactivar] = useState(null);
   const [qrModal, setQrModal]             = useState(null);
+  const [modalHorario, setModalHorario]   = useState(null);
 
   useEffect(() => () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); }, []);
 
@@ -443,6 +445,13 @@ const UsuariosList = () => {
       {modalReactivar && (
         <ReactivarModal usuario={modalReactivar}
           onConfirm={confirmarReactivar} onCancel={() => setModalReactivar(null)} />
+      )}
+      {modalHorario && (
+        <HorarioModal
+          usuario={modalHorario}
+          onClose={() => setModalHorario(null)}
+          onGuardado={() => setModalHorario(null)}
+        />
       )}
       {qrModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -606,6 +615,14 @@ const UsuariosList = () => {
                           <button onClick={() => abrirEditar(u)} title="Editar"
                             className="p-1.5 hover:bg-slate-700 rounded-sm text-blue-400 transition-colors">
                             <Edit2 size={13} />
+                          </button>
+                        )}
+
+                        {/* Horario — activos (cualquier estado) */}
+                        {!isInactivo && (
+                          <button onClick={() => setModalHorario(u)} title="Gestionar horario"
+                            className="p-1.5 hover:bg-slate-700 rounded-sm text-cyan-400 transition-colors">
+                            <Clock size={13} />
                           </button>
                         )}
 
