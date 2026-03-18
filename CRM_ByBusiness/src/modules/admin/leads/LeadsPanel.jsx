@@ -1,41 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
-import { Users } from 'lucide-react';
-import { fmtFecha } from '../../../utils/dates';
+import { Users, RefreshCw } from 'lucide-react';
+import LeadRow from './LeadRow';
 
-/** Devuelve las clases Tailwind para el badge de prioridad de un lead. */
-const getPrioridadClasses = (prioridad) => {
-    switch (prioridad) {
-        case 'alta':   return 'bg-red-500/10 text-red-500 border-red-500/20';
-        case 'normal': return 'bg-slate-600/10 text-slate-300 border-slate-600/50';
-        case 'baja':   return 'bg-slate-800 text-slate-500 border-slate-700';
-        default:       return 'bg-slate-800 text-slate-400 border-slate-700';
-    }
-};
+const PAGE_SIZE = 15;
 
-/** Devuelve las clases Tailwind para el badge de estado de un lead. */
-const getEstadoClasses = (estado) => {
-    switch (estado) {
-        case 'pendiente':  return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-        case 'asignado':   return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-        case 'vendido':    return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-        default:           return 'bg-slate-700/50 text-slate-400 border-slate-600';
-    }
-};
-
-/** Panel de gestión de leads: tabla filtrable por estado y prioridad con datos de n8n. */
+/** Panel de gestión de leads: tabla filtrable, paginada, con acciones inline. */
 const LeadsPanel = () => {
-    const [filtroEstado, setFiltroEstado] = useState('');
-    const [filtroPrioridad, setFiltroPrioridad] = useState('');
-    const [leads, setLeads] = useState(null);
-    const [total, setTotal] = useState(0);
-    const [error, setError] = useState('');
+    const N8N = import.meta.env.VITE_N8N_URL;
 
-    useEffect(() => {
-        const N8N = import.meta.env.VITE_N8N_URL;
+    const [filtroEstado, setFiltroEstado]       = useState('');
+    const [filtroPrioridad, setFiltroPrioridad] = useState('');
+    const [leads, setLeads]                     = useState(null);
+    const [total, setTotal]                     = useState(0);
+    const [gestores, setGestores]               = useState([]);
+    const [error, setError]                     = useState('');
+    const [pagina, setPagina]                   = useState(1);
+
+    const cargarGestores = useCallback(() => {
+        fetch(`${N8N}/crm-usuarios-get`)
+            .then(r => r.json())
+            .then(d => { if (d.ok) setGestores(d.usuarios); })
+            .catch(() => setGestores([]));
+    }, [N8N]);
+
+    const cargarLeads = useCallback(() => {
+        setLeads(null);
         fetch(`${N8N}/crm-leads-admin`)
             .then(r => r.json())
             .then(data => {
@@ -43,12 +36,22 @@ const LeadsPanel = () => {
                 else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
             })
             .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexión'); });
-    }, []);
+    }, [N8N]);
+
+    useEffect(() => { cargarLeads(); cargarGestores(); }, [cargarLeads, cargarGestores]);
 
     const leadsFiltrados = (leads ?? []).filter(lead =>
-        (!filtroEstado     || lead.estado    === filtroEstado) &&
-        (!filtroPrioridad  || lead.prioridad === filtroPrioridad)
+        (!filtroEstado    || lead.estado    === filtroEstado) &&
+        (!filtroPrioridad || lead.prioridad === filtroPrioridad)
     );
+
+    const totalPaginas = Math.max(1, Math.ceil(leadsFiltrados.length / PAGE_SIZE));
+    const paginaReal   = Math.min(pagina, totalPaginas);
+    const leadsPagina  = leadsFiltrados.slice((paginaReal - 1) * PAGE_SIZE, paginaReal * PAGE_SIZE);
+
+    const onFiltroChange = (setter) => (e) => { setter(e.target.value); setPagina(1); };
+
+    const selectCls = "bg-slate-900 border border-slate-800 rounded-sm text-xs text-slate-200 px-3 py-2 outline-none focus:border-[#D00000] font-mono uppercase";
 
     return (
         <div className="flex flex-col gap-4 h-full overflow-y-auto p-6 bg-slate-950 font-sans">
@@ -59,19 +62,24 @@ const LeadsPanel = () => {
                 </div>
             )}
 
-            {/* Barra superior */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <h2 className="text-sm font-black text-white uppercase tracking-widest">GESTIÓN DE LEADS</h2>
-                    <Badge className="bg-slate-800 text-slate-300 border-slate-700">{leads ? total : '—'} LEADS</Badge>
+                    <Badge className="bg-slate-800 text-slate-300 border-slate-700">
+                        {leads ? total : '—'} LEADS
+                    </Badge>
                 </div>
 
-                <div className="flex gap-3">
-                    <select
-                        value={filtroEstado}
-                        onChange={(e) => setFiltroEstado(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-sm text-xs text-slate-200 px-3 py-2 outline-none focus:border-[#D00000] font-mono uppercase"
+                <div className="flex gap-3 items-center">
+                    <button
+                        onClick={cargarLeads}
+                        className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400
+                            hover:text-slate-200 hover:border-slate-700 transition-colors"
+                        title="Recargar"
                     >
+                        <RefreshCw size={13} />
+                    </button>
+                    <select value={filtroEstado} onChange={onFiltroChange(setFiltroEstado)} className={selectCls}>
                         <option value="">Estado: Todos</option>
                         <option value="pendiente">Pendiente</option>
                         <option value="asignado">Asignado</option>
@@ -83,12 +91,7 @@ const LeadsPanel = () => {
                         <option value="error">Error</option>
                         <option value="lista_negra">Lista Negra</option>
                     </select>
-
-                    <select
-                        value={filtroPrioridad}
-                        onChange={(e) => setFiltroPrioridad(e.target.value)}
-                        className="bg-slate-900 border border-slate-800 rounded-sm text-xs text-slate-200 px-3 py-2 outline-none focus:border-[#D00000] font-mono uppercase"
-                    >
+                    <select value={filtroPrioridad} onChange={onFiltroChange(setFiltroPrioridad)} className={selectCls}>
                         <option value="">Prioridad: Todas</option>
                         <option value="alta">Alta</option>
                         <option value="normal">Normal</option>
@@ -97,7 +100,6 @@ const LeadsPanel = () => {
                 </div>
             </div>
 
-            {/* Tabla de Leads */}
             <Card className="flex flex-col flex-1 bg-slate-900 border-slate-800 !p-0 overflow-hidden">
                 {leads === null ? (
                     <div className="flex-1 flex items-center justify-center py-20 animate-pulse">
@@ -111,47 +113,57 @@ const LeadsPanel = () => {
                         <EmptyState title="Sin leads" icon={Users} description="No hay leads con los filtros seleccionados" />
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left text-xs text-slate-400">
-                            <thead className="text-[10px] text-slate-500 uppercase font-black tracking-widest bg-slate-950/50 border-b border-slate-800">
-                                <tr>
-                                    <th className="px-4 py-3 font-mono">ID</th>
-                                    <th className="px-4 py-3">NEGOCIO</th>
-                                    <th className="px-4 py-3 font-mono">TELÉFONO</th>
-                                    <th className="px-4 py-3">LOCALIDAD</th>
-                                    <th className="px-4 py-3">PRIORIDAD</th>
-                                    <th className="px-4 py-3">ESTADO</th>
-                                    <th className="px-4 py-3 font-mono">SCORING</th>
-                                    <th className="px-4 py-3 font-mono">FECHA</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {leadsFiltrados.map((lead) => (
-                                    <tr key={lead.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
-                                        <td className="px-4 py-4 font-mono text-slate-500">{lead.id.toString().padStart(4, '0')}</td>
-                                        <td className="px-4 py-4 font-bold text-slate-200 uppercase tracking-wider">{lead.nombre_comercial || lead.nombre}</td>
-                                        <td className="px-4 py-4 font-mono text-slate-300">{lead.telefono}</td>
-                                        <td className="px-4 py-4 uppercase">{lead.localidad}</td>
-                                        <td className="px-4 py-4">
-                                            <Badge className={getPrioridadClasses(lead.prioridad)}>
-                                                {lead.prioridad}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <Badge className={getEstadoClasses(lead.estado)}>
-                                                {lead.estado?.replace('_', ' ')}
-                                            </Badge>
-                                        </td>
-                                        <td className="px-4 py-4 font-mono">
-                                            <span className="text-white font-bold">{lead.scoring}</span>
-                                            <span className="text-slate-600">/100</span>
-                                        </td>
-                                        <td className="px-4 py-4 font-mono text-slate-500">{fmtFecha(lead.created_at)}</td>
+                    <>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs text-slate-400">
+                                <thead className="text-[10px] text-slate-500 uppercase font-black tracking-widest bg-slate-950/50 border-b border-slate-800">
+                                    <tr>
+                                        <th className="px-4 py-3 font-mono">ID</th>
+                                        <th className="px-4 py-3">NEGOCIO</th>
+                                        <th className="px-4 py-3 font-mono">TELÉFONO</th>
+                                        <th className="px-4 py-3">LOCALIDAD</th>
+                                        <th className="px-4 py-3">PRIORIDAD</th>
+                                        <th className="px-4 py-3">ESTADO</th>
+                                        <th className="px-4 py-3">GESTOR</th>
+                                        <th className="px-4 py-3 font-mono">SCORING</th>
+                                        <th className="px-4 py-3 font-mono">FECHA</th>
+                                        <th className="px-4 py-3"></th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {leadsPagina.map(lead => (
+                                        <LeadRow key={lead.id} lead={lead} gestores={gestores} />
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {totalPaginas > 1 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800">
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                    Página {paginaReal} de {totalPaginas} — {leadsFiltrados.length} leads
+                                </span>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setPagina(p => Math.max(1, p - 1))}
+                                        disabled={paginaReal === 1}
+                                        className="px-3 py-1.5 text-[10px] font-black uppercase rounded-sm bg-slate-800
+                                            text-slate-400 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Anterior
+                                    </button>
+                                    <button
+                                        onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                                        disabled={paginaReal === totalPaginas}
+                                        className="px-3 py-1.5 text-[10px] font-black uppercase rounded-sm bg-slate-800
+                                            text-slate-400 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        Siguiente
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </Card>
 
