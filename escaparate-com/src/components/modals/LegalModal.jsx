@@ -146,7 +146,7 @@ export const LegalModal = ({ isOpen, onClose }) => {
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8">
+        <div className="overflow-y-auto p-8 min-h-[250px] max-h-[55vh]">
           <TabContent />
         </div>
 
