@@ -4,12 +4,13 @@ import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth,
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
-import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive, Search } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../../modules/auth/AuthContext';
 import DatePickerField from '../../../shared/ui/DatePickerField';
 import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
+import SlotPicker from './SlotPicker';
 
 /** Tipos de evento operador — se distribuyen 10:00–20:00 si llegan a las 00:00. */
 const TIPOS_OPERADOR = new Set(['interaccion', 'llamada_operador', 'callback_operador']);
@@ -132,12 +133,26 @@ const fmtHeader = (date, view) => {
   return format(date, 'MMMM yyyy', { locale: es });
 };
 
-/** Modal para crear una nueva cita cliente desde el panel de agenda. */
+/**
+ * Modal para crear una nueva cita cliente desde el panel de agenda.
+ * Incluye selector de duración y buscador de huecos disponibles (SlotPicker).
+ * @param {{ clientes: Array, gestorId: number, onClose: Function, onCreated: Function }} props
+ */
 const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
-  const [form, setForm]           = useState({ cliente_id: '', fecha_hora: '', motivo: '' });
-  const [saving, setSaving]       = useState(false);
+  const [form, setForm]             = useState({ cliente_id: '', fecha_hora: '', motivo: '' });
+  const [duracionMin, setDuracionMin] = useState(30);
+  const [mostrarSlotPicker, setMostrarSlotPicker] = useState(false);
+  const [saving, setSaving]         = useState(false);
   const [errorGuardar, setErrorGuardar] = useState(false);
+
   const actualizarCampo = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
+
+  const fechaDesdeHoy = format(new Date(), 'yyyy-MM-dd');
+
+  const alSeleccionarSlot = (isoString) => {
+    actualizarCampo('fecha_hora', format(new Date(isoString), "yyyy-MM-dd'T'HH:mm"));
+    setMostrarSlotPicker(false);
+  };
 
   const guardar = async () => {
     if (!form.cliente_id || !form.fecha_hora || !form.motivo) return;
@@ -169,6 +184,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
           </p>
         )}
         <div className="space-y-4">
+          {/* Cliente */}
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Cliente</label>
             <select value={form.cliente_id} onChange={e => actualizarCampo('cliente_id', e.target.value)}
@@ -177,15 +193,59 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
               {clientes.map(cliente => <option key={cliente.id} value={cliente.id}>{cliente.nombre_comercial}</option>)}
             </select>
           </div>
+
+          {/* Duración */}
           <div>
-            <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Fecha y hora</label>
-            <DatePickerField
-              selected={form.fecha_hora ? new Date(form.fecha_hora) : null}
-              onChange={(date) => actualizarCampo('fecha_hora', date ? format(date, "yyyy-MM-dd'T'HH:mm") : '')}
-              showTimeSelect
-              placeholderText="DD/MM/AAAA HH:MM"
-            />
+            <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Duración</label>
+            <div className="flex gap-2">
+              {[15, 30, 45].map(minutos => (
+                <button
+                  key={minutos}
+                  onClick={() => setDuracionMin(minutos)}
+                  className={`flex-1 py-1.5 text-[10px] font-black rounded-sm border transition-colors uppercase tracking-widest ${
+                    duracionMin === minutos
+                      ? 'bg-blue-600/20 text-blue-400 border-blue-500/40'
+                      : 'text-slate-500 border-slate-700 hover:text-slate-300 hover:border-slate-600'
+                  }`}
+                >
+                  {minutos} min
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Fecha y hora + buscador de huecos */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-[10px] text-slate-500 uppercase tracking-widest">Fecha y hora</label>
+              <button
+                onClick={() => setMostrarSlotPicker(prev => !prev)}
+                disabled={!form.cliente_id}
+                className="flex items-center gap-1 text-[9px] text-blue-400 hover:text-blue-300 disabled:text-slate-700 disabled:cursor-not-allowed transition-colors"
+                title={form.cliente_id ? 'Buscar hueco disponible' : 'Selecciona un cliente primero'}
+              >
+                <Search size={10} /> Buscar hueco
+              </button>
+            </div>
+            {mostrarSlotPicker && gestorId ? (
+              <SlotPicker
+                usuarioId={gestorId}
+                duracionMin={duracionMin}
+                fechaDesde={fechaDesdeHoy}
+                onSlotSelected={alSeleccionarSlot}
+                onCancelar={() => setMostrarSlotPicker(false)}
+              />
+            ) : (
+              <DatePickerField
+                selected={form.fecha_hora ? new Date(form.fecha_hora) : null}
+                onChange={(date) => actualizarCampo('fecha_hora', date ? format(date, "yyyy-MM-dd'T'HH:mm") : '')}
+                showTimeSelect
+                placeholderText="DD/MM/AAAA HH:MM"
+              />
+            )}
+          </div>
+
+          {/* Motivo */}
           <div>
             <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Motivo</label>
             <input value={form.motivo} onChange={e => actualizarCampo('motivo', e.target.value)}
@@ -206,7 +266,9 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
 };
 
 NuevaCitaModal.propTypes = {
+  /** Lista de clientes para el selector. */
   clientes:  PropTypes.arrayOf(PropTypes.object).isRequired,
+  /** ID del gestor autenticado — se pasa como usuarioId al SlotPicker. */
   gestorId:  PropTypes.number,
   onClose:   PropTypes.func.isRequired,
   onCreated: PropTypes.func.isRequired,
