@@ -61,9 +61,9 @@ const Footer = ({ onContact, onATS, onLegal }) => (
           rel="noopener noreferrer"
           className="text-slate-400 hover:text-blue-600 transition-colors"
         >
-          AGENCIA PARTNER BY BUSINESS SL.
+          AGENCIA PARTNER BYBUSINESS
         </a>
-        {' '}· Calle Cuevas Bajas, 4 · Ed. Picasso · Planta 1ª, Of. 7 · Málaga · info@bybusiness.es · 952 856 697
+        {' '}· Rosa María Passalacqua Herrera · NIF 77423412F · Calle Cuevas Bajas, 4 · Málaga · info@bybusiness.es
       </p>
 
     </div>
