@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
-import { Phone, Mail, User, Globe, FileText, Building2, ExternalLink, BadgeCheck, CalendarClock, CheckCircle } from 'lucide-react';
+import { Phone, Mail, User, Globe, FileText, Building2, ExternalLink, BadgeCheck, CalendarClock, CheckCircle, AlertTriangle } from 'lucide-react';
 import DatePickerField from '../../../../shared/ui/DatePickerField';
 
 /**
  * TabFicha — Pestaña de datos de contacto, localización y próxima acción del cliente.
- * @param {{ cliente: object, n8nUrl: string, onGestorChanged: Function }} props
+ * Incluye zona de peligro para dar de baja la empresa (soft delete).
+ * @param {{ cliente: object, n8nUrl: string, onGestorChanged: Function, onClienteBaja: Function }} props
  */
-const TabFicha = ({ cliente, n8nUrl, onGestorChanged }) => {
+const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
   const [proximaFecha, setProximaFecha] = useState(cliente.proxima_accion_fecha?.slice(0, 10) || '');
   const [proximaNota,  setProximaNota]  = useState(cliente.proxima_accion_nota  || '');
   const [guardando, setGuardando]       = useState(false);
@@ -20,6 +21,9 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged }) => {
   const [errorGest,     setErrorGest]     = useState(null);
   const [errorProxima,  setErrorProxima]  = useState(null);
   const [errorGestores, setErrorGestores] = useState(null);
+  const [confirmBaja,   setConfirmBaja]   = useState(false);
+  const [dandoBaja,     setDandoBaja]     = useState(false);
+  const [errorBaja,     setErrorBaja]     = useState(null);
 
   const timerGuardado     = useRef(null);
   const timerGuardadoGest = useRef(null);
@@ -69,6 +73,21 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged }) => {
       clearTimeout(timerGuardado.current);
       timerGuardado.current = setTimeout(() => setGuardado(false), 2000);
     } catch { setErrorProxima('Error al guardar próxima acción'); } finally { setGuardando(false); }
+  };
+
+  const handleDarDeBaja = async () => {
+    setDandoBaja(true);
+    setErrorBaja(null);
+    try {
+      const res = await fetch(`${n8nUrl}/crm-cliente-baja`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cliente_id: cliente.id }),
+      });
+      const d = await res.json();
+      if (d.ok) { onClienteBaja?.(); }
+      else { setErrorBaja('Error al dar de baja'); }
+    } catch { setErrorBaja('Error de conexión'); } finally { setDandoBaja(false); }
   };
 
   const localidadComercialDiferente =
@@ -184,7 +203,7 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged }) => {
       )}
 
       {/* Próxima acción */}
-      <div className="px-5 py-4">
+      <div className="px-5 py-4 border-b border-slate-800">
         <p className="text-[10px] text-slate-600 uppercase tracking-widest font-mono mb-3 flex items-center gap-1.5">
           <CalendarClock size={10} /> Próxima acción
         </p>
@@ -215,6 +234,42 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged }) => {
           </button>
         </div>
       </div>
+      {/* Zona de peligro — dar de baja */}
+      <div className="px-5 py-4">
+        <p className="text-[10px] text-slate-600 uppercase tracking-widest font-mono mb-3 flex items-center gap-1.5">
+          <AlertTriangle size={10} className="text-red-500/60" /> Zona de peligro
+        </p>
+        {!confirmBaja ? (
+          <button
+            onClick={() => setConfirmBaja(true)}
+            className="w-full py-2 text-[10px] font-mono uppercase tracking-widest border border-red-500/20 rounded-sm text-red-500/60 hover:text-red-400 hover:border-red-500/40 transition-colors"
+          >
+            Dar de baja esta empresa
+          </button>
+        ) : (
+          <div className="border border-red-500/30 rounded-sm p-3 bg-red-500/5 flex flex-col gap-2">
+            <p className="text-[10px] text-red-400 font-mono leading-relaxed">
+              ¿Confirmar baja de <strong>{cliente.nombre_comercial}</strong>? Esta acción marca la empresa como inactiva.
+            </p>
+            {errorBaja && <p className="text-[10px] text-red-400 font-mono">{errorBaja}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleDarDeBaja}
+                disabled={dandoBaja}
+                className="flex-1 py-1.5 text-[10px] font-mono uppercase tracking-widest bg-red-500/20 border border-red-500/40 rounded-sm text-red-300 hover:bg-red-500/30 transition-colors disabled:opacity-40"
+              >
+                {dandoBaja ? 'Procesando…' : 'Sí, dar de baja'}
+              </button>
+              <button
+                onClick={() => { setConfirmBaja(false); setErrorBaja(null); }}
+                className="px-3 py-1.5 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -223,6 +278,7 @@ TabFicha.propTypes = {
   cliente:         PropTypes.object.isRequired,
   n8nUrl:          PropTypes.string.isRequired,
   onGestorChanged: PropTypes.func,
+  onClienteBaja:   PropTypes.func,
 };
 
 export default TabFicha;
