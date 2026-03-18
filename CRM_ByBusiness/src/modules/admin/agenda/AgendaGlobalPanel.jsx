@@ -56,6 +56,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
       });
       const data = await response.json();
       if (data.ok) { onCreated(); onClose(); }
+      else { setErrorGuardar(true); }
     } catch (err) {
       console.error('[NuevaCitaModal] error de red al crear cita:', err);
       setErrorGuardar(true);
@@ -360,7 +361,7 @@ const AgendaGlobalPanel = () => {
       </div>
 
       {/* ── Toolbar fila 2: filtros por tipo (wrap a 2 líneas si hace falta) ── */}
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center justify-center gap-1.5 flex-wrap">
         {Object.entries(TIPO).map(([tipo, cfg]) => (
           <button key={tipo} onClick={() => setFiltros(p => ({ ...p, [tipo]: !p[tipo] }))}
             className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all ${
