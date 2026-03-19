@@ -89,11 +89,14 @@ export async function n8nHealthCheck() {
   const controller = new AbortController();
   const timerId    = setTimeout(() => controller.abort(), 5_000);
   try {
-    const res = await fetch(`${BASE_URL}/crm-health`, {
+    // mode: 'no-cors' evita bloqueo CORS para webhooks no registrados.
+    // Con respuesta opaca, status === 0 (< 500 → true). Sin red → throw → false.
+    await fetch(`${BASE_URL}/crm-health`, {
       method: 'GET',
+      mode:   'no-cors',
       signal: controller.signal,
     });
-    return res.status < 500;
+    return true;
   } catch (_err) {
     return false;
   } finally {
