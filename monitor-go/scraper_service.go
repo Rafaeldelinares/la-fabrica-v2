@@ -13,27 +13,24 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"golang.org/x/time/rate"
 )
 
-// Rate Limiter: 10 requests per minute
-var googleLimiter = rate.NewLimiter(rate.Every(time.Minute/10), 1)
-
-// Orchestrator: callScraper manages the high-level fallback logic
-func callScraper(query string, depth int) ([]ScraperResultItem, error) {
-	// 0. Rate Limiting Check
-	if err := googleLimiter.Wait(context.Background()); err != nil {
+// callScraper gestiona la lógica de fallback de scrapers para una query de texto.
+func (a *app) callScraper(ctx context.Context, query string, depth int) ([]ScraperResultItem, error) {
+	if err := a.limiter.Wait(ctx); err != nil {
 		return nil, fmt.Errorf("rate limiter error: %v", err)
 	}
 
 	var results []ScraperResultItem
 	var err error
 
-	orchestratorLog := log.WithFields(logrus.Fields{
+	orchestratorLog := logrus.WithFields(logrus.Fields{
 		"component": "orchestrator",
 		"query":     query,
 		"depth":     depth,
@@ -42,7 +39,7 @@ func callScraper(query string, depth int) ([]ScraperResultItem, error) {
 	// 1. Try Nano Scraper (Only for low depth)
 	if depth <= 3 {
 		orchestratorLog.Info("Attempting Nano Scraper")
-		results, err = executeScraperJob(query, depth, "NANO")
+		results, err = a.executeScraperJob(ctx, query, depth, "NANO")
 		if err == nil {
 			return results, nil
 		}
@@ -51,7 +48,7 @@ func callScraper(query string, depth int) ([]ScraperResultItem, error) {
 
 	// 2. Try Heavy Scraper (If Nano failed OR if depth > 3)
 	orchestratorLog.Info("Attempting Heavy Scraper")
-	results, err = executeScraperJob(query, depth, "HEAVY")
+	results, err = a.executeScraperJob(ctx, query, depth, "HEAVY")
 	if err == nil {
 		return results, nil
 	}
@@ -59,14 +56,14 @@ func callScraper(query string, depth int) ([]ScraperResultItem, error) {
 
 	// 3. Try Maps Scraper (last resort — simulates real user on maps.google.com)
 	orchestratorLog.Info("Attempting Maps Scraper")
-	results, err = executeMapsJob(query)
+	results, err = a.executeMapsJob(ctx, query)
 	if err == nil {
 		return results, nil
 	}
 	orchestratorLog.WithError(err).Warn("Maps failed. Checking stale cache...")
 
 	// 4. Fallback to Stale Cache (absolute last resort - up to 7 days old)
-	if cachedData, found := getFallbackFromDB(query, 7); found {
+	if cachedData, found := a.getFallbackFromDB(query, 7); found {
 		orchestratorLog.Info("Recovered data from stale cache")
 		return convertFrontendDataToScraperResult(cachedData), nil
 	}
@@ -74,17 +71,17 @@ func callScraper(query string, depth int) ([]ScraperResultItem, error) {
 	return nil, fmt.Errorf("ALL SYSTEMS FAILED: Nano, Heavy, Maps, and Cache. Last error: %v", err)
 }
 
-// Low-level execution of a single scraper job
-func executeScraperJob(query string, depth int, scraperType string) ([]ScraperResultItem, error) {
-	targetURL := NanoScraperURL
-	timeoutDuration := NanoTimeout
+// executeScraperJob ejecuta un job en el scraper indicado (NANO o HEAVY) y retorna los resultados.
+func (a *app) executeScraperJob(ctx context.Context, query string, depth int, scraperType string) ([]ScraperResultItem, error) {
+	targetURL := a.cfg.NanoScraperURL
+	timeoutDuration := a.cfg.NanoTimeout
 
 	if scraperType == "HEAVY" {
-		targetURL = HeavyScraperURL
-		timeoutDuration = HeavyTimeout
+		targetURL = a.cfg.HeavyScraperURL
+		timeoutDuration = a.cfg.HeavyTimeout
 	}
 
-	jobLog := log.WithFields(logrus.Fields{
+	jobLog := logrus.WithFields(logrus.Fields{
 		"component": "scraper_job",
 		"type":      scraperType,
 		"query":     query,
@@ -98,10 +95,19 @@ func executeScraperJob(query string, depth int, scraperType string) ([]ScraperRe
 		MaxTime:  depth * 60,
 	}
 
-	body, _ := json.Marshal(jobReq)
+	body, err := json.Marshal(jobReq)
+	if err != nil {
+		return nil, fmt.Errorf("error serializando petición para %s: %v", scraperType, err)
+	}
 
 	// Post for Job ID
-	resp, err := client.Post(targetURL, "application/json", bytes.NewBuffer(body))
+	postReq, err := http.NewRequestWithContext(ctx, http.MethodPost, targetURL, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("error creando request para %s: %v", scraperType, err)
+	}
+	postReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := a.cfg.HTTPClient.Do(postReq)
 	if err != nil {
 		return nil, fmt.Errorf("error al iniciar job en %s: %v", scraperType, err)
 	}
@@ -129,18 +135,30 @@ func executeScraperJob(query string, depth int, scraperType string) ([]ScraperRe
 		if time.Since(startTime) > timeoutDuration {
 			return nil, fmt.Errorf("timeout en el scraper %s superado (%v)", scraperType, timeoutDuration)
 		}
-		
-		time.Sleep(2 * time.Second)
 
-		statusResp, err := client.Get(targetURL + "/" + jobStatus.ID)
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("contexto cancelado durante polling de %s: %v", scraperType, ctx.Err())
+		case <-time.After(2 * time.Second):
+		}
+
+		statusURL := targetURL + "/" + jobStatus.ID
+		statusReq, err := http.NewRequestWithContext(ctx, http.MethodGet, statusURL, nil)
+		if err != nil {
+			jobLog.WithError(err).Warn("Error creando status request")
+			continue
+		}
+
+		statusResp, err := a.cfg.HTTPClient.Do(statusReq)
 		if err != nil {
 			jobLog.WithError(err).Warn("Error polling status")
-			continue 
+			continue
 		}
 
 		var currentStatus ScraperStatusResponse
 		if err := json.NewDecoder(statusResp.Body).Decode(&currentStatus); err != nil {
 			statusResp.Body.Close()
+			jobLog.WithError(err).Warn("Error decodificando status, reintentando")
 			continue
 		}
 		statusResp.Body.Close()
@@ -154,8 +172,13 @@ func executeScraperJob(query string, depth int, scraperType string) ([]ScraperRe
 	}
 
 	// Download and parse CSV
-	csvUrl := fmt.Sprintf("%s/%s/results/csv", targetURL, jobStatus.ID)
-	csvResp, err := client.Get(csvUrl)
+	csvURL := fmt.Sprintf("%s/%s/results/csv", targetURL, jobStatus.ID)
+	csvReq, err := http.NewRequestWithContext(ctx, http.MethodGet, csvURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creando request CSV para %s: %v", scraperType, err)
+	}
+
+	csvResp, err := a.cfg.HTTPClient.Do(csvReq)
 	if err != nil {
 		return nil, fmt.Errorf("error al descargar resultados de %s: %v", scraperType, err)
 	}
@@ -168,6 +191,7 @@ func executeScraperJob(query string, depth int, scraperType string) ([]ScraperRe
 	return parseScraperCSV(csvResp.Body)
 }
 
+// parseScraperCSV parsea el CSV de resultados de un job de scraping y devuelve los items válidos.
 func parseScraperCSV(r io.Reader) ([]ScraperResultItem, error) {
 	reader := csv.NewReader(r)
 	headers, err := reader.Read()
@@ -195,6 +219,7 @@ func parseScraperCSV(r io.Reader) ([]ScraperResultItem, error) {
 			break
 		}
 		if err != nil {
+			logrus.WithError(err).Warn("error leyendo fila CSV, omitiendo")
 			continue
 		}
 
@@ -216,59 +241,50 @@ func parseScraperCSV(r io.Reader) ([]ScraperResultItem, error) {
 			ImagesCount:      getValue(row, headerMap, "images_count"),
 			IsOwnerVerified:  getValue(row, headerMap, "is_owner_verified"),
 		}
-		
-		// ✅ FILTRO NUEVO: Ignorar resultados basura (rating=0, reviews=0)
-		// Estos son típicamente datos de prueba o scrapers que no extrajeron bien
-		//rating, _ := strconv.ParseFloat(item.ReviewRating, 64)
-		//reviewCount, _ := strconv.Atoi(item.ReviewCount)
-		
-		// Si tiene rating 0 Y reviews 0 Y tiene nombre, probablemente es basura
-		// PERO: permitimos pasar si tiene dirección o teléfono (puede ser negocio nuevo)
-		
-		//if rating == 0 && reviewCount == 0 {
-		//	hasRealData := item.Address != "" || item.Phone != "" || item.Website != ""
-		//	if !hasRealData {
-		//		// Skip este resultado - es basura
-		//		continue
-		//	}
-		//}
 
-		// solo filtrar si el titulo esta vacio o es claramente basura
+		// Filtrar títulos vacíos o resultados conocidos como basura
 		if item.Title == "" || item.Title == "opositare" {
 			continue
 		}
 
-
-		
 		items = append(items, item)
 	}
 	return items, nil
 }
 
-// executeMapsJob — llama al scraper-maps (búsqueda directa en Google Maps)
-func executeMapsJob(query string) ([]ScraperResultItem, error) {
+// executeMapsJob llama al scraper-maps con búsqueda por texto (último recurso).
+func (a *app) executeMapsJob(ctx context.Context, query string) ([]ScraperResultItem, error) {
 	type mapsRequest struct {
 		Query string `json:"query"`
 	}
 	type mapsData struct {
-		Name     string             `json:"name"`
-		Rating   float64            `json:"rating"`
-		Reviews  int                `json:"reviews"`
-		Address  string             `json:"address"`
-		Phone    string             `json:"phone"`
-		Website  string             `json:"website"`
-		Cid      string             `json:"cid"`
-		Breakdown map[string]int    `json:"breakdown"`
+		Name      string         `json:"name"`
+		Rating    float64        `json:"rating"`
+		Reviews   int            `json:"reviews"`
+		Address   string         `json:"address"`
+		Phone     string         `json:"phone"`
+		Website   string         `json:"website"`
+		Cid       string         `json:"cid"`
+		Breakdown map[string]int `json:"breakdown"`
 	}
 	type mapsResponse struct {
 		Found bool     `json:"found"`
 		Data  mapsData `json:"data"`
 	}
 
-	body, _ := json.Marshal(mapsRequest{Query: query})
+	body, err := json.Marshal(mapsRequest{Query: query})
+	if err != nil {
+		return nil, fmt.Errorf("error serializando petición maps: %v", err)
+	}
 
-	mapsClient := &http.Client{Timeout: MapsTimeout}
-	resp, err := mapsClient.Post(MapsScraperURL, "application/json", bytes.NewBuffer(body))
+	mapsClient := &http.Client{Timeout: a.cfg.MapsTimeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.cfg.MapsScraperURL, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("error creando request maps: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := mapsClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("maps scraper unavailable: %v", err)
 	}
@@ -282,7 +298,10 @@ func executeMapsJob(query string) ([]ScraperResultItem, error) {
 		return nil, fmt.Errorf("maps scraper: no result found for '%s'", query)
 	}
 
-	breakdownJSON, _ := json.Marshal(result.Data.Breakdown)
+	breakdownJSON, err := json.Marshal(result.Data.Breakdown)
+	if err != nil {
+		breakdownJSON = []byte("{}")
+	}
 	item := ScraperResultItem{
 		Title:            result.Data.Name,
 		ReviewRating:     strconv.FormatFloat(result.Data.Rating, 'f', 1, 64),
@@ -296,6 +315,99 @@ func executeMapsJob(query string) ([]ScraperResultItem, error) {
 	return []ScraperResultItem{item}, nil
 }
 
+// extractCIDFromURL extrae el CID numérico de una URL de Google Maps.
+// Soporta: ?cid=DECIMAL, !1s0x{hex}:0x{hex} (el segundo hex en decimal es el CID),
+// y el formato antiguo !19s{decimal}.
+func extractCIDFromURL(rawURL string) (string, error) {
+	// Patrón 1: ?cid=DECIMAL o &cid=DECIMAL
+	if m := regexp.MustCompile(`[?&]cid=(\d+)`).FindStringSubmatch(rawURL); len(m) > 1 {
+		return m[1], nil
+	}
+
+	// Patrón 2: !1s0x{hex1}:0x{hex2} — el segundo número hex es el CID como uint64
+	if m := regexp.MustCompile(`!1s(0x[0-9a-fA-F]+:0x[0-9a-fA-F]+)`).FindStringSubmatch(rawURL); len(m) > 1 {
+		parts := strings.Split(m[1], ":")
+		if len(parts) == 2 {
+			hexStr := strings.TrimPrefix(parts[1], "0x")
+			if n, err := strconv.ParseUint(hexStr, 16, 64); err == nil {
+				return strconv.FormatUint(n, 10), nil
+			}
+		}
+	}
+
+	// Patrón 3: !19s{decimal} (formato legado)
+	if m := regexp.MustCompile(`!19s(\d+)`).FindStringSubmatch(rawURL); len(m) > 1 {
+		return m[1], nil
+	}
+
+	return "", fmt.Errorf("CID no encontrado en la URL")
+}
+
+// executeMapsJobByCID llama al scraper-maps navegando directamente a la URL con CID (sin búsqueda ciega).
+func (a *app) executeMapsJobByCID(ctx context.Context, cidURL string) ([]ScraperResultItem, error) {
+	type urlRequest struct {
+		URL string `json:"url"`
+	}
+	type mapsData struct {
+		Name      string         `json:"name"`
+		Rating    float64        `json:"rating"`
+		Reviews   int            `json:"reviews"`
+		Address   string         `json:"address"`
+		Phone     string         `json:"phone"`
+		Website   string         `json:"website"`
+		Cid       string         `json:"cid"`
+		Breakdown map[string]int `json:"breakdown"`
+	}
+	type mapsResponse struct {
+		Found bool     `json:"found"`
+		Data  mapsData `json:"data"`
+	}
+
+	mapsURLEndpoint := strings.Replace(a.cfg.MapsScraperURL, "/maps/search", "/maps/url", 1)
+	body, err := json.Marshal(urlRequest{URL: cidURL})
+	if err != nil {
+		return nil, fmt.Errorf("error serializando petición maps-url: %v", err)
+	}
+
+	mapsClient := &http.Client{Timeout: a.cfg.MapsTimeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, mapsURLEndpoint, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("error creando request maps-url: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := mapsClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("maps url scraper unavailable: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var result mapsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("maps url scraper decode error: %v", err)
+	}
+	if !result.Found || result.Data.Name == "" {
+		return nil, fmt.Errorf("maps url scraper: sin datos para '%s'", cidURL)
+	}
+
+	breakdownJSON, err := json.Marshal(result.Data.Breakdown)
+	if err != nil {
+		breakdownJSON = []byte("{}")
+	}
+	item := ScraperResultItem{
+		Title:            result.Data.Name,
+		ReviewRating:     strconv.FormatFloat(result.Data.Rating, 'f', 1, 64),
+		ReviewCount:      strconv.Itoa(result.Data.Reviews),
+		ReviewsPerRating: json.RawMessage(breakdownJSON),
+		Address:          result.Data.Address,
+		Phone:            result.Data.Phone,
+		Website:          result.Data.Website,
+		Cid:              result.Data.Cid,
+	}
+	return []ScraperResultItem{item}, nil
+}
+
+// getValue devuelve el valor de la columna `key` de una fila CSV, o "" si no existe.
 func getValue(row []string, m map[string]int, key string) string {
 	if idx, ok := m[key]; ok && idx < len(row) {
 		return row[idx]
@@ -303,10 +415,12 @@ func getValue(row []string, m map[string]int, key string) string {
 	return ""
 }
 
-// Helper for Fallback: Convert FrontendData back to ScraperResultItem
+// convertFrontendDataToScraperResult reconstruye un ScraperResultItem desde datos de caché.
 func convertFrontendDataToScraperResult(data *FrontendData) []ScraperResultItem {
-	// Reconstruct JSON for reviews_per_rating map
-	breakdownJSON, _ := json.Marshal(data.Breakdown)
+	breakdownJSON, marshalErr := json.Marshal(data.Breakdown)
+	if marshalErr != nil {
+		breakdownJSON = []byte("{}")
+	}
 
 	item := ScraperResultItem{
 		Title:            data.Name,

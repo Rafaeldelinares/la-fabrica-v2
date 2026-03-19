@@ -6,57 +6,70 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/sirupsen/logrus"
 )
 
-var (
-	NanoScraperURL  string
-	HeavyScraperURL string
-	MapsScraperURL  string
-	Port            string
-	DB_URL          string
-	NanoTimeout     time.Duration
-	HeavyTimeout    time.Duration
-	MapsTimeout     time.Duration
-)
+// AppConfig agrupa toda la configuración del servidor cargada desde variables de entorno.
+type AppConfig struct {
+	NanoScraperURL  string        `json:"nano_scraper_url"`
+	HeavyScraperURL string        `json:"heavy_scraper_url"`
+	MapsScraperURL  string        `json:"maps_scraper_url"`
+	Port            string        `json:"port"`
+	DBURL           string        `json:"db_url"`
+	NanoTimeout     time.Duration `json:"nano_timeout"`
+	HeavyTimeout    time.Duration `json:"heavy_timeout"`
+	MapsTimeout     time.Duration `json:"maps_timeout"`
+	HTTPClient      *http.Client  `json:"-"`
+}
 
-func init() {
-	// Load .env file if it exists
+// LoadConfig carga la configuración desde variables de entorno con valores por defecto seguros.
+func LoadConfig() AppConfig {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using defaults where possible")
+		logrus.Info("No .env file found, using environment variables")
 	}
 
-	NanoScraperURL  = getEnv("NANO_SCRAPER_URL",  "http://localhost:8090/api/v1/jobs")
-	HeavyScraperURL = getEnv("HEAVY_SCRAPER_URL", "http://localhost:8091/api/v1/jobs")
-	MapsScraperURL  = getEnv("MAPS_SCRAPER_URL",  "http://localhost:8094/api/v1/maps/search")
-	Port = getEnv("SERVER_PORT", ":8092")
+	nanoTimeout := parseDuration("NANO_TIMEOUT", "2m", 2*time.Minute)
+	heavyTimeout := parseDuration("HEAVY_TIMEOUT", "10m", 10*time.Minute)
+	mapsTimeout := parseDuration("MAPS_TIMEOUT", "90s", 90*time.Second)
 
-	// DB_URL is required, we do not provide a default with password for security
-	DB_URL = os.Getenv("DB_URL")
-	if DB_URL == "" {
-		// Fallback for development only if absolutely necessary, but better to fail
-		// Using a safe default without password or warn
-		log.Println("WARNING: DB_URL not set in environment")
+	dbURL := os.Getenv("DB_URL")
+	if dbURL == "" {
+		logrus.Warn("DB_URL not set in environment")
 	}
 
-	// Timeouts
-	var err error
-	NanoTimeout, err = time.ParseDuration(getEnv("NANO_TIMEOUT", "2m"))
+	nanoURL := os.Getenv("NANO_SCRAPER_URL")
+	if nanoURL == "" {
+		logrus.Warn("NANO_SCRAPER_URL not set in environment")
+	}
+	heavyURL := os.Getenv("HEAVY_SCRAPER_URL")
+	if heavyURL == "" {
+		logrus.Warn("HEAVY_SCRAPER_URL not set in environment")
+	}
+	mapsURL := os.Getenv("MAPS_SCRAPER_URL")
+	if mapsURL == "" {
+		logrus.Warn("MAPS_SCRAPER_URL not set in environment")
+	}
+
+	return AppConfig{
+		NanoScraperURL:  nanoURL,
+		HeavyScraperURL: heavyURL,
+		MapsScraperURL:  mapsURL,
+		Port:            getEnv("SERVER_PORT", ":8092"),
+		DBURL:           dbURL,
+		NanoTimeout:     nanoTimeout,
+		HeavyTimeout:    heavyTimeout,
+		MapsTimeout:     mapsTimeout,
+		HTTPClient:      &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+func parseDuration(envKey, fallback string, defaultVal time.Duration) time.Duration {
+	d, err := time.ParseDuration(getEnv(envKey, fallback))
 	if err != nil {
-		log.Printf("Invalid NANO_TIMEOUT: %v, defaulting to 2m", err)
-		NanoTimeout = 2 * time.Minute
+		logrus.Warnf("Invalid %s: %v, defaulting to %s", envKey, err, fallback)
+		return defaultVal
 	}
-
-	HeavyTimeout, err = time.ParseDuration(getEnv("HEAVY_TIMEOUT", "10m"))
-	if err != nil {
-		log.Printf("Invalid HEAVY_TIMEOUT: %v, defaulting to 10m", err)
-		HeavyTimeout = 10 * time.Minute
-	}
-
-	MapsTimeout, err = time.ParseDuration(getEnv("MAPS_TIMEOUT", "90s"))
-	if err != nil {
-		log.Printf("Invalid MAPS_TIMEOUT: %v, defaulting to 90s", err)
-		MapsTimeout = 90 * time.Second
-	}
+	return d
 }
 
 func getEnv(key, fallback string) string {
@@ -64,8 +77,4 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-var client = &http.Client{
-	Timeout: 30 * time.Second,
 }

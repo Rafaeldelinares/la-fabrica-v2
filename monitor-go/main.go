@@ -6,6 +6,8 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -14,57 +16,89 @@ import (
 
 	_ "github.com/lib/pq"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/time/rate"
 )
 
-var l1Scraper *Level1Scraper
-var l1Cache *Level1Cache
-var log = logrus.New()
+// app agrupa las dependencias de los handlers del servidor.
+type app struct {
+	l1Scraper *Level1Scraper  `json:"-"`
+	limiter   *rate.Limiter   `json:"-"`
+	cfg       AppConfig        `json:"-"`
+	db        *sql.DB          `json:"-"`
+}
 
 func main() {
-	// 1. Configuración de Logging Estructurado
-	log.SetFormatter(&logrus.JSONFormatter{})
-	log.SetLevel(logrus.InfoLevel)
-	log.Info("Iniciando Monitor de Reputación V2 con Logging Estructurado")
+	// 1. Configuración de Logging Estructurado (logger estándar logrus)
+	logrus.SetFormatter(&logrus.JSONFormatter{})
+	logrus.SetLevel(logrus.InfoLevel)
+	logrus.Info("Iniciando Monitor de Reputación V2 con Logging Estructurado")
 
-	// 2. Inicializar BBDD (Persistencia PostgreSQL)
-	initDB()
+	// 2. Cargar configuración e inicializar BBDD
+	cfg := LoadConfig()
+	db := initDB(cfg.DBURL)
 
 	// 3. Initialize Level 1 Optimization Layers
-	// Usamos la misma conexión 'db' que ya inicializó initDB()
-	// Asumimos que db es global (verificaremos si initDB lo exporta o setea global)
-
-	// Si db es global en database.go (lo normal en estos ejemplos), procedemos:
-	l1Cache = NewLevel1Cache(db, 30) // 30 days TTL
-	l1Scraper = NewLevel1Scraper(l1Cache, DefaultConfig())
+	l1Cache := NewLevel1Cache(db, 30) // 30 days TTL
+	a := &app{
+		l1Scraper: NewLevel1Scraper(l1Cache, DefaultConfig()),
+		limiter:   rate.NewLimiter(rate.Every(time.Minute/10), 1),
+		cfg:       cfg,
+		db:        db,
+	}
 
 	// 4. Handlers
-	http.HandleFunc("/webhook/scraper/go", handleWebhook)
-	http.HandleFunc("/health", handleHealth) // Nuevo Endpoint de Salud
+	http.HandleFunc("/webhook/scraper/go", a.handleWebhook)
+	http.HandleFunc("/webhook/scraper/go-url", a.handleWebhookByURL)
+	http.HandleFunc("/health", a.handleHealth)
 
-	log.WithFields(logrus.Fields{
-		"port":  Port,
+	logrus.WithFields(logrus.Fields{
+		"port":  cfg.Port,
 		"event": "server_start",
 	}).Info("Servidor Modular Iniciado")
 
-	if err := http.ListenAndServe(Port, nil); err != nil {
-		log.Fatal(err)
+	if err := http.ListenAndServe(cfg.Port, nil); err != nil {
+		logrus.Fatal(err)
 	}
 }
 
-// Endpoint de Salud (/health)
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+// encodeJSON escribe la respuesta JSON en w y loguea si hay error de encoding.
+func encodeJSON(w http.ResponseWriter, v interface{}) {
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		logrus.WithError(err).Error("error encoding JSON response")
+	}
+}
+
+// parseRating convierte un string a float64 logueando si el valor no está vacío y falla.
+func parseRating(s string) float64 {
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil && s != "" {
+		logrus.WithError(err).Warn("invalid rating value: " + s)
+	}
+	return v
+}
+
+// parseReviews convierte un string a int logueando si el valor no está vacío y falla.
+func parseReviews(s string) int {
+	v, err := strconv.Atoi(s)
+	if err != nil && s != "" {
+		logrus.WithError(err).Warn("invalid reviews value: " + s)
+	}
+	return v
+}
+
+// handleHealth comprueba la disponibilidad de la base de datos.
+func (a *app) handleHealth(w http.ResponseWriter, r *http.Request) {
 	status := "ok"
 	statusCode := 200
 
-	// Verificar DB
-	if err := db.Ping(); err != nil {
+	if err := a.db.Ping(); err != nil {
 		status = "db_error"
 		statusCode = 503
-		log.WithError(err).Error("Health Check Failed: Database unreachable")
+		logrus.WithError(err).Error("Health Check Failed: Database unreachable")
 	}
 
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	encodeJSON(w, map[string]interface{}{
 		"status": status,
 		"time":   time.Now(),
 		"checks": map[string]string{
@@ -78,7 +112,8 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleWebhook(w http.ResponseWriter, r *http.Request) {
+// handleWebhook procesa peticiones de scraping por texto: busca en caché, Nivel 1, y scraper Docker.
+func (a *app) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -91,7 +126,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	var req WebhookRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.WithError(err).Warn("Petición inválida recibida")
+		logrus.WithError(err).Warn("Petición inválida recibida")
 		http.Error(w, "Invalid request", 400)
 		return
 	}
@@ -102,7 +137,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		depth = 1
 	}
 
-	requestLog := log.WithFields(logrus.Fields{
+	requestLog := logrus.WithFields(logrus.Fields{
 		"query":      query,
 		"depth":      depth,
 		"preload":    req.Query.Preload,
@@ -111,41 +146,37 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 
 	requestLog.Info("Procesando petición de scraping")
 
-	// MODIFICACIÓN PUNTO 5: Precarga Oportunista (Background Preloading)
+	// Precarga Oportunista (Background Preloading)
 	if req.Query.Preload {
-		// Verificar si ya existe en caché para no saturar procesos
-		if _, found := getFromDB(query); found {
-			json.NewEncoder(w).Encode(FrontendResponse{Message: "Already cached, preload unnecessary"})
+		if _, found := a.getFromDB(query); found {
+			encodeJSON(w, FrontendResponse{Message: "Already cached, preload unnecessary"})
 			return
 		}
 
-		// Lanzar Scraper en Goroutine (Segundo Plano - Fire & Forget)
 		go func(q string, d int) {
 			requestLog.Info("[PRELOAD] Iniciando precarga silenciosa")
-			results, err := callScraper(q, d)
+			results, err := a.callScraper(context.Background(), q, d)
 			if err != nil {
 				requestLog.WithError(err).Error("[PRELOAD ERROR]")
 				return
 			}
-			processAndSaveResults(q, d, results)
+			a.processAndSaveResults(q, d, results)
 			requestLog.Info("[PRELOAD SUCCESS] Datos listos")
 		}(query, depth)
 
-		// Responder inmediatamente al frontend sin esperar
-		json.NewEncoder(w).Encode(FrontendResponse{Message: "Preload started in background"})
+		encodeJSON(w, FrontendResponse{Message: "Preload started in background"})
 		return
 	}
 
 	// Try DB Cache (Persistencia) para peticiones normales
-	if cachedData, found := getFromDB(query); found {
-		resp := FrontendResponse{
+	if cachedData, found := a.getFromDB(query); found {
+		requestLog.WithField("source", "db_cache").Info("Respuesta servida desde caché")
+		encodeJSON(w, FrontendResponse{
 			Type:         "detail",
 			Data:         cachedData,
 			Cached:       true,
 			ResponseTime: time.Since(startTime).Seconds(),
-		}
-		requestLog.WithField("source", "db_cache").Info("Respuesta servida desde caché")
-		json.NewEncoder(w).Encode(resp)
+		})
 		return
 	}
 
@@ -153,7 +184,7 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	// NIVEL 1 OPTIMIZATION: Try Lightweight Go Scraper First
 	// --------------------------------------------------------------------------
 	requestLog.Info("Intentando búsqueda ligera (Nivel 1)")
-	l1Result, err := l1Scraper.Search(r.Context(), query, "") // Pasamos query como negocio, ciudad vacía por ahora
+	l1Result, err := a.l1Scraper.Search(r.Context(), query, "")
 
 	if err == nil && l1Result.Found && !l1Result.RequiresJS {
 		requestLog.WithFields(logrus.Fields{
@@ -161,23 +192,17 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 			"rating": l1Result.Rating,
 		}).Info("¡ÉXITO! Encontrado sin navegador")
 
-		// Map Level 1 Result to Frontend Data
 		l1Data := &FrontendData{
 			Name:        l1Result.Name,
 			Rating:      l1Result.Rating,
 			Reviews:     l1Result.ReviewCount,
 			Address:     l1Result.Address,
 			IsSimulated: false,
-			Sentiment: []SentimentItem{
-				{Name: "Calidad", Score: 85}, // Simulated for now
-				{Name: "Atención", Score: 78},
-			},
 		}
 
-		// Save to Main DB for consistency
-		saveToDB(query, l1Data)
+		a.saveToDB(query, l1Data)
 
-		json.NewEncoder(w).Encode(FrontendResponse{
+		encodeJSON(w, FrontendResponse{
 			Type:         "detail",
 			Data:         l1Data,
 			Cached:       l1Result.CacheHit,
@@ -197,41 +222,38 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 	// --------------------------------------------------------------------------
 	// NIVEL 3 FALLBACK: Original Heavy Docker Scraper
 	// --------------------------------------------------------------------------
-	results, err := callScraper(query, depth)
+	results, err := a.callScraper(r.Context(), query, depth)
 	if err != nil {
 		requestLog.WithError(err).Error("Error fatal en scraping Nivel 3")
-		json.NewEncoder(w).Encode(FrontendResponse{Message: "Error scraping: " + err.Error()})
+		encodeJSON(w, FrontendResponse{Message: "Error scraping: " + err.Error()})
 		return
 	}
 
 	if len(results) == 0 {
 		requestLog.Warn("No results found after all attempts")
-		json.NewEncoder(w).Encode(FrontendResponse{Message: "No results found"})
+		encodeJSON(w, FrontendResponse{Message: "No results found"})
 		return
 	}
 
-	// Procesar y Guardar Resultados (Persistencia asíncrona o síncrona según toque)
-	processAndSaveResults(query, depth, results)
+	a.processAndSaveResults(query, depth, results)
 
 	// Logic for Exact Match or List (Respuesta al Frontend)
 	if len(results) > 1 && !isExactMatch(query, results[0].Title) {
 		requestLog.Info("Devolviendo lista de resultados ambiguos")
 		var items []FrontendItem
-		for _, r := range results {
-			if r.Title == "" {
+		for _, item := range results {
+			if item.Title == "" {
 				continue
 			}
-			rating, _ := strconv.ParseFloat(r.ReviewRating, 64)
-			reviews, _ := strconv.Atoi(r.ReviewCount)
 			items = append(items, FrontendItem{
-				Name:    r.Title,
-				Rating:  rating,
-				Reviews: reviews,
-				Address: r.Address,
-				Image:   r.Thumbnail,
+				Name:    item.Title,
+				Rating:  parseRating(item.ReviewRating),
+				Reviews: parseReviews(item.ReviewCount),
+				Address: item.Address,
+				Image:   item.Thumbnail,
 			})
 		}
-		json.NewEncoder(w).Encode(FrontendResponse{
+		encodeJSON(w, FrontendResponse{
 			Type:         "list",
 			Items:        items,
 			ResponseTime: time.Since(startTime).Seconds(),
@@ -239,82 +261,170 @@ func handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Process Detail & Restore Response Logic
 	r0 := results[0]
-	rating, _ := strconv.ParseFloat(r0.ReviewRating, 64)
-	reviews, _ := strconv.Atoi(r0.ReviewCount)
-
 	var breakdown map[string]int
-	json.Unmarshal(r0.ReviewsPerRating, &breakdown)
+	if err := json.Unmarshal(r0.ReviewsPerRating, &breakdown); err != nil {
+		breakdown = map[string]int{}
+	}
 
 	data := &FrontendData{
 		Name:          r0.Title,
-		Rating:        rating,
-		Reviews:       reviews,
+		Rating:        parseRating(r0.ReviewRating),
+		Reviews:       parseReviews(r0.ReviewCount),
 		Breakdown:     breakdown,
 		Address:       r0.Address,
 		Phone:         r0.Phone,
 		Website:       r0.Website,
 		Image:         r0.Thumbnail,
 		NegativeCount: breakdown["1"] + breakdown["2"],
-		IsSimulated:   false, // ✅ CORREGIDO: Ahora es false cuando viene del scraper real
-		Sentiment: []SentimentItem{
-			{Name: "Calidad", Score: 85},
-			{Name: "Atención", Score: 78},
-			{Name: "Precio", Score: 72},
-			{Name: "Velocidad", Score: 80},
-		},
+		IsSimulated:   false,
 	}
 
 	requestLog.WithField("business", data.Name).Info("Devolviendo detalle de negocio")
 
-	// Ya se guardó en processAndSaveResults, aquí solo devolvemos
-	json.NewEncoder(w).Encode(FrontendResponse{
+	encodeJSON(w, FrontendResponse{
 		Type:         "detail",
 		Data:         data,
 		ResponseTime: time.Since(startTime).Seconds(),
 	})
 }
 
-// Función auxiliar para procesar y persistir resultados
-func processAndSaveResults(query string, depth int, results []ScraperResultItem) {
-	// Solo guardamos si es un resultado DETALLADO (Nivel 2) o coincidencia única
+// processAndSaveResults persiste el resultado del scraping si es un match único.
+func (a *app) processAndSaveResults(query string, depth int, results []ScraperResultItem) {
 	if len(results) > 1 && !isExactMatch(query, results[0].Title) {
 		return
 	}
 
-	if len(results) > 0 {
-		r0 := results[0]
-		rating, _ := strconv.ParseFloat(r0.ReviewRating, 64)
-		reviews, _ := strconv.Atoi(r0.ReviewCount)
-
-		var breakdown map[string]int
-		json.Unmarshal(r0.ReviewsPerRating, &breakdown)
-
-		data := &FrontendData{
-			Name:          r0.Title,
-			Rating:        rating,
-			Reviews:       reviews,
-			Breakdown:     breakdown,
-			Address:       r0.Address,
-			Phone:         r0.Phone,
-			Website:       r0.Website,
-			Image:         r0.Thumbnail,
-			NegativeCount: breakdown["1"] + breakdown["2"],
-			ImagesCount:   func() int { i, _ := strconv.Atoi(r0.ImagesCount); return i }(),
-			IsOwnerVerified: r0.IsOwnerVerified == "true",
-			IsSimulated:   false, // ✅ CORREGIDO: Ahora es false cuando viene del scraper real
-			Sentiment: []SentimentItem{
-				{Name: "Calidad", Score: 85},
-				{Name: "Atención", Score: 78},
-				{Name: "Precio", Score: 72},
-				{Name: "Velocidad", Score: 80},
-			},
-		}
-		saveToDB(query, data)
+	if len(results) == 0 {
+		return
 	}
+
+	r0 := results[0]
+	var breakdown map[string]int
+	if err := json.Unmarshal(r0.ReviewsPerRating, &breakdown); err != nil {
+		breakdown = map[string]int{}
+	}
+
+	imagesCount, parseErr := strconv.Atoi(r0.ImagesCount)
+	if parseErr != nil && r0.ImagesCount != "" {
+		logrus.WithError(parseErr).Warn("invalid images_count value: " + r0.ImagesCount)
+	}
+
+	data := &FrontendData{
+		Name:            r0.Title,
+		Rating:          parseRating(r0.ReviewRating),
+		Reviews:         parseReviews(r0.ReviewCount),
+		Breakdown:       breakdown,
+		Address:         r0.Address,
+		Phone:           r0.Phone,
+		Website:         r0.Website,
+		Image:           r0.Thumbnail,
+		NegativeCount:   breakdown["1"] + breakdown["2"],
+		ImagesCount:     imagesCount,
+		IsOwnerVerified: r0.IsOwnerVerified == "true",
+		IsSimulated:     false,
+	}
+	a.saveToDB(query, data)
 }
 
+// handleWebhookByURL — motor URL directo GBP: extrae CID de la URL y navega sin búsqueda ciega.
+func (a *app) handleWebhookByURL(w http.ResponseWriter, r *http.Request) {
+	startTime := time.Now()
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+	if r.Method == "OPTIONS" {
+		return
+	}
+
+	var req struct {
+		URL string `json:"url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.URL) == "" {
+		http.Error(w, `{"message":"campo 'url' requerido"}`, 400)
+		return
+	}
+
+	reqURL := strings.TrimSpace(req.URL)
+	requestLog := logrus.WithFields(logrus.Fields{
+		"url":        reqURL,
+		"request_id": startTime.UnixNano(),
+	})
+	requestLog.Info("Petición URL directa GBP recibida")
+
+	// 1. Extraer CID de la URL
+	cid, err := extractCIDFromURL(reqURL)
+	if err != nil {
+		requestLog.WithError(err).Warn("CID no encontrado en URL")
+		encodeJSON(w, FrontendResponse{Message: "CID no encontrado en la URL: " + err.Error()})
+		return
+	}
+	requestLog.WithField("cid", cid).Info("CID extraído de URL")
+
+	// 2. Consultar caché por CID
+	cacheKey := "cid:" + cid
+	if cachedData, found := a.getFromDB(cacheKey); found {
+		requestLog.WithField("source", "db_cache").Info("Respuesta desde caché (CID)")
+		encodeJSON(w, FrontendResponse{
+			Type:         "detail",
+			Data:         cachedData,
+			Cached:       true,
+			ResponseTime: time.Since(startTime).Seconds(),
+		})
+		return
+	}
+
+	// 3. Llamar al scraper-maps con URL canónica CID
+	cidURL := "https://www.google.com/maps/?cid=" + cid
+	results, err := a.executeMapsJobByCID(r.Context(), cidURL)
+	if err != nil {
+		requestLog.WithError(err).Error("Error en scraping por URL directa")
+		encodeJSON(w, FrontendResponse{Message: "Error: " + err.Error()})
+		return
+	}
+
+	if len(results) == 0 || results[0].Title == "" {
+		encodeJSON(w, FrontendResponse{Message: "Sin datos para CID: " + cid})
+		return
+	}
+
+	r0 := results[0]
+	var breakdown map[string]int
+	if err := json.Unmarshal(r0.ReviewsPerRating, &breakdown); err != nil {
+		breakdown = map[string]int{}
+	}
+
+	resultCid := r0.Cid
+	if resultCid == "" {
+		resultCid = cid
+	}
+
+	data := &FrontendData{
+		Name:          r0.Title,
+		Rating:        parseRating(r0.ReviewRating),
+		Reviews:       parseReviews(r0.ReviewCount),
+		Breakdown:     breakdown,
+		Address:       r0.Address,
+		Phone:         r0.Phone,
+		Website:       r0.Website,
+		Cid:           resultCid,
+		NegativeCount: breakdown["1"] + breakdown["2"],
+		IsSimulated:   false,
+	}
+
+	a.saveToDB(cacheKey, data)
+	requestLog.WithField("business", data.Name).Info("Detalle GBP por URL devuelto")
+
+	encodeJSON(w, FrontendResponse{
+		Type:         "detail",
+		Data:         data,
+		ResponseTime: time.Since(startTime).Seconds(),
+	})
+}
+
+// isExactMatch devuelve true si el título del resultado contiene o está contenido en la query.
 func isExactMatch(query, title string) bool {
 	q := strings.ToLower(query)
 	t := strings.ToLower(title)

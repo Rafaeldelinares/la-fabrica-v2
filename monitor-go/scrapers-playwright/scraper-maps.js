@@ -1,4 +1,5 @@
 const { chromium } = require('playwright');
+const log = require('./logger');
 
 /**
  * MapsScraper — Modo "usuario real"
@@ -12,8 +13,9 @@ class MapsScraper {
         this.timeout = parseInt(process.env.MAPS_TIMEOUT || '45000');
     }
 
+    /** Lanza el navegador Chromium en modo headless. Debe llamarse antes de scrape() o scrapeByURL(). */
     async initialize() {
-        console.log('[MAPS] Iniciando navegador...');
+        log.info('[MAPS] Iniciando navegador');
         this.browser = await chromium.launch({
             headless: true,
             args: [
@@ -26,14 +28,19 @@ class MapsScraper {
                 '--disable-default-apps',
             ]
         });
-        console.log('[MAPS] ✓ Navegador iniciado');
+        log.info('[MAPS] Navegador iniciado');
     }
 
+    /**
+     * Busca un negocio por texto en Google Maps y extrae sus datos de ficha.
+     * @param {string} query - Nombre o descripción del negocio a buscar.
+     * @returns {{ found: boolean, query: string, data: object, latency_ms: number }}
+     */
     async scrape(query) {
         if (!this.browser) await this.initialize();
 
         const start = Date.now();
-        console.log(`[MAPS] Buscando: "${query}"`);
+        log.info(`[MAPS] Buscando: "${query}"`);
 
         const context = await this.browser.newContext({
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -76,7 +83,7 @@ class MapsScraper {
             });
 
             if (isList) {
-                console.log('[MAPS] Lista detectada — navegando al primer resultado');
+                log.info('[MAPS] Lista detectada — navegando al primer resultado');
                 const firstHref = await page.evaluate(() => {
                     const links = Array.from(document.querySelectorAll('a[href*="/maps/place"]'));
                     return links[0]?.href || null;
@@ -92,15 +99,15 @@ class MapsScraper {
 
             // Resultado fantasma: nombre == query
             if (data.name && data.name.trim().toLowerCase() === query.trim().toLowerCase()) {
-                console.log('[MAPS] Resultado fantasma detectado — sin ficha real');
+                log.warn('[MAPS] Resultado fantasma detectado — sin ficha real');
                 return this._empty(query, start);
             }
 
-            console.log(`[MAPS] ✓ ${data.name} | ${data.rating}★ ${data.reviews}r — ${Date.now() - start}ms`);
+            log.info(`[MAPS] OK: ${data.name} | ${data.rating}★ ${data.reviews}r — ${Date.now() - start}ms`);
             return { found: !!data.name, query, data, latency_ms: Date.now() - start };
 
         } catch (err) {
-            console.error(`[MAPS] Error: ${err.message}`);
+            log.error(`[MAPS] Error: ${err.message}`);
             return this._empty(query, start);
         } finally {
             await context.close().catch(() => {});
@@ -179,6 +186,50 @@ class MapsScraper {
 
             return { name, rating, reviews, address, phone, website, cid, url, breakdown };
         });
+    }
+
+    // Navegación directa por URL (sin búsqueda por texto) — motor URL GBP
+    async scrapeByURL(url) {
+        if (!this.browser) await this.initialize();
+
+        const start = Date.now();
+
+        const context = await this.browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            locale: 'es-ES',
+        });
+
+        await context.route('**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,eot}', r => r.abort());
+        await context.addCookies([
+            { name: 'CONSENT', value: 'YES+CB.20230220-10-p0.es+FX+266', domain: '.google.com', path: '/' },
+            { name: 'SOCS',    value: 'CAESAg==',                        domain: '.google.com', path: '/' }
+        ]);
+
+        const page = await context.newPage();
+        page.setDefaultTimeout(this.timeout);
+
+        try {
+            const targetURL = url.includes('hl=') ? url : url + (url.includes('?') ? '&' : '?') + 'hl=es';
+            await page.goto(targetURL, { waitUntil: 'domcontentloaded', timeout: this.timeout });
+
+            await page.waitForSelector('h1', { timeout: 15000 }).catch(() => {});
+
+            const data = await this._extractData(page);
+
+            if (!data.name) {
+                log.warn(`[MAPS URL] Ficha no encontrada para: ${url}`);
+                return this._empty(url, start);
+            }
+
+            log.info(`[MAPS URL] OK: ${data.name} | ${data.rating}★ ${data.reviews}r — ${Date.now() - start}ms`);
+            return { found: true, url, data, latency_ms: Date.now() - start };
+
+        } catch (err) {
+            log.error(`[MAPS URL] Error navegando a ${url}: ${err.message}`);
+            return this._empty(url, start);
+        } finally {
+            await context.close().catch(() => {});
+        }
     }
 
     _empty(query, start) {
