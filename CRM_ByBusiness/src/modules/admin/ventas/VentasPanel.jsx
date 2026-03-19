@@ -86,7 +86,7 @@ const VentasPanel = () => {
                         <span className="text-sm font-black font-mono text-white">{total}</span>
                     </div>
                     <div className="flex items-center gap-2 px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm">
-                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-widest">MRR Activas</span>
+                        <span className="text-[10px] text-slate-500 uppercase font-mono tracking-widest">Ing. mensuales activas</span>
                         <span className="text-sm font-black font-mono text-emerald-400">
                             {mrr > 0 ? `${mrr.toLocaleString('es-ES')} €` : '—'}
                         </span>

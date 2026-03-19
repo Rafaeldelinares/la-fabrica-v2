@@ -249,7 +249,7 @@ const CarteraPanel = () => {
                       { label: 'CLIENTE',          field: 'nombre_comercial'   },
                       { label: 'ÚLTIMO CONTACTO',  field: 'dias_sin_contacto'  },
                       { label: 'RENOVACIÓN',       field: 'proxima_renovacion' },
-                      { label: 'MRR',              field: 'mrr'                },
+                      { label: 'ING. MENSUALES',   field: 'mrr'                },
                       { label: 'GESTOR',           field: 'gestor_nombre'      },
                     ].map(({ label, field }) => (
                       <th key={field} onClick={() => toggleSort(field)}

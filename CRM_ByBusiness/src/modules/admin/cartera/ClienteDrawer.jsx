@@ -24,7 +24,7 @@ const TABS = [
 const KPI_CONFIG = [
   { label: 'Último contacto', key: 'dias_sin_contacto', format: (c) => fmtDias(c.dias_sin_contacto) },
   { label: 'Contratos',       key: 'num_contratos',     format: (c) => c.num_contratos || '0' },
-  { label: 'MRR',             key: 'mrr',               format: (c) => c.mrr > 0 ? `${Number(c.mrr).toFixed(0)}€` : '—' },
+  { label: 'Ing. mensuales',  key: 'mrr',               format: (c) => c.mrr > 0 ? `${Number(c.mrr).toFixed(0)}€` : '—' },
 ];
 
 /**

@@ -131,12 +131,12 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
               <p className="text-2xl font-black text-white mt-1">{renovaciones.length}</p>
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-sm px-4 py-3">
-              <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">MRR en riesgo</p>
+              <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">Ing. mensuales en riesgo</p>
               <p className="text-2xl font-black text-[#D00000] mt-1">{fmtEur(totalMRR)}</p>
             </div>
             <div className="bg-slate-900 border border-slate-800 rounded-sm px-4 py-3">
               <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono">
-                {mesFiltro ? 'MRR seleccionado' : 'Meses con renovaciones'}
+                {mesFiltro ? 'Ing. seleccionados' : 'Meses con renovaciones'}
               </p>
               <p className="text-2xl font-black text-slate-300 mt-1">
                 {mesFiltro ? fmtEur(filtroMRR) : byMes.length}
@@ -204,7 +204,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
                       ? `${lista.length} contratos · ${byMes.find(m => m.key === mesFiltro)?.label}`
                       : `${lista.length} contratos en el horizonte`}
                   </p>
-                  <span className="text-[9px] text-slate-600 font-mono">{fmtEur(filtroMRR)} MRR</span>
+                  <span className="text-[9px] text-slate-600 font-mono">{fmtEur(filtroMRR)} ing. mensuales</span>
                 </div>
                 <div className="flex-1 overflow-auto">
                   <table className="w-full text-left">
@@ -213,7 +213,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
                         <th className="px-4 py-2.5">Cliente</th>
                         <th className="px-4 py-2.5">Producto</th>
                         <th className="px-4 py-2.5 font-mono">Vencimiento</th>
-                        <th className="px-4 py-2.5 font-mono">MRR</th>
+                        <th className="px-4 py-2.5 font-mono">Ing. mensuales</th>
                         <th className="px-4 py-2.5 font-mono">Sin contacto</th>
                         <th className="px-4 py-2.5">Gestor</th>
                         <th className="px-4 py-2.5 font-mono">Urgencia</th>
