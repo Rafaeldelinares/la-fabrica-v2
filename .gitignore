@@ -45,3 +45,5 @@ estructura-fabrica.txt
 monitor-go/go_github/
 monitor-go/gmapsdata/
 backups/
+monitor-go/main
+monitor-go/monitor-reputacion-go
