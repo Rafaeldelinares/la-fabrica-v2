@@ -21,11 +21,11 @@ const SEMAFORO_CONFIG = {
  * @param {{ text: string }} props
  */
 const StatTooltip = ({ text }) => (
-  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 z-20 pointer-events-none opacity-0 group-hover/card:opacity-100 transition-opacity duration-150">
+  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-60 z-50 pointer-events-none opacity-0 group-hover/card:opacity-100 transition-opacity duration-150">
+    <div className="w-2 h-2 bg-slate-800 border-l border-t border-slate-700 rotate-45 mx-auto mb-[-4px]" />
     <div className="bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-[10px] text-slate-300 font-mono leading-relaxed shadow-xl">
       {text}
     </div>
-    <div className="w-2 h-2 bg-slate-800 border-r border-b border-slate-700 rotate-45 mx-auto -mt-1" />
   </div>
 );
 
@@ -231,7 +231,7 @@ const CarteraPanel = () => {
                 <p className="text-xl font-black text-white font-mono leading-tight">{clientes === null ? '—' : s.value}</p>
               </div>
               {s.tooltip && (
-                <Info size={15} className="text-slate-600 shrink-0" />
+                <Info size={18} className="text-slate-500 shrink-0" />
               )}
               {s.tooltip && <StatTooltip text={s.tooltip} />}
             </button>
