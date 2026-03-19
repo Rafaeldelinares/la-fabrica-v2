@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, Info } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -21,7 +21,7 @@ const SEMAFORO_CONFIG = {
  * @param {{ text: string }} props
  */
 const StatTooltip = ({ text }) => (
-  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+  <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-60 z-20 pointer-events-none opacity-0 group-hover/card:opacity-100 transition-opacity duration-150">
     <div className="bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-[10px] text-slate-300 font-mono leading-relaxed shadow-xl">
       {text}
     </div>
@@ -110,16 +110,28 @@ const CarteraPanel = () => {
     });
   }, [clientes, filtroSemaforo, filtroAnio, busqueda]);
 
+  // Stats siempre sobre año+búsqueda (nunca sobre filtro de semáforo)
+  // para que los contadores reflejen la distribución real, no el filtro activo.
   const stats = useMemo(() => {
     if (!clientes) return { total: 0, verde: 0, ambar: 0, rojo: 0 };
-    const base = (filtroSemaforo || filtroAnio || busqueda) ? filtrados : clientes;
+    const base = clientes.filter(c => {
+      if (filtroAnio && String(c.año_alta) !== String(filtroAnio)) return false;
+      if (busqueda) {
+        const q = busqueda.toLowerCase();
+        return (c.nombre_comercial || '').toLowerCase().includes(q)
+          || (c.localidad || '').toLowerCase().includes(q)
+          || (c.email || '').toLowerCase().includes(q)
+          || (c.telefono || '').includes(q);
+      }
+      return true;
+    });
     return {
       total: base.length,
       verde: base.filter(c => c.semaforo === 'verde').length,
       ambar: base.filter(c => c.semaforo === 'ambar').length,
       rojo:  base.filter(c => c.semaforo === 'rojo').length,
     };
-  }, [clientes, filtrados, filtroSemaforo, filtroAnio, busqueda]);
+  }, [clientes, filtroAnio, busqueda]);
 
   const ordenados = useMemo(() => {
     const { field, dir } = sort;
@@ -207,7 +219,7 @@ const CarteraPanel = () => {
             <button
               key={s.key}
               onClick={() => setFiltroSemaforo(filtroSemaforo === s.key ? '' : s.key)}
-              className={`group relative flex items-center gap-3 px-4 py-3 rounded-sm border transition-all text-left ${
+              className={`group/card relative flex items-center gap-3 px-4 py-3 rounded-sm border transition-all text-left ${
                 filtroSemaforo === s.key
                   ? 'bg-slate-800 border-slate-600'
                   : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
@@ -218,6 +230,9 @@ const CarteraPanel = () => {
                 <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">{s.label}</p>
                 <p className="text-xl font-black text-white font-mono leading-tight">{clientes === null ? '—' : s.value}</p>
               </div>
+              {s.tooltip && (
+                <Info size={15} className="text-slate-600 shrink-0" />
+              )}
               {s.tooltip && <StatTooltip text={s.tooltip} />}
             </button>
           ))}
