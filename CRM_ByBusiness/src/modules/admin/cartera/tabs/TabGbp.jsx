@@ -229,11 +229,13 @@ const TabGbp = ({ cliente, n8nUrl }) => {
   const fetchFichas = () => {
     setErrorCarga(null);
     fetch(`${n8nUrl}/crm-gbp-fichas?cliente_id=${cliente.id}`)
-      .then(res => res.json())
-      .then(data => {
+      .then(res => res.text())
+      .then(text => {
+        const data = text ? JSON.parse(text) : {};
         if (data.ok && data.fichas?.length > 0) {
           setFichas(data.fichas);
         } else {
+          // Fallback: usar datos del objeto cliente (importados en clientes.clientes)
           const legacy = {
             id: null, tipo: 'principal',
             gmaps_nombre:    cliente.gmaps_nombre || cliente.nombre_comercial,
