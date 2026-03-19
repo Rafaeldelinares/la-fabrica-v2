@@ -300,11 +300,14 @@ const TabGbp = ({ cliente, n8nUrl }) => {
   useEffect(() => { fetchFichas(); }, [cliente.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetch(`${n8nUrl}/crm-gbp-historico-cliente?cliente_id=${cliente.id}`)
+    const fichaId = fichas?.[selIdx]?.id;
+    const params = new URLSearchParams({ cliente_id: cliente.id });
+    if (fichaId) params.set('ficha_id', fichaId);
+    fetch(`${n8nUrl}/crm-gbp-historico-cliente?${params}`)
       .then(res => res.json())
       .then(data => setHistorico(data.ok ? data.historico : []))
       .catch(() => { setHistorico([]); setErrorCarga('Error al cargar historial GBP'); });
-  }, [cliente.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cliente.id, selIdx, fichas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fichaActual = fichas?.[selIdx] || null;
 
