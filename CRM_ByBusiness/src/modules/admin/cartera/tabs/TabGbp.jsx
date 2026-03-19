@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, ExternalLink, Plus } from 'lucide-react';
+import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, ExternalLink, Plus, Search } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../../utils/dates';
 
 /**
@@ -211,24 +211,66 @@ FichaDetalle.propTypes = {
   historico: PropTypes.array,
 };
 
+/** Panel de selección de candidatos GBP encontrados por el motor. */
+const CandidatosPanel = ({ candidatos, onConfirmar, onCancelar, confirmando }) => (
+  <div className="border border-amber-500/30 bg-amber-500/5 rounded-sm p-4 flex flex-col gap-3">
+    <div className="flex items-center justify-between">
+      <p className="text-[10px] text-amber-400 font-mono uppercase tracking-widest flex items-center gap-1.5">
+        <Search size={10} /> {candidatos.length} candidato{candidatos.length !== 1 ? 's' : ''} encontrado{candidatos.length !== 1 ? 's' : ''}
+      </p>
+      <button onClick={onCancelar} className="text-[10px] text-slate-600 hover:text-slate-400 font-mono transition-colors">
+        Cancelar
+      </button>
+    </div>
+    <p className="text-[10px] text-amber-600/70 font-mono">Selecciona la ficha correcta para este cliente</p>
+    <div className="flex flex-col gap-2">
+      {candidatos.map((c, i) => (
+        <div key={i} className="border border-slate-700 rounded-sm p-3 bg-slate-900/50 flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-bold text-white font-mono truncate">{c.name}</p>
+            {c.address && <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{c.address}</p>}
+            <div className="flex items-center gap-3 mt-1">
+              {c.rating > 0 && <span className="text-[10px] text-amber-400 font-mono">{Number(c.rating).toFixed(1)} ★</span>}
+              {c.reviews > 0 && <span className="text-[10px] text-slate-500 font-mono">{c.reviews} reseñas</span>}
+            </div>
+          </div>
+          <button onClick={() => onConfirmar(c)} disabled={confirmando}
+            className="shrink-0 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest border border-emerald-500/40 rounded-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-40">
+            {confirmando ? '…' : 'Usar esta'}
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+CandidatosPanel.propTypes = {
+  candidatos:  PropTypes.arrayOf(PropTypes.object).isRequired,
+  onConfirmar: PropTypes.func.isRequired,
+  onCancelar:  PropTypes.func.isRequired,
+  confirmando: PropTypes.bool,
+};
+
 /**
  * TabGbp — Pestaña de fichas Google Business del cliente con evolución y sentiment.
  * @param {{ cliente: object, n8nUrl: string }} props
  */
 const TabGbp = ({ cliente, n8nUrl }) => {
-  const [fichas,     setFichas]     = useState(null);
-  const [selIdx,     setSelIdx]     = useState(0);
-  const [historico,  setHistorico]  = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [addMode,    setAddMode]    = useState(false);
-  const [newFicha,   setNewFicha]   = useState({ tipo: '', gmaps_nombre: '', gmaps_url: '', gestionada_por_bybusiness: false });
-  const [saving,     setSaving]     = useState(false);
+  const [fichas,      setFichas]      = useState(null);
+  const [selIdx,      setSelIdx]      = useState(0);
+  const [historico,   setHistorico]   = useState(null);
+  const [refreshing,  setRefreshing]  = useState(false);
+  const [candidatos,  setCandidatos]  = useState(null);
+  const [confirmando, setConfirmando] = useState(false);
+  const [addMode,     setAddMode]     = useState(false);
+  const [newFicha,    setNewFicha]    = useState({ tipo: '', gmaps_nombre: '', gmaps_url: '', gestionada_por_bybusiness: false });
+  const [saving,      setSaving]      = useState(false);
   const [errorAction, setErrorAction] = useState(null);
   const [errorCarga,  setErrorCarga]  = useState(null);
 
   const fetchFichas = () => {
     setErrorCarga(null);
-    fetch(`${n8nUrl}/crm-gbp-fichas?cliente_id=${cliente.id}`)
+    fetch(`${n8nUrl}/crm-gbp-fichas-cliente?cliente_id=${cliente.id}`)
       .then(res => res.text())
       .then(text => {
         const data = text ? JSON.parse(text) : {};
@@ -269,16 +311,43 @@ const TabGbp = ({ cliente, n8nUrl }) => {
   const handleRefresh = async () => {
     setRefreshing(true);
     setErrorAction(null);
+    setCandidatos(null);
     try {
       const localidad = cliente.localidad_negocio || cliente.localidad || '';
       const query = `${cliente.nombre_comercial}${localidad ? ' ' + localidad : ''}`;
-      await fetch(`${n8nUrl}/crm-gbp-refresh`, {
+      const res = await fetch(`${n8nUrl}/crm-gbp-refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: cliente.id, query }),
       });
-      fetchFichas();
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (data.ok && data.type === 'list' && data.candidatos?.length > 0) {
+        setCandidatos(data.candidatos);
+      } else {
+        fetchFichas();
+      }
     } catch { setErrorAction('Error al actualizar fichas'); } finally { setRefreshing(false); }
+  };
+
+  const handleConfirmar = async (candidato) => {
+    setConfirmando(true);
+    setErrorAction(null);
+    try {
+      await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: cliente.id,
+          nombre:  candidato.name,
+          rating:  candidato.rating,
+          reviews: candidato.reviews,
+          address: candidato.address,
+        }),
+      });
+      setCandidatos(null);
+      fetchFichas();
+    } catch { setErrorAction('Error al confirmar ficha'); } finally { setConfirmando(false); }
   };
 
   const handleValidar = async (fichaId, accion) => {
@@ -320,6 +389,14 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         <p className="text-[10px] text-red-400 font-mono bg-red-900/10 border border-red-800/30 rounded-sm px-3 py-2">
           {errorAction || errorCarga}
         </p>
+      )}
+      {candidatos !== null && (
+        <CandidatosPanel
+          candidatos={candidatos}
+          onConfirmar={handleConfirmar}
+          onCancelar={() => setCandidatos(null)}
+          confirmando={confirmando}
+        />
       )}
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-slate-600 uppercase tracking-widest font-mono">
