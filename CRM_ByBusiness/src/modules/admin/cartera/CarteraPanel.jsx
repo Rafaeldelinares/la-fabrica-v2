@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, Info } from 'lucide-react';
+import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -11,27 +11,9 @@ import { useAuth } from '../../auth/AuthContext';
 const PAGE_SIZE = 15;
 
 const SEMAFORO_CONFIG = {
-  verde: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Al día',    tooltip: 'Contactados en los últimos 30 días, sin pagos problemáticos ni renovaciones urgentes.' },
-  ambar: { dot: 'bg-amber-400',   badge: 'bg-amber-400/10  text-amber-400  border-amber-400/20',   label: 'Atención', tooltip: 'Sin contacto entre 30 y 60 días, renovación en menos de 60 días, o pagos pendientes.' },
-  rojo:  { dot: 'bg-red-500',     badge: 'bg-red-500/10    text-red-400    border-red-500/20',     label: 'Críticos',  tooltip: 'Sin contacto más de 60 días, sin ningún registro, o con pagos vencidos.' },
-};
-
-/**
- * StatTooltip — Tooltip flotante sobre el ícono de info de una stat card.
- * @param {{ text: string }} props
- */
-const StatTooltip = ({ text }) => (
-  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-60 z-50 pointer-events-none opacity-0 group-hover/card:opacity-100 transition-opacity duration-150">
-    <div className="w-2 h-2 bg-slate-800 border-l border-t border-slate-700 rotate-45 mx-auto mb-[-4px]" />
-    <div className="bg-slate-800 border border-slate-700 rounded-sm px-3 py-2 text-[10px] text-slate-300 font-mono leading-relaxed shadow-xl">
-      {text}
-    </div>
-  </div>
-);
-
-StatTooltip.propTypes = {
-  /** Texto explicativo del semáforo que se muestra en el tooltip */
-  text: PropTypes.string.isRequired,
+  verde: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Al día',    desc: 'Contacto en los últimos 30 días, sin pagos pendientes ni renovaciones urgentes.' },
+  ambar: { dot: 'bg-amber-400',   badge: 'bg-amber-400/10  text-amber-400  border-amber-400/20',   label: 'Atención', desc: 'Sin contacto entre 30-60 días, renovación próxima o pagos pendientes.' },
+  rojo:  { dot: 'bg-red-500',     badge: 'bg-red-500/10    text-red-400    border-red-500/20',     label: 'Críticos',  desc: 'Sin contacto más de 60 días, sin historial registrado o pagos vencidos.' },
 };
 
 const fmtDias = (dias) => {
@@ -211,7 +193,7 @@ const CarteraPanel = () => {
         {/* Stats semáforo */}
         <div className="grid grid-cols-4 gap-3 shrink-0">
           {[
-            { key: '', label: 'Total clientes', value: stats.total, dot: 'bg-slate-500', tooltip: 'Total de clientes activos en cartera, según el filtro de año aplicado.' },
+            { key: '', label: 'Total clientes', value: stats.total, dot: 'bg-slate-500', desc: null },
             { key: 'verde', ...SEMAFORO_CONFIG.verde, value: stats.verde },
             { key: 'ambar', ...SEMAFORO_CONFIG.ambar, value: stats.ambar },
             { key: 'rojo',  ...SEMAFORO_CONFIG.rojo,  value: stats.rojo  },
@@ -219,21 +201,26 @@ const CarteraPanel = () => {
             <button
               key={s.key}
               onClick={() => setFiltroSemaforo(filtroSemaforo === s.key ? '' : s.key)}
-              className={`group/card relative flex items-center gap-3 px-4 py-3 rounded-sm border transition-all text-left ${
+              className={`flex flex-col gap-2 px-4 pt-3 pb-3 rounded-sm border transition-all text-left ${
                 filtroSemaforo === s.key
                   ? 'bg-slate-800 border-slate-600'
                   : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
               }`}
             >
-              <div className={`w-2.5 h-2.5 rounded-sm shrink-0 ${s.dot}`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">{s.label}</p>
-                <p className="text-xl font-black text-white font-mono leading-tight">{clientes === null ? '—' : s.value}</p>
+              {/* Parte superior: dot + label + número */}
+              <div className="flex items-center gap-3">
+                <div className={`w-2.5 h-2.5 rounded-sm shrink-0 ${s.dot}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">{s.label}</p>
+                  <p className="text-xl font-black text-white font-mono leading-tight">{clientes === null ? '—' : s.value}</p>
+                </div>
               </div>
-              {s.tooltip && (
-                <Info size={18} className="text-slate-500 shrink-0" />
+              {/* Parte inferior: descripción del criterio */}
+              {s.desc && (
+                <p className="text-[9px] text-slate-600 font-mono leading-relaxed border-t border-slate-800 pt-2">
+                  {s.desc}
+                </p>
               )}
-              {s.tooltip && <StatTooltip text={s.tooltip} />}
             </button>
           ))}
         </div>
