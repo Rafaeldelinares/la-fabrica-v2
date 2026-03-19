@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, Plus, Search, Link } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../../utils/dates';
@@ -68,7 +68,7 @@ const FichaDetalle = ({ ficha, historico }) => {
   const parseSentiment = (s) => {
     if (!s) return null;
     if (typeof s === 'object') return s;
-    try { return JSON.parse(s); } catch { return null; }
+    try { return JSON.parse(s); } catch (e) { console.error('[GBP] parseSentiment:', e); return null; }
   };
 
   const sentimentData    = parseSentiment(ficha.gmaps_sentiment);
@@ -207,7 +207,14 @@ const FichaDetalle = ({ ficha, historico }) => {
 };
 
 FichaDetalle.propTypes = {
-  ficha:    PropTypes.object.isRequired,
+  ficha: PropTypes.shape({
+    gmaps_rating:    PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    gmaps_reseñas:   PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    gmaps_url:       PropTypes.string,
+    gmaps_address:   PropTypes.string,
+    gmaps_sentiment: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    google_cid:      PropTypes.string,
+  }).isRequired,
   historico: PropTypes.array,
 };
 
@@ -225,7 +232,7 @@ const CandidatosPanel = ({ candidatos, onConfirmar, onCancelar, confirmando }) =
     <p className="text-[10px] text-amber-600/70 font-mono">Selecciona la ficha correcta para este cliente</p>
     <div className="flex flex-col gap-2">
       {candidatos.map((c, i) => (
-        <div key={i} className="border border-slate-700 rounded-sm p-3 bg-slate-900/50 flex items-start justify-between gap-3">
+        <div key={c.cid || c.name || i} className="border border-slate-700 rounded-sm p-3 bg-slate-900/50 flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-[11px] font-bold text-white font-mono truncate">{c.name}</p>
             {c.address && <p className="text-[10px] text-slate-500 font-mono mt-0.5 truncate">{c.address}</p>}
@@ -245,7 +252,13 @@ const CandidatosPanel = ({ candidatos, onConfirmar, onCancelar, confirmando }) =
 );
 
 CandidatosPanel.propTypes = {
-  candidatos:  PropTypes.arrayOf(PropTypes.object).isRequired,
+  candidatos: PropTypes.arrayOf(PropTypes.shape({
+    name:    PropTypes.string,
+    address: PropTypes.string,
+    rating:  PropTypes.number,
+    reviews: PropTypes.number,
+    cid:     PropTypes.string,
+  })).isRequired,
   onConfirmar: PropTypes.func.isRequired,
   onCancelar:  PropTypes.func.isRequired,
   confirmando: PropTypes.bool,
@@ -271,7 +284,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
   const [errorAction, setErrorAction] = useState(null);
   const [errorCarga,  setErrorCarga]  = useState(null);
 
-  const fetchFichas = () => {
+  const fetchFichas = useCallback(() => {
     setErrorCarga(null);
     fetch(`${n8nUrl}/crm-gbp-fichas-cliente?cliente_id=${cliente.id}`)
       .then(res => res.text())
@@ -297,23 +310,25 @@ const TabGbp = ({ cliente, n8nUrl }) => {
           setFichas(legacy.gmaps_rating || legacy.gmaps_url ? [legacy] : []);
         }
       })
-      .catch(() => { setFichas([]); setErrorCarga('Error al cargar fichas GBP'); });
-  };
+      .catch((e) => { console.error('[GBP] fetchFichas:', e); setFichas([]); setErrorCarga('Error al cargar fichas GBP'); });
+  }, [cliente.id, cliente.gmaps_nombre, cliente.nombre_comercial, cliente.gmaps_url, cliente.google_cid, cliente.gmaps_rating, cliente.gmaps_reseñas, cliente.gmaps_address, cliente.gmaps_sentiment, cliente.gmaps_pendiente_validar, cliente.gmaps_last_updated, n8nUrl]);
 
-  useEffect(() => { fetchFichas(); }, [cliente.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchFichas(); }, [fetchFichas]);
 
   useEffect(() => {
+    if (fichas === null) return;
     const fichaId = fichas?.[selIdx]?.id;
     const params = new URLSearchParams({ cliente_id: cliente.id });
     if (fichaId) params.set('ficha_id', fichaId);
     fetch(`${n8nUrl}/crm-gbp-historico-cliente?${params}`)
       .then(res => res.json())
       .then(data => setHistorico(data.ok ? data.historico : []))
-      .catch(() => { setHistorico([]); setErrorCarga('Error al cargar historial GBP'); });
-  }, [cliente.id, selIdx, fichas]); // eslint-disable-line react-hooks/exhaustive-deps
+      .catch((e) => { console.error('[GBP] historico:', e); setHistorico([]); setErrorCarga('Error al cargar historial GBP'); });
+  }, [cliente.id, selIdx, fichas, n8nUrl]);
 
   const fichaActual = fichas?.[selIdx] || null;
 
+  /** Busca la ficha GBP del cliente en Maps y muestra candidatos para selección humana. */
   const handleRefresh = async () => {
     setRefreshing(true);
     setErrorAction(null);
@@ -333,9 +348,10 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       } else {
         fetchFichas();
       }
-    } catch { setErrorAction('Error al actualizar fichas'); } finally { setRefreshing(false); }
+    } catch (e) { console.error('[GBP] refresh:', e); setErrorAction('Error al actualizar fichas'); } finally { setRefreshing(false); }
   };
 
+  /** Confirma un candidato seleccionado y lo guarda como ficha del cliente. */
   const handleConfirmar = async (candidato) => {
     setConfirmando(true);
     setErrorAction(null);
@@ -353,9 +369,10 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       });
       setCandidatos(null);
       fetchFichas();
-    } catch { setErrorAction('Error al confirmar ficha'); } finally { setConfirmando(false); }
+    } catch (e) { console.error('[GBP] confirmar:', e); setErrorAction('Error al confirmar ficha'); } finally { setConfirmando(false); }
   };
 
+  /** Valida (confirma/rechaza) una ficha encontrada automáticamente. */
   const handleValidar = async (fichaId, accion) => {
     setErrorAction(null);
     try {
@@ -364,9 +381,11 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: cliente.id, ficha_id: fichaId, accion }),
       });
-    } catch { setErrorAction('Error al validar ficha'); } finally { fetchFichas(); }
+      fetchFichas();
+    } catch (e) { console.error('[GBP] validar:', e); setErrorAction('Error al validar ficha'); }
   };
 
+  /** Resetea el estado del flujo de añadir ficha manual. */
   const resetAdd = () => {
     setAddMode(false);
     setAddUrl('');
@@ -376,6 +395,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setVerificando(false);
   };
 
+  /** Paso 1 del flujo añadir: extrae datos del negocio a partir de la URL de Maps. */
   const handleCapturar = async () => {
     if (!addUrl.trim()) return;
     setCapturando(true);
@@ -394,9 +414,10 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       } else {
         setErrorAction(data.error || 'No se pudieron obtener datos de esa URL');
       }
-    } catch { setErrorAction('Error al capturar datos de la URL'); } finally { setCapturando(false); }
+    } catch (e) { console.error('[GBP] capturar:', e); setErrorAction('Error al capturar datos de la URL'); } finally { setCapturando(false); }
   };
 
+  /** Paso 2 del flujo añadir: guarda la ficha previamente capturada como ficha del cliente. */
   const handleVerificar = async () => {
     if (!preview) return;
     setVerificando(true);
@@ -418,7 +439,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       });
       resetAdd();
       fetchFichas();
-    } catch { setErrorAction('Error al guardar ficha'); } finally { setVerificando(false); }
+    } catch (e) { console.error('[GBP] verificar:', e); setErrorAction('Error al guardar ficha'); } finally { setVerificando(false); }
   };
 
   if (fichas === null) return (
@@ -462,7 +483,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       {fichas.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           {fichas.map((ficha, fichaIdx) => (
-            <button key={fichaIdx} onClick={() => setSelIdx(fichaIdx)}
+            <button key={ficha.id || ficha.tipo || fichaIdx} onClick={() => setSelIdx(fichaIdx)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-sm border text-[10px] font-mono uppercase tracking-widest transition-colors ${
                 selIdx === fichaIdx
                   ? 'bg-slate-800 border-slate-600 text-white'
@@ -595,8 +616,22 @@ const TabGbp = ({ cliente, n8nUrl }) => {
 };
 
 TabGbp.propTypes = {
-  cliente: PropTypes.object.isRequired,
-  n8nUrl:  PropTypes.string.isRequired,
+  cliente: PropTypes.shape({
+    id:                      PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+    nombre_comercial:        PropTypes.string,
+    localidad_negocio:       PropTypes.string,
+    localidad:               PropTypes.string,
+    gmaps_nombre:            PropTypes.string,
+    gmaps_url:               PropTypes.string,
+    google_cid:              PropTypes.string,
+    gmaps_rating:            PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    gmaps_reseñas:           PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    gmaps_address:           PropTypes.string,
+    gmaps_sentiment:         PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    gmaps_pendiente_validar: PropTypes.bool,
+    gmaps_last_updated:      PropTypes.string,
+  }).isRequired,
+  n8nUrl: PropTypes.string.isRequired,
 };
 
 export default TabGbp;
