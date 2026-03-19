@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, ExternalLink, Plus, Search } from 'lucide-react';
+import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, Plus, Search, Link } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../../utils/dates';
 
 /**
@@ -263,8 +263,11 @@ const TabGbp = ({ cliente, n8nUrl }) => {
   const [candidatos,  setCandidatos]  = useState(null);
   const [confirmando, setConfirmando] = useState(false);
   const [addMode,     setAddMode]     = useState(false);
-  const [newFicha,    setNewFicha]    = useState({ tipo: '', gmaps_nombre: '', gmaps_url: '', gestionada_por_bybusiness: false });
-  const [saving,      setSaving]      = useState(false);
+  const [addUrl,      setAddUrl]      = useState('');
+  const [capturando,  setCapturando]  = useState(false);
+  const [preview,     setPreview]     = useState(null);
+  const [gestionada,  setGestionada]  = useState(false);
+  const [verificando, setVerificando] = useState(false);
   const [errorAction, setErrorAction] = useState(null);
   const [errorCarga,  setErrorCarga]  = useState(null);
 
@@ -364,20 +367,58 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     } catch { setErrorAction('Error al validar ficha'); } finally { fetchFichas(); }
   };
 
-  const handleAddFicha = async () => {
-    if (!newFicha.tipo || !newFicha.gmaps_url) return;
-    setSaving(true);
+  const resetAdd = () => {
+    setAddMode(false);
+    setAddUrl('');
+    setPreview(null);
+    setGestionada(false);
+    setCapturando(false);
+    setVerificando(false);
+  };
+
+  const handleCapturar = async () => {
+    if (!addUrl.trim()) return;
+    setCapturando(true);
     setErrorAction(null);
+    setPreview(null);
     try {
-      await fetch(`${n8nUrl}/crm-gbp-ficha-add`, {
+      const res = await fetch(`${n8nUrl}/crm-gbp-verificar-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, ...newFicha }),
+        body: JSON.stringify({ gmaps_url: addUrl.trim() }),
       });
-      setAddMode(false);
-      setNewFicha({ tipo: '', gmaps_nombre: '', gmaps_url: '', gestionada_por_bybusiness: false });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (data.ok && data.nombre) {
+        setPreview(data);
+      } else {
+        setErrorAction(data.error || 'No se pudieron obtener datos de esa URL');
+      }
+    } catch { setErrorAction('Error al capturar datos de la URL'); } finally { setCapturando(false); }
+  };
+
+  const handleVerificar = async () => {
+    if (!preview) return;
+    setVerificando(true);
+    setErrorAction(null);
+    try {
+      await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cliente_id: cliente.id,
+          nombre:  preview.nombre,
+          rating:  preview.rating,
+          reviews: preview.reviews,
+          address: preview.address,
+          gmaps_url: addUrl.trim(),
+          cid: preview.cid,
+          gestionada_por_bybusiness: gestionada,
+        }),
+      });
+      resetAdd();
       fetchFichas();
-    } catch { setErrorAction('Error al añadir ficha'); } finally { setSaving(false); }
+    } catch { setErrorAction('Error al guardar ficha'); } finally { setVerificando(false); }
   };
 
   if (fichas === null) return (
@@ -405,11 +446,17 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         <p className="text-[10px] text-slate-600 uppercase tracking-widest font-mono">
           {fichas.length} {fichas.length === 1 ? 'ficha' : 'fichas'} registradas
         </p>
-        <button onClick={handleRefresh} disabled={refreshing}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-50">
-          <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
-          {refreshing ? 'Buscando…' : 'Actualizar'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setAddMode(a => !a); setPreview(null); setAddUrl(''); setErrorAction(null); }}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-sm border border-dashed border-slate-700 text-slate-600 hover:text-slate-400 hover:border-slate-500 text-[10px] font-mono transition-colors">
+            <Plus size={10} /> Añadir
+          </button>
+          <button onClick={handleRefresh} disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-50">
+            <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
+            {refreshing ? 'Buscando…' : 'Actualizar'}
+          </button>
+        </div>
       </div>
 
       {fichas.length > 0 && (
@@ -427,41 +474,66 @@ const TabGbp = ({ cliente, n8nUrl }) => {
               {ficha.gmaps_rating && <span className="text-amber-400 ml-1">{Number(ficha.gmaps_rating).toFixed(1)}★</span>}
             </button>
           ))}
-          <button onClick={() => setAddMode(a => !a)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-sm border border-dashed border-slate-700 text-slate-600 hover:text-slate-400 hover:border-slate-500 text-[10px] font-mono transition-colors">
-            <Plus size={10} /> Añadir
-          </button>
         </div>
       )}
 
       {addMode && (
-        <div className="border border-slate-700 rounded-sm p-3 bg-slate-900/50 flex flex-col gap-2">
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mb-1">Nueva ficha</p>
-          <input placeholder="Tipo (barberia, tatuajes, local_2…)" value={newFicha.tipo}
-            onChange={e => setNewFicha(f => ({ ...f, tipo: e.target.value }))}
-            className="bg-slate-950 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full" />
-          <input placeholder="Nombre en Maps" value={newFicha.gmaps_nombre}
-            onChange={e => setNewFicha(f => ({ ...f, gmaps_nombre: e.target.value }))}
-            className="bg-slate-950 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full" />
-          <input placeholder="URL de Google Maps *" value={newFicha.gmaps_url}
-            onChange={e => setNewFicha(f => ({ ...f, gmaps_url: e.target.value }))}
-            className="bg-slate-950 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full" />
-          <label className="flex items-center gap-2 text-[10px] text-slate-500 font-mono cursor-pointer">
-            <input type="checkbox" checked={newFicha.gestionada_por_bybusiness}
-              onChange={e => setNewFicha(f => ({ ...f, gestionada_por_bybusiness: e.target.checked }))}
-              className="accent-[#D00000]" />
-            Gestionada por ByBusiness
-          </label>
+        <div className="border border-slate-700 rounded-sm p-3 bg-slate-900/50 flex flex-col gap-3">
+          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Añadir ficha por URL</p>
+
+          {/* Paso 1 — URL */}
           <div className="flex gap-2">
-            <button onClick={handleAddFicha} disabled={saving || !newFicha.tipo || !newFicha.gmaps_url}
-              className="flex-1 py-1.5 text-[10px] font-mono uppercase tracking-widest border border-slate-600 rounded-sm text-slate-300 hover:text-white transition-colors disabled:opacity-40">
-              {saving ? 'Guardando…' : 'Guardar ficha'}
-            </button>
-            <button onClick={() => setAddMode(false)}
-              className="px-3 py-1.5 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors">
-              Cancelar
+            <div className="flex-1 relative">
+              <Link size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
+              <input
+                placeholder="URL de Google Maps (maps.google.com/place/…)"
+                value={addUrl}
+                onChange={e => { setAddUrl(e.target.value); setPreview(null); }}
+                className="bg-slate-950 border border-slate-700 rounded-sm pl-7 pr-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full"
+              />
+            </div>
+            <button onClick={handleCapturar} disabled={capturando || !addUrl.trim()}
+              className="shrink-0 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border border-slate-600 rounded-sm text-slate-300 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-40">
+              {capturando ? '…' : 'Capturar datos'}
             </button>
           </div>
+
+          {/* Paso 2 — Preview + confirmar */}
+          {preview && (
+            <div className="border border-emerald-500/30 bg-emerald-500/5 rounded-sm p-3 flex flex-col gap-2">
+              <p className="text-[10px] text-emerald-400 font-mono uppercase tracking-widest flex items-center gap-1.5">
+                <CheckCircle size={10} /> Datos capturados — confirma para guardar
+              </p>
+              <p className="text-[11px] font-bold text-white font-mono">{preview.nombre}</p>
+              {preview.address && <p className="text-[10px] text-slate-500 font-mono">{preview.address}</p>}
+              <div className="flex items-center gap-3">
+                {preview.rating > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] text-amber-400 font-mono">
+                    <Star size={9} className="fill-amber-400" /> {Number(preview.rating).toFixed(1)}
+                  </span>
+                )}
+                {preview.reviews > 0 && (
+                  <span className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                    <MessageSquare size={9} /> {preview.reviews}
+                  </span>
+                )}
+              </div>
+              <label className="flex items-center gap-2 text-[10px] text-slate-500 font-mono cursor-pointer mt-1">
+                <input type="checkbox" checked={gestionada} onChange={e => setGestionada(e.target.checked)}
+                  className="accent-[#D00000]" />
+                Gestionada por ByBusiness
+              </label>
+              <button onClick={handleVerificar} disabled={verificando}
+                className="w-full py-1.5 text-[10px] font-mono uppercase tracking-widest border border-emerald-500/40 rounded-sm text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-40 mt-1">
+                {verificando ? 'Guardando…' : 'Verificar y guardar'}
+              </button>
+            </div>
+          )}
+
+          <button onClick={resetAdd}
+            className="text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors self-start">
+            Cancelar
+          </button>
         </div>
       )}
 
@@ -469,7 +541,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         <div className="text-center py-10 flex flex-col items-center gap-3">
           <AlertCircle size={24} className="text-slate-700" />
           <p className="text-slate-600 text-xs font-mono">Sin fichas de Google Business</p>
-          <p className="text-slate-700 text-[10px] font-mono">Pulsa "Actualizar" para buscar o "Añadir" para registrar manualmente</p>
+          <p className="text-slate-700 text-[10px] font-mono">Pulsa "Actualizar" para buscar en Maps o "Añadir" para registrar por URL</p>
         </div>
       )}
 
