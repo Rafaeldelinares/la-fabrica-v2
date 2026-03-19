@@ -217,7 +217,7 @@ const CarteraPanel = () => {
               </div>
               {/* Parte inferior: descripción del criterio */}
               {s.desc && (
-                <p className="text-[9px] text-slate-600 font-mono leading-relaxed border-t border-slate-800 pt-2">
+                <p className="text-[10px] text-slate-500 font-mono leading-relaxed border-t border-slate-800 pt-2">
                   {s.desc}
                 </p>
               )}
