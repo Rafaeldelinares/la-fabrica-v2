@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, Plus, Search, Link } from 'lucide-react';
+import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, Plus, Search, Link, Phone, Globe, Instagram, Facebook } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../../utils/dates';
 
 /**
@@ -201,6 +201,25 @@ const FichaDetalle = ({ ficha, historico }) => {
         </div>
       )}
 
+      {(ficha.gmaps_phone || ficha.gmaps_website) && (
+        <div className="flex flex-col gap-1.5">
+          {ficha.gmaps_phone && (
+            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
+              <Phone size={11} className="text-slate-600 shrink-0" />
+              {ficha.gmaps_phone}
+            </div>
+          )}
+          {ficha.gmaps_website && (
+            <div className="flex items-center gap-2 text-xs font-mono">
+              <Globe size={11} className="text-slate-600 shrink-0" />
+              <a href={ficha.gmaps_website} target="_blank" rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 transition-colors truncate">
+                {ficha.gmaps_website}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
       {ficha.google_cid && <p className="text-[10px] text-slate-700 font-mono">CID: {ficha.google_cid}</p>}
     </div>
   );
@@ -212,6 +231,8 @@ FichaDetalle.propTypes = {
     gmaps_reseñas:   PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     gmaps_url:       PropTypes.string,
     gmaps_address:   PropTypes.string,
+    gmaps_phone:     PropTypes.string,
+    gmaps_website:   PropTypes.string,
     gmaps_sentiment: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
     google_cid:      PropTypes.string,
   }).isRequired,
@@ -262,6 +283,23 @@ CandidatosPanel.propTypes = {
   onConfirmar: PropTypes.func.isRequired,
   onCancelar:  PropTypes.func.isRequired,
   confirmando: PropTypes.bool,
+};
+
+/** Detecta el tipo de URL introducida por el admin. */
+const detectUrlType = (url) => {
+  if (!url) return null;
+  const u = url.trim().toLowerCase();
+  if (u.includes('maps.google.com') || u.includes('google.com/maps')) return 'maps';
+  if (u.includes('instagram.com')) return 'instagram';
+  if (u.includes('facebook.com') || u.includes('fb.com')) return 'facebook';
+  return 'web';
+};
+
+const URL_TYPE_LABELS = {
+  maps:      { label: 'URL de Maps',  icon: MapPin,      color: 'text-emerald-400' },
+  web:       { label: 'Página web',   icon: Globe,       color: 'text-blue-400'    },
+  instagram: { label: 'Instagram',    icon: Instagram,   color: 'text-pink-400'    },
+  facebook:  { label: 'Facebook',     icon: Facebook,    color: 'text-blue-500'    },
 };
 
 /**
@@ -339,7 +377,11 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       const res = await fetch(`${n8nUrl}/crm-gbp-refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, query }),
+        body: JSON.stringify({
+          cliente_id: cliente.id,
+          query,
+          web: cliente.web || null,
+        }),
       });
       const text = await res.text();
       const data = text ? JSON.parse(text) : {};
@@ -395,17 +437,23 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setVerificando(false);
   };
 
-  /** Paso 1 del flujo añadir: extrae datos del negocio a partir de la URL de Maps. */
+  /** Paso 1 del flujo añadir: extrae datos del negocio a partir de la URL introducida. */
   const handleCapturar = async () => {
     if (!addUrl.trim()) return;
     setCapturando(true);
     setErrorAction(null);
     setPreview(null);
     try {
+      const urlType = detectUrlType(addUrl.trim());
       const res = await fetch(`${n8nUrl}/crm-gbp-verificar-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gmaps_url: addUrl.trim() }),
+        body: JSON.stringify({
+          gmaps_url: addUrl.trim(),
+          url_type: urlType,
+          nombre_comercial: cliente.nombre_comercial,
+          localidad: cliente.localidad_negocio || cliente.localidad || '',
+        }),
       });
       const text = await res.text();
       const data = text ? JSON.parse(text) : {};
@@ -500,14 +548,28 @@ const TabGbp = ({ cliente, n8nUrl }) => {
 
       {addMode && (
         <div className="border border-slate-700 rounded-sm p-3 bg-slate-900/50 flex flex-col gap-3">
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Añadir ficha por URL</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest">Buscar ficha</p>
+            {cliente.web && (
+              <button
+                onClick={() => { setAddUrl(cliente.web); setPreview(null); }}
+                className="flex items-center gap-1 text-[9px] font-mono text-blue-500 hover:text-blue-400 border border-blue-500/20 rounded-sm px-2 py-0.5 transition-colors">
+                <Globe size={9} /> Usar web del cliente
+              </button>
+            )}
+          </div>
 
-          {/* Paso 1 — URL */}
+          {/* Paso 1 — URL con detección de tipo */}
           <div className="flex gap-2">
             <div className="flex-1 relative">
-              <Link size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-600" />
+              {(() => {
+                const type = detectUrlType(addUrl);
+                const meta = type ? URL_TYPE_LABELS[type] : null;
+                const Icon = meta ? meta.icon : Link;
+                return <Icon size={11} className={`absolute left-2.5 top-1/2 -translate-y-1/2 ${meta ? meta.color : 'text-slate-600'}`} />;
+              })()}
               <input
-                placeholder="URL de Google Maps (maps.google.com/place/…)"
+                placeholder="URL de Maps, web del negocio, Instagram, Facebook…"
                 value={addUrl}
                 onChange={e => { setAddUrl(e.target.value); setPreview(null); }}
                 className="bg-slate-950 border border-slate-700 rounded-sm pl-7 pr-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full"
@@ -518,6 +580,16 @@ const TabGbp = ({ cliente, n8nUrl }) => {
               {capturando ? '…' : 'Capturar datos'}
             </button>
           </div>
+          {detectUrlType(addUrl) && (
+            <p className="text-[9px] font-mono text-slate-600 -mt-1">
+              {(() => {
+                const t = detectUrlType(addUrl);
+                if (t === 'maps') return 'Se navegará directamente a la ficha de Maps';
+                if (t === 'instagram' || t === 'facebook') return 'Se buscará por nombre del negocio usando el perfil social';
+                return 'Se buscará en Maps por la web del negocio';
+              })()}
+            </p>
+          )}
 
           {/* Paso 2 — Preview + confirmar */}
           {preview && (
@@ -558,11 +630,27 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         </div>
       )}
 
+      {!cliente.web && (
+        <div className="flex items-center gap-2 px-3 py-2 border border-amber-500/20 bg-amber-500/5 rounded-sm">
+          <Globe size={11} className="text-amber-500 shrink-0" />
+          <p className="text-[10px] text-amber-500/80 font-mono flex-1">
+            Este cliente no tiene web registrada
+          </p>
+          <span className="text-[9px] font-black uppercase tracking-widest text-amber-500 border border-amber-500/30 rounded-sm px-1.5 py-0.5">
+            Oportunidad
+          </span>
+        </div>
+      )}
+
       {fichas.length === 0 && !addMode && (
         <div className="text-center py-10 flex flex-col items-center gap-3">
           <AlertCircle size={24} className="text-slate-700" />
           <p className="text-slate-600 text-xs font-mono">Sin fichas de Google Business</p>
-          <p className="text-slate-700 text-[10px] font-mono">Pulsa "Actualizar" para buscar en Maps o "Añadir" para registrar por URL</p>
+          <p className="text-slate-700 text-[10px] font-mono">
+            {cliente.web
+              ? 'Pulsa "Actualizar" para buscar por web del cliente'
+              : 'Pulsa "Añadir" para registrar la ficha de Maps manualmente'}
+          </p>
         </div>
       )}
 
@@ -621,6 +709,7 @@ TabGbp.propTypes = {
     nombre_comercial:        PropTypes.string,
     localidad_negocio:       PropTypes.string,
     localidad:               PropTypes.string,
+    web:                     PropTypes.string,
     gmaps_nombre:            PropTypes.string,
     gmaps_url:               PropTypes.string,
     google_cid:              PropTypes.string,

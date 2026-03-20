@@ -86,9 +86,15 @@ independiente del estándar Navy Industrial. En estos proyectos están PERMITIDO
 - GGA NO debe aplicar reglas Navy Industrial a rutas escaparate-com/ o escaparate-es/
 salvo indicación explícita del usuario.
 
+EXCEPCIÓN — CSS custom properties vía inline style:
+Cuando Tailwind no puede generar clases arbitrarias con valores dinámicos de runtime
+(ej: anchos proporcionales calculados en JS), se permite el patrón:
+  style={{ '--var': `${valor}%` }} + className="[width:var(--var)]"
+Usar SOLO cuando no existe alternativa Tailwind. Documentar con comentario en el código.
+
 PROHIBIDO:
-- Inline styles (usar Tailwind)
-- console.log en producción
+- Inline styles genéricos (usar Tailwind). Ver excepción CSS custom properties arriba.
+- console.log en producción (scripts CLI: usar process.stdout.write o logger wrapper)
 - setTimeout sin clearTimeout
 
 ## BASE DE DATOS POSTGRESQL
@@ -100,10 +106,20 @@ NAMING:
 - Foreign keys: fk_tabla_campo
 
 CÓDIGO:
-- Siempre usar prepared statements
+- Siempre usar prepared statements (librería pg con queries parametrizadas)
 - Transacciones para operaciones múltiples
 - Índices en columnas de búsqueda frecuente
 - Constraints de integridad referencial
+
+EXCEPCIÓN — Scripts CLI admin (psql via execSync/SSH):
+Los scripts de importación/migración de un solo uso (ej: import-gbp-2026.js) que ejecutan
+psql via SSH en bases de datos remotas donde la librería pg no es viable pueden usar
+string interpolation SOLO si se cumplen TODAS estas condiciones:
+1. Los valores numéricos se validan con parseInt/parseFloat antes de interpolación
+2. Los strings se escapan con .replace(/'/g, "''") (estándar de escape psql)
+3. El script NO es accesible desde internet (CLI local/admin, no endpoint web)
+4. El origen de datos es interno (nuestra BD o scrapers controlados, no input externo libre)
+Documentar el script con un aviso explícito de estas condiciones.
 
 PROHIBIDO:
 - SELECT * en producción

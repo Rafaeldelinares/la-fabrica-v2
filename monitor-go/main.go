@@ -354,31 +354,33 @@ func (a *app) handleWebhookByURL(w http.ResponseWriter, r *http.Request) {
 	})
 	requestLog.Info("Petición URL directa GBP recibida")
 
-	// 1. Extraer CID de la URL
-	cid, err := extractCIDFromURL(reqURL)
-	if err != nil {
-		requestLog.WithError(err).Warn("CID no encontrado en URL")
-		encodeJSON(w, FrontendResponse{Message: "CID no encontrado en la URL: " + err.Error()})
-		return
-	}
-	requestLog.WithField("cid", cid).Info("CID extraído de URL")
+	// 1. Extraer CID de la URL (opcional — si no hay CID usamos la URL original)
+	cid, cidErr := extractCIDFromURL(reqURL)
 
-	// 2. Consultar caché por CID
-	cacheKey := "cid:" + cid
-	if cachedData, found := a.getFromDB(cacheKey); found {
-		requestLog.WithField("source", "db_cache").Info("Respuesta desde caché (CID)")
-		encodeJSON(w, FrontendResponse{
-			Type:         "detail",
-			Data:         cachedData,
-			Cached:       true,
-			ResponseTime: time.Since(startTime).Seconds(),
-		})
-		return
+	// 2. Consultar caché por CID (solo si tenemos CID)
+	if cidErr == nil {
+		requestLog.WithField("cid", cid).Info("CID extraído de URL")
+		cacheKey := "cid:" + cid
+		if cachedData, found := a.getFromDB(cacheKey); found {
+			requestLog.WithField("source", "db_cache").Info("Respuesta desde caché (CID)")
+			encodeJSON(w, FrontendResponse{
+				Type:         "detail",
+				Data:         cachedData,
+				Cached:       true,
+				ResponseTime: time.Since(startTime).Seconds(),
+			})
+			return
+		}
+	} else {
+		requestLog.WithError(cidErr).Info("CID no encontrado — navegando directamente a la URL")
 	}
 
-	// 3. Llamar al scraper-maps con URL canónica CID
-	cidURL := "https://www.google.com/maps/?cid=" + cid
-	results, err := a.executeMapsJobByCID(r.Context(), cidURL)
+	// 3. Llamar al scraper-maps: URL canónica CID si se extrajo, o URL original
+	scrapeURL := reqURL
+	if cidErr == nil {
+		scrapeURL = "https://www.google.com/maps/?cid=" + cid
+	}
+	results, err := a.executeMapsJobByCID(r.Context(), scrapeURL)
 	if err != nil {
 		requestLog.WithError(err).Error("Error en scraping por URL directa")
 		encodeJSON(w, FrontendResponse{Message: "Error: " + err.Error()})
@@ -386,7 +388,7 @@ func (a *app) handleWebhookByURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(results) == 0 || results[0].Title == "" {
-		encodeJSON(w, FrontendResponse{Message: "Sin datos para CID: " + cid})
+		encodeJSON(w, FrontendResponse{Message: "Sin datos para URL: " + scrapeURL})
 		return
 	}
 
@@ -414,7 +416,11 @@ func (a *app) handleWebhookByURL(w http.ResponseWriter, r *http.Request) {
 		IsSimulated:   false,
 	}
 
-	a.saveToDB(cacheKey, data)
+	cacheSaveKey := scrapeURL
+	if cidErr == nil {
+		cacheSaveKey = "cid:" + cid
+	}
+	a.saveToDB(cacheSaveKey, data)
 	requestLog.WithField("business", data.Name).Info("Detalle GBP por URL devuelto")
 
 	encodeJSON(w, FrontendResponse{

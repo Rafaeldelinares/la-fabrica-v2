@@ -5,6 +5,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --only=production
 
+COPY logger.js ./
 COPY scraper-base.js ./
 COPY scraper-nano.js ./
 COPY scraper-heavy.js ./
