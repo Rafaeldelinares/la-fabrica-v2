@@ -1,11 +1,17 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { Lock, ShieldCheck, Terminal, Loader } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { QRCodeSVG } from 'qrcode.react';
 import * as OTPAuth from 'otpauth';
 
-const N8N_WEBHOOK = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
+const N8N_WEBHOOK = import.meta.env.VITE_N8N_URL;
 
+/**
+ * Login — Pantalla de autenticación con soporte TOTP MFA.
+ * Fase CREDENTIALS → valida email+contraseña vía n8n.
+ * Fase 2FA → valida código TOTP de 6 dígitos.
+ */
 const Login = () => {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
@@ -15,10 +21,14 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const pendingUser = useRef(null);
+  const autoValidateTimer = useRef(null);
 
   // State for MFA Mode: 'VERIFY' (Input) vs 'SETUP' (QR)
   const [mfaMode, setMfaMode] = useState('VERIFY');
 
+  useEffect(() => () => clearTimeout(autoValidateTimer.current), []);
+
+  /** Crea un generador TOTP a partir del secreto base32 del usuario. */
   const getTotpGenerator = (secret) => new OTPAuth.TOTP({
     issuer: 'ByBusiness',
     label: email,
@@ -28,6 +38,7 @@ const Login = () => {
     secret: OTPAuth.Secret.fromBase32(secret),
   });
 
+  /** Envía credenciales a n8n y avanza a fase 2FA si el usuario tiene TOTP activo. */
   const handleCredentials = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -57,6 +68,7 @@ const Login = () => {
     }
   };
 
+  /** Valida el código TOTP introducido contra el secreto del usuario pendiente. */
   const validateCode = (code) => {
     const user = pendingUser.current;
     if (!user?.totp_secret) return false;
@@ -69,6 +81,7 @@ const Login = () => {
     return false;
   };
 
+  /** Maneja el submit del formulario TOTP validando el código de 6 dígitos. */
   const handleToken = (e) => {
     e.preventDefault();
     if (!totp || totp.length !== 6) return;
@@ -92,14 +105,14 @@ const Login = () => {
         {/* BRAND IDENTITY */}
         <div className="flex flex-col items-center mb-10 animate-fade-in-down">
           <img
-            src="/bybusiness-logo.png"
+            src="/bybusiness-logo-white.png"
             alt="ByBusiness Industrial Intelligence"
             className="h-20 w-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]"
           />
           <span className="text-[10px] text-[#D00000] font-mono tracking-[0.5em] mt-3 opacity-80">INDUSTRIAL INTELLIGENCE</span>
         </div>
 
-        <div className="backdrop-blur-xl bg-slate-900/90 border border-slate-700 shadow-2xl p-8 relative rounded-2xl overflow-hidden">
+        <div className="backdrop-blur-xl bg-slate-900/90 border border-slate-700 shadow-2xl p-8 relative rounded-sm overflow-hidden">
 
           <div className="flex flex-col items-center mb-8 border-b border-slate-800 pb-4">
             <h1 className="text-sm font-bold text-white tracking-[0.2em] uppercase flex items-center gap-2">
@@ -111,16 +124,16 @@ const Login = () => {
           {phase === 'CREDENTIALS' ? (
             <form className="flex flex-col gap-6" onSubmit={handleCredentials}>
               {errorMsg && (
-                <p className="text-[10px] text-[#D00000] font-bold uppercase tracking-wider text-center bg-red-950/40 border border-red-900/50 rounded-lg p-2">{errorMsg}</p>
+                <p className="text-[10px] text-[#D00000] font-bold uppercase tracking-wider text-center bg-red-950/40 border border-red-900/50 rounded-sm p-2">{errorMsg}</p>
               )}
               <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-[#D00000] to-red-900 rounded-lg opacity-0 group-hover:opacity-30 transition duration-500 blur"></div>
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-[#D00000] to-red-900 rounded-sm opacity-0 group-hover:opacity-30 transition duration-500 blur"></div>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="relative bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#D00000] focus:border-[#D00000] block w-full p-3 placeholder-slate-600 font-mono tracking-wide transition-all"
-                  placeholder="IDENTIFICADOR (EMAIL)"
+                  className="relative bg-slate-950 border border-slate-700 text-white text-sm rounded-sm focus:ring-[#D00000] focus:border-[#D00000] block w-full p-3 placeholder-slate-600 font-mono tracking-wide transition-all"
+                  placeholder="EMAIL"
                   required
                 />
               </div>
@@ -129,17 +142,17 @@ const Login = () => {
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="relative bg-slate-950 border border-slate-700 text-white text-sm rounded-lg focus:ring-[#D00000] focus:border-[#D00000] block w-full p-3 placeholder-slate-600 font-mono tracking-wide transition-all"
-                  placeholder="LLAVE MAESTRA"
+                  className="relative bg-slate-950 border border-slate-700 text-white text-sm rounded-sm focus:ring-[#D00000] focus:border-[#D00000] block w-full p-3 placeholder-slate-600 font-mono tracking-wide transition-all"
+                  placeholder="Contraseña"
                   required
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#D00000] hover:bg-red-800 disabled:bg-slate-700 text-white font-bold tracking-widest rounded-lg border border-red-900 transition-all uppercase flex items-center justify-center py-3 shadow-lg hover:shadow-red-900/40 relative overflow-hidden group"
+                className="w-full bg-[#D00000] hover:bg-red-800 disabled:bg-slate-700 text-white font-bold tracking-widest rounded-sm border border-red-900 transition-all uppercase flex items-center justify-center py-3 shadow-lg hover:shadow-red-900/40 relative overflow-hidden group"
               >
-                {loading ? <Loader className="w-4 h-4 animate-spin" /> : (<><div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div><Lock className="w-3 h-3 mr-2" />Validar Credenciales</>)}
+                {loading ? <Loader className="w-4 h-4 animate-spin" /> : (<><div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div><Lock className="w-3 h-3 mr-2" />VALIDAR USUARIO</>)}
               </button>
             </form>
           ) : (
@@ -154,7 +167,7 @@ const Login = () => {
                   </div>
 
                   {errorMsg && (
-                    <p className="text-[10px] text-[#D00000] font-bold uppercase tracking-wider text-center bg-red-950/40 border border-red-900/50 rounded-lg p-2">{errorMsg}</p>
+                    <p className="text-[10px] text-[#D00000] font-bold uppercase tracking-wider text-center bg-red-950/40 border border-red-900/50 rounded-sm p-2">{errorMsg}</p>
                   )}
 
                   <div className="relative">
@@ -165,7 +178,8 @@ const Login = () => {
                         const val = e.target.value.replace(/\D/g, '');
                         if (val.length <= 6) setTotp(val);
                         if (val.length === 6) {
-                          setTimeout(() => {
+                          clearTimeout(autoValidateTimer.current);
+                          autoValidateTimer.current = setTimeout(() => {
                             const success = validateCode(val);
                             if (!success) {
                               setErrorMsg('CÓDIGO ERRÓNEO. Sincroniza tu reloj.');
@@ -174,7 +188,7 @@ const Login = () => {
                           }, 50);
                         }
                       }}
-                      className="bg-slate-950 border border-t-2 border-slate-800 border-t-[#D00000] text-white text-center text-3xl tracking-[0.5em] rounded-lg focus:ring-0 focus:border-[#D00000] block w-full p-4 placeholder-slate-800 font-mono transition-all shadow-inner"
+                      className="bg-slate-950 border border-t-2 border-slate-800 border-t-[#D00000] text-white text-center text-3xl tracking-[0.5em] rounded-sm focus:ring-0 focus:border-[#D00000] block w-full p-4 placeholder-slate-800 font-mono transition-all shadow-inner"
                       placeholder="••••••"
                       autoFocus
                     />
@@ -182,7 +196,7 @@ const Login = () => {
 
                   <button
                     type="submit"
-                    className="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold tracking-widest rounded-lg border border-slate-200 transition-all uppercase shadow-[0_0_15px_rgba(255,255,255,0.1)] py-3 flex items-center justify-center"
+                    className="w-full bg-slate-100 hover:bg-white text-slate-900 font-bold tracking-widest rounded-sm border border-slate-200 transition-all uppercase shadow-[0_0_15px_rgba(255,255,255,0.1)] py-3 flex items-center justify-center"
                   >
                     ENTRAR AHORA
                   </button>
@@ -201,12 +215,12 @@ const Login = () => {
 
               {/* MODE: SETUP (HIDDEN BY DEFAULT) */}
               {mfaMode === 'SETUP' && (
-                <div className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 relative group rounded-xl animate-fadeIn">
+                <div className="flex flex-col items-center justify-center p-6 bg-slate-950 border border-slate-800 relative group rounded-sm animate-fadeIn">
                   <QRCodeSVG
                     value={otpUri}
                     size={160}
                     level={"M"}
-                    className="p-2 bg-white rounded-lg mb-4"
+                    className="p-2 bg-white rounded-sm mb-4"
                     imageSettings={{ src: "/bybusiness-icon.ico", height: 24, width: 24, excavate: true }}
                   />
                   <p className="text-[10px] text-[#D00000] font-bold uppercase mb-2">MODO VINCULACIÓN</p>
@@ -218,7 +232,7 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={() => setMfaMode('VERIFY')}
-                    className="mt-6 text-xs bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg transition-colors w-full uppercase font-bold"
+                    className="mt-6 text-xs bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-sm transition-colors w-full uppercase font-bold"
                   >
                     Listo, Volver a Login
                   </button>

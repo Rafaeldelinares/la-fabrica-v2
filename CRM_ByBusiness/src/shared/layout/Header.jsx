@@ -1,4 +1,5 @@
 import React from 'react';
+import PropTypes from 'prop-types';
 import { LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../modules/auth/AuthContext';
 
@@ -10,9 +11,9 @@ const Header = ({ title }) => {
       <div className="flex items-center gap-4">
         {/* LOGO REPLACEMENT */}
         <img
-          src="/bybusiness-logo.png"
+          src="/bybusiness-logo-white.png"
           alt="ByBusiness"
-          className="h-10 w-auto object-contain pl-1" // Adjusted height to fit h-16 container
+          className="h-10 w-auto object-contain pl-1"
         />
       </div>
 
@@ -30,7 +31,7 @@ const Header = ({ title }) => {
         </div>
         <button
           onClick={logout}
-          className="bg-[#D00000] hover:bg-red-800 text-white px-4 py-2 text-xs font-bold tracking-wider flex items-center gap-2 transition-all rounded-lg uppercase shadow-md"
+          className="bg-[#D00000] hover:bg-red-800 text-white px-4 py-2 text-xs font-bold tracking-wider flex items-center gap-2 transition-all rounded-sm uppercase shadow-md"
         >
           <LogOut className="h-3 w-3" />
           Cierre Sesión
@@ -38,6 +39,10 @@ const Header = ({ title }) => {
       </div>
     </header>
   );
+};
+
+Header.propTypes = {
+  title: PropTypes.string.isRequired,
 };
 
 export default Header;
