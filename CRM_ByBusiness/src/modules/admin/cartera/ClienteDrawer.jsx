@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 import { X, Plus } from 'lucide-react';
 import RegistrarInteraccionModal from './RegistrarInteraccionModal';
 import TabFicha     from './tabs/TabFicha';
-import TabContratos from './tabs/TabContratos';
+import TabFacturacion from './tabs/TabFacturacion';
 import TabHistorial from './tabs/TabHistorial';
 import TabGbp            from './tabs/TabGbp';
 import TabTarjetaDigital from './tabs/TabTarjetaDigital';
@@ -17,7 +17,7 @@ const SEMAFORO = {
 
 const TABS = [
   { id: 'ficha',     label: 'Ficha' },
-  { id: 'contratos', label: 'Contratos' },
+  { id: 'facturacion', label: 'Facturación' },
   { id: 'historial', label: 'Historial' },
   { id: 'gbp',       label: 'Google Business' },
   { id: 'tarjeta',   label: 'Tarjeta Digital' },
@@ -26,6 +26,8 @@ const TABS = [
 const KPI_CONFIG = [
   { label: 'Último contacto', key: 'dias_sin_contacto', format: (c) => fmtDias(c.dias_sin_contacto) },
   { label: 'Contratos',       key: 'num_contratos',     format: (c) => c.num_contratos || '0' },
+  { label: 'Proformas',       key: 'num_proformas',     format: (c) => c.num_proformas || '0' },
+  { label: 'Facturas',        key: 'num_facturas',      format: (c) => c.num_facturas || '0' },
   { label: 'Ing. mensuales',  key: 'mrr',               format: (c) => c.mrr > 0 ? `${Number(c.mrr).toFixed(0)}€` : '—' },
 ];
 
@@ -101,9 +103,9 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
         </div>
 
         {/* KPIs rápidos */}
-        <div className="grid grid-cols-3 border-b border-slate-800 shrink-0">
+        <div className="grid grid-cols-5 border-b border-slate-800 shrink-0">
           {KPI_CONFIG.map((kpi, idx) => (
-            <div key={kpi.key} className={`px-4 py-3 text-center ${idx < 2 ? 'border-r border-slate-800' : ''}`}>
+            <div key={kpi.key} className={`px-2 py-3 text-center ${idx < 4 ? 'border-r border-slate-800' : ''}`}>
               <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{kpi.label}</p>
               <p className="text-sm font-bold text-slate-300 mt-0.5 font-mono">{kpi.format(cliente)}</p>
             </div>
@@ -147,7 +149,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
               onClienteBaja={onClienteBaja}
             />
           )}
-          {activeTab === 'contratos' && <TabContratos cliente={cliente} n8nUrl={N8N} />}
+          {activeTab === 'facturacion' && <TabFacturacion cliente={cliente} n8nUrl={N8N} gestorId={gestorId} />}
           {activeTab === 'historial' && (
             <>
               {errorTimeline && (
