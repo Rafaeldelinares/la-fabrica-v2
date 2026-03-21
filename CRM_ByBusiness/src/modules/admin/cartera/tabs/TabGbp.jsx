@@ -68,7 +68,7 @@ const FichaDetalle = ({ ficha, historico }) => {
   const parseSentiment = (s) => {
     if (!s) return null;
     if (typeof s === 'object') return s;
-    try { return JSON.parse(s); } catch (e) { console.error('[GBP] parseSentiment:', e); return null; }
+    try { return JSON.parse(s); } catch { return null; }
   };
 
   const sentimentData    = parseSentiment(ficha.gmaps_sentiment);
@@ -348,7 +348,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
           setFichas(legacy.gmaps_rating || legacy.gmaps_url ? [legacy] : []);
         }
       })
-      .catch((e) => { console.error('[GBP] fetchFichas:', e); setFichas([]); setErrorCarga('Error al cargar fichas GBP'); });
+      .catch(() => { setFichas([]); setErrorCarga('Error al cargar fichas GBP'); });
   }, [cliente.id, cliente.gmaps_nombre, cliente.nombre_comercial, cliente.gmaps_url, cliente.google_cid, cliente.gmaps_rating, cliente.gmaps_reseñas, cliente.gmaps_address, cliente.gmaps_sentiment, cliente.gmaps_pendiente_validar, cliente.gmaps_last_updated, n8nUrl]);
 
   useEffect(() => { fetchFichas(); }, [fetchFichas]);
@@ -361,7 +361,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     fetch(`${n8nUrl}/crm-gbp-historico-cliente?${params}`)
       .then(res => res.json())
       .then(data => setHistorico(data.ok ? data.historico : []))
-      .catch((e) => { console.error('[GBP] historico:', e); setHistorico([]); setErrorCarga('Error al cargar historial GBP'); });
+      .catch(() => { setHistorico([]); setErrorCarga('Error al cargar historial GBP'); });
   }, [cliente.id, selIdx, fichas, n8nUrl]);
 
   const fichaActual = fichas?.[selIdx] || null;
@@ -390,7 +390,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       } else {
         fetchFichas();
       }
-    } catch (e) { console.error('[GBP] refresh:', e); setErrorAction('Error al actualizar fichas'); } finally { setRefreshing(false); }
+    } catch { setErrorAction('Error al actualizar fichas'); } finally { setRefreshing(false); }
   };
 
   /** Confirma un candidato seleccionado y lo guarda como ficha del cliente. */
@@ -411,7 +411,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       });
       setCandidatos(null);
       fetchFichas();
-    } catch (e) { console.error('[GBP] confirmar:', e); setErrorAction('Error al confirmar ficha'); } finally { setConfirmando(false); }
+    } catch { setErrorAction('Error al confirmar ficha'); } finally { setConfirmando(false); }
   };
 
   /** Valida (confirma/rechaza) una ficha encontrada automáticamente. */
@@ -424,7 +424,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         body: JSON.stringify({ cliente_id: cliente.id, ficha_id: fichaId, accion }),
       });
       fetchFichas();
-    } catch (e) { console.error('[GBP] validar:', e); setErrorAction('Error al validar ficha'); }
+    } catch { setErrorAction('Error al validar ficha'); }
   };
 
   /** Resetea el estado del flujo de añadir ficha manual. */
@@ -435,6 +435,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setGestionada(false);
     setCapturando(false);
     setVerificando(false);
+    setCandidatos(null);
   };
 
   /** Paso 1 del flujo añadir: extrae datos del negocio a partir de la URL introducida. */
@@ -462,7 +463,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       } else {
         setErrorAction(data.error || 'No se pudieron obtener datos de esa URL');
       }
-    } catch (e) { console.error('[GBP] capturar:', e); setErrorAction('Error al capturar datos de la URL'); } finally { setCapturando(false); }
+    } catch { setErrorAction('Error al capturar datos de la URL'); } finally { setCapturando(false); }
   };
 
   /** Paso 2 del flujo añadir: guarda la ficha previamente capturada como ficha del cliente. */
@@ -487,7 +488,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
       });
       resetAdd();
       fetchFichas();
-    } catch (e) { console.error('[GBP] verificar:', e); setErrorAction('Error al guardar ficha'); } finally { setVerificando(false); }
+    } catch { setErrorAction('Error al guardar ficha'); } finally { setVerificando(false); }
   };
 
   if (fichas === null) return (
@@ -642,6 +643,19 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         </div>
       )}
 
+      {cliente.bybusiness_url && fichas.length > 0 && !fichas.some(f => f.gmaps_website?.toLowerCase() === cliente.bybusiness_url.toLowerCase()) && (
+        <div className="flex items-center gap-2 px-3 py-2 border border-amber-500/20 bg-amber-500/5 rounded-sm">
+          <Link size={11} className="text-amber-500 shrink-0" />
+          <p className="text-[10px] text-amber-500/80 font-mono flex-1">
+            La tarjeta digital no está enlazada en Google Maps
+          </p>
+          <a href={cliente.bybusiness_url} target="_blank" rel="noopener noreferrer"
+            className="text-[9px] font-black uppercase tracking-widest text-amber-500 border border-amber-500/30 rounded-sm px-1.5 py-0.5 hover:bg-amber-500/10 transition-colors font-mono shrink-0">
+            Ver tarjeta
+          </a>
+        </div>
+      )}
+
       {fichas.length === 0 && !addMode && (
         <div className="text-center py-10 flex flex-col items-center gap-3">
           <AlertCircle size={24} className="text-slate-700" />
@@ -719,6 +733,7 @@ TabGbp.propTypes = {
     gmaps_sentiment:         PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
     gmaps_pendiente_validar: PropTypes.bool,
     gmaps_last_updated:      PropTypes.string,
+    bybusiness_url:          PropTypes.string,
   }).isRequired,
   n8nUrl: PropTypes.string.isRequired,
 };

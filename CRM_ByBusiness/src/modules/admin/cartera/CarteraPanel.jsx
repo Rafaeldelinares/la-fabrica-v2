@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, MapPin, BadgeCheck } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -51,7 +51,7 @@ const CarteraPanel = () => {
   const { user } = useAuth();
   const [clientes, setClientes]         = useState(null);
   const [filtroSemaforo, setFiltroSemaforo] = useState('');
-  const [filtroAnio,     setFiltroAnio] = useState('');
+  const [filtroAnio,     setFiltroAnio] = useState(String(new Date().getFullYear()));
   const [busqueda, setBusqueda]         = useState('');
   const [seleccionado, setSeleccionado] = useState(null);
   const [nuevoCliente, setNuevoCliente] = useState(false);
@@ -240,7 +240,7 @@ const CarteraPanel = () => {
             </div>
           ) : (
             <div className="flex flex-col h-full">
-              <div className="overflow-hidden flex-1">
+              <div className="overflow-y-auto flex-1">
               <table className="w-full text-left text-xs text-slate-400">
                 <thead className="text-[10px] text-slate-500 uppercase font-black tracking-widest bg-slate-950/50 border-b border-slate-800 sticky top-0">
                   <tr>
@@ -278,11 +278,22 @@ const CarteraPanel = () => {
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-slate-200 uppercase tracking-wide">{c.nombre_comercial}</p>
+                          {c.num_fichas_gbp > 0 && (
+                            <span title={`GBP registrado (${c.num_fichas_gbp} ficha${c.num_fichas_gbp > 1 ? 's' : ''})`}>
+                              <MapPin size={11} className="text-emerald-400 shrink-0" />
+                            </span>
+                          )}
                           {c.gmaps_pendiente_validar && (
                             <span title="Ficha GBP pendiente de validación">
                               <AlertTriangle size={11} className="text-amber-400 shrink-0" />
                             </span>
                           )}
+                          {c.bybusiness_url
+                            ? c.tarjeta_sin_gbp
+                              ? <span title="Tarjeta digital registrada — pendiente de enlazar en Google Maps"><BadgeCheck size={11} className="text-amber-400 shrink-0" /></span>
+                              : <span title="Tarjeta digital enlazada en Google Maps"><BadgeCheck size={11} className="text-emerald-400 shrink-0" /></span>
+                            : <span title="Sin tarjeta digital registrada — oportunidad de producto"><BadgeCheck size={11} className="text-slate-600 shrink-0" /></span>
+                          }
                           {c.proxima_accion_fecha && (() => {
                             const dias = Math.ceil((new Date(c.proxima_accion_fecha) - new Date()) / 86400000);
                             const color = dias <= 0 ? 'text-red-400' : dias <= 7 ? 'text-amber-400' : 'text-slate-500';
@@ -379,6 +390,10 @@ const CarteraPanel = () => {
               onGestorChanged={({ gestor_id, gestor_nombre }) => {
                 setSeleccionado(prev => ({ ...prev, gestor_id, gestor_nombre }));
                 setClientes(prev => prev?.map(c => c.id === seleccionado.id ? { ...c, gestor_id, gestor_nombre } : c) ?? prev);
+              }}
+              onClienteBaja={() => {
+                setSeleccionado(null);
+                setClientes(prev => prev?.filter(c => c.id !== seleccionado.id) ?? prev);
               }}
             />
           </div>
