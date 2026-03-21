@@ -5,7 +5,8 @@ import RegistrarInteraccionModal from './RegistrarInteraccionModal';
 import TabFicha     from './tabs/TabFicha';
 import TabContratos from './tabs/TabContratos';
 import TabHistorial from './tabs/TabHistorial';
-import TabGbp       from './tabs/TabGbp';
+import TabGbp            from './tabs/TabGbp';
+import TabTarjetaDigital from './tabs/TabTarjetaDigital';
 import { fmtDias } from '../../../utils/dates';
 
 const SEMAFORO = {
@@ -19,6 +20,7 @@ const TABS = [
   { id: 'contratos', label: 'Contratos' },
   { id: 'historial', label: 'Historial' },
   { id: 'gbp',       label: 'Google Business' },
+  { id: 'tarjeta',   label: 'Tarjeta Digital' },
 ];
 
 const KPI_CONFIG = [
@@ -73,7 +75,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
     })
       .then(res => res.json())
       .then(d => { if (d.ok) fetchTimeline(); })
-      .catch(() => {});
+      .catch(() => setErrorTimeline('Error al borrar la interacción'));
   };
 
   return (
@@ -159,6 +161,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
             </>
           )}
           {activeTab === 'gbp'       && <TabGbp cliente={cliente} n8nUrl={N8N} />}
+          {activeTab === 'tarjeta'   && <TabTarjetaDigital cliente={cliente} />}
         </div>
       </div>
 
