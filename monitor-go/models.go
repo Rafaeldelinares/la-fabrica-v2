@@ -37,6 +37,7 @@ type ScraperResultItem struct {
 	Address          string          `json:"address"`
 	Phone            string          `json:"phone"`
 	Website          string          `json:"website"`
+	OwnerPostUrl     string          `json:"ownerPostUrl"`
 	Reservations     string          `json:"reservations"`
 	Thumbnail        string          `json:"thumbnail"`
 	Cid              string          `json:"cid"`
@@ -62,6 +63,7 @@ type FrontendData struct {
 	Address       string          `json:"address"`
 	Phone         string          `json:"phone"`
 	Website       string          `json:"website"`
+	OwnerPostUrl  string          `json:"ownerPostUrl"`
 	BookingURL    string          `json:"booking_url"`
 	Image         string          `json:"image"`
 	NegativeCount int             `json:"negative_count"`

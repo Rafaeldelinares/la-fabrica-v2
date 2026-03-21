@@ -264,6 +264,7 @@ func (a *app) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	r0 := results[0]
 	var breakdown map[string]int
 	if err := json.Unmarshal(r0.ReviewsPerRating, &breakdown); err != nil {
+		logrus.WithError(err).Warn("invalid ReviewsPerRating JSON, using empty breakdown")
 		breakdown = map[string]int{}
 	}
 
@@ -275,6 +276,7 @@ func (a *app) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		Address:       r0.Address,
 		Phone:         r0.Phone,
 		Website:       r0.Website,
+		OwnerPostUrl:  r0.OwnerPostUrl,
 		Image:         r0.Thumbnail,
 		NegativeCount: breakdown["1"] + breakdown["2"],
 		IsSimulated:   false,
@@ -302,6 +304,7 @@ func (a *app) processAndSaveResults(query string, depth int, results []ScraperRe
 	r0 := results[0]
 	var breakdown map[string]int
 	if err := json.Unmarshal(r0.ReviewsPerRating, &breakdown); err != nil {
+		logrus.WithError(err).Warn("invalid ReviewsPerRating JSON, using empty breakdown")
 		breakdown = map[string]int{}
 	}
 
@@ -318,6 +321,7 @@ func (a *app) processAndSaveResults(query string, depth int, results []ScraperRe
 		Address:         r0.Address,
 		Phone:           r0.Phone,
 		Website:         r0.Website,
+		OwnerPostUrl:    r0.OwnerPostUrl,
 		Image:           r0.Thumbnail,
 		NegativeCount:   breakdown["1"] + breakdown["2"],
 		ImagesCount:     imagesCount,
@@ -395,6 +399,7 @@ func (a *app) handleWebhookByURL(w http.ResponseWriter, r *http.Request) {
 	r0 := results[0]
 	var breakdown map[string]int
 	if err := json.Unmarshal(r0.ReviewsPerRating, &breakdown); err != nil {
+		logrus.WithError(err).Warn("invalid ReviewsPerRating JSON, using empty breakdown")
 		breakdown = map[string]int{}
 	}
 
@@ -411,6 +416,7 @@ func (a *app) handleWebhookByURL(w http.ResponseWriter, r *http.Request) {
 		Address:       r0.Address,
 		Phone:         r0.Phone,
 		Website:       r0.Website,
+		OwnerPostUrl:  r0.OwnerPostUrl,
 		Cid:           resultCid,
 		NegativeCount: breakdown["1"] + breakdown["2"],
 		IsSimulated:   false,

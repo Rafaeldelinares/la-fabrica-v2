@@ -258,14 +258,15 @@ func (a *app) executeMapsJob(ctx context.Context, query string) ([]ScraperResult
 		Query string `json:"query"`
 	}
 	type mapsData struct {
-		Name      string         `json:"name"`
-		Rating    float64        `json:"rating"`
-		Reviews   int            `json:"reviews"`
-		Address   string         `json:"address"`
-		Phone     string         `json:"phone"`
-		Website   string         `json:"website"`
-		Cid       string         `json:"cid"`
-		Breakdown map[string]int `json:"breakdown"`
+		Name         string         `json:"name"`
+		Rating       float64        `json:"rating"`
+		Reviews      int            `json:"reviews"`
+		Address      string         `json:"address"`
+		Phone        string         `json:"phone"`
+		Website      string         `json:"website"`
+		OwnerPostUrl string         `json:"ownerPostUrl"`
+		Cid          string         `json:"cid"`
+		Breakdown    map[string]int `json:"breakdown"`
 	}
 	type mapsResponse struct {
 		Found bool     `json:"found"`
@@ -300,6 +301,7 @@ func (a *app) executeMapsJob(ctx context.Context, query string) ([]ScraperResult
 
 	breakdownJSON, err := json.Marshal(result.Data.Breakdown)
 	if err != nil {
+		logrus.WithError(err).Warn("failed to marshal breakdown, using empty object")
 		breakdownJSON = []byte("{}")
 	}
 	item := ScraperResultItem{
@@ -310,6 +312,7 @@ func (a *app) executeMapsJob(ctx context.Context, query string) ([]ScraperResult
 		Address:          result.Data.Address,
 		Phone:            result.Data.Phone,
 		Website:          result.Data.Website,
+		OwnerPostUrl:     result.Data.OwnerPostUrl,
 		Cid:              result.Data.Cid,
 	}
 	return []ScraperResultItem{item}, nil
@@ -349,14 +352,15 @@ func (a *app) executeMapsJobByCID(ctx context.Context, cidURL string) ([]Scraper
 		URL string `json:"url"`
 	}
 	type mapsData struct {
-		Name      string         `json:"name"`
-		Rating    float64        `json:"rating"`
-		Reviews   int            `json:"reviews"`
-		Address   string         `json:"address"`
-		Phone     string         `json:"phone"`
-		Website   string         `json:"website"`
-		Cid       string         `json:"cid"`
-		Breakdown map[string]int `json:"breakdown"`
+		Name         string         `json:"name"`
+		Rating       float64        `json:"rating"`
+		Reviews      int            `json:"reviews"`
+		Address      string         `json:"address"`
+		Phone        string         `json:"phone"`
+		Website      string         `json:"website"`
+		OwnerPostUrl string         `json:"ownerPostUrl"`
+		Cid          string         `json:"cid"`
+		Breakdown    map[string]int `json:"breakdown"`
 	}
 	type mapsResponse struct {
 		Found bool     `json:"found"`
@@ -392,6 +396,7 @@ func (a *app) executeMapsJobByCID(ctx context.Context, cidURL string) ([]Scraper
 
 	breakdownJSON, err := json.Marshal(result.Data.Breakdown)
 	if err != nil {
+		logrus.WithError(err).Warn("failed to marshal breakdown, using empty object")
 		breakdownJSON = []byte("{}")
 	}
 	item := ScraperResultItem{
@@ -402,6 +407,7 @@ func (a *app) executeMapsJobByCID(ctx context.Context, cidURL string) ([]Scraper
 		Address:          result.Data.Address,
 		Phone:            result.Data.Phone,
 		Website:          result.Data.Website,
+		OwnerPostUrl:     result.Data.OwnerPostUrl,
 		Cid:              result.Data.Cid,
 	}
 	return []ScraperResultItem{item}, nil
@@ -419,6 +425,7 @@ func getValue(row []string, m map[string]int, key string) string {
 func convertFrontendDataToScraperResult(data *FrontendData) []ScraperResultItem {
 	breakdownJSON, marshalErr := json.Marshal(data.Breakdown)
 	if marshalErr != nil {
+		logrus.WithError(marshalErr).Warn("failed to marshal breakdown in conversion, using empty object")
 		breakdownJSON = []byte("{}")
 	}
 
