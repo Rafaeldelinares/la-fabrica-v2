@@ -189,6 +189,15 @@ class MapsScraper {
                           !!document.querySelector('[aria-label*="reseñas"], [aria-label*="reviews"]'));
         }, { timeout: 5000 }).catch(() => {});
 
+        // Scroll para cargar publicaciones del propietario (lazy-loaded)
+        for (let i = 0; i < 6; i++) {
+            await page.evaluate(() => {
+                const panel = document.querySelector('[role="main"]') || document.body;
+                panel.scrollBy(0, 350);
+            });
+            await page.waitForTimeout(400);
+        }
+
         return await page.evaluate(() => {
             // Nombre
             const name = document.querySelector('h1')?.textContent?.trim() || null;
@@ -247,8 +256,19 @@ class MapsScraper {
             // Teléfono
             const phone = document.querySelector('button[data-item-id^="phone"]')?.textContent?.trim() || null;
 
-            // Website
+            // Website (campo principal de GBP)
             const website = document.querySelector('a[data-item-id="authority"]')?.href || null;
+
+            // Publicaciones del propietario — links externos en Google Posts (data-link)
+            // El propietario puede publicar su tarjeta digital aquí: a[data-link] con jsaction localPost
+            const ownerPostUrl = (() => {
+                const postLinks = Array.from(document.querySelectorAll('a[data-link]'));
+                const externalPost = postLinks.find(el => {
+                    const link = el.getAttribute('data-link') || '';
+                    return link.startsWith('http') && !link.includes('google.com') && !link.includes('goo.gl');
+                });
+                return externalPost ? externalPost.getAttribute('data-link') : null;
+            })();
 
             // CID desde URL
             const url = window.location.href;
@@ -272,7 +292,7 @@ class MapsScraper {
                 }
             });
 
-            return { name, rating, reviews, address, phone, website, cid, url, breakdown };
+            return { name, rating, reviews, address, phone, website, ownerPostUrl, cid, url, breakdown };
         });
     }
 
