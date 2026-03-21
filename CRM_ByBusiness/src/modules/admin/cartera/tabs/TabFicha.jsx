@@ -105,8 +105,8 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: cliente.id, tipo: confirmBaja }),
       });
-      const d = await res.json();
-      if (d.ok) { onClienteBaja?.(); }
+      const data = await res.json();
+      if (data.ok) { onClienteBaja?.(); }
       else { setErrorBaja('Error al procesar'); }
     } catch { setErrorBaja('Error de conexión'); } finally { setDandoBaja(false); }
   };
@@ -227,6 +227,28 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
           )}
         </div>
       </div>
+
+      {/* Fecha de renovación */}
+      {cliente.proxima_renovacion && (() => {
+        const d    = new Date(cliente.proxima_renovacion);
+        const now  = new Date();
+        const in60 = new Date(Date.now() + 60 * 86400000);
+        const past = d < now;
+        const soon = !past && d < in60;
+        return (
+          <div className="px-5 py-3 border-b border-slate-800">
+            <p className="text-[10px] text-slate-600 uppercase tracking-widest font-mono mb-1.5">Fecha de renovación</p>
+            <div className="flex items-center gap-2">
+              <CalendarClock size={11} className={`shrink-0 ${past ? 'text-red-500/50' : soon ? 'text-amber-400' : 'text-slate-600'}`} />
+              <span className={`text-xs font-mono ${past ? 'text-red-400' : soon ? 'text-amber-400' : 'text-slate-400'}`}>
+                {format(d, 'dd/MM/yyyy')}
+                {past && <span className="ml-2 text-[10px] text-red-500/70">· vencida</span>}
+                {soon && <span className="ml-2 text-[10px] text-amber-500/70">· próxima</span>}
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       {cliente.notas_internas && (
         <div className="px-5 py-3 border-b border-slate-800">

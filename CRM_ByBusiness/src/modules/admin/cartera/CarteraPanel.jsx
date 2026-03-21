@@ -16,6 +16,11 @@ const SEMAFORO_CONFIG = {
   rojo:  { dot: 'bg-red-500',     badge: 'bg-red-500/10    text-red-400    border-red-500/20',     label: 'Críticos',  desc: 'Sin contacto más de 60 días, sin historial registrado o pagos vencidos.' },
 };
 
+/**
+ * Formatea días de antigüedad en texto legible: Hoy / Ayer / Nd.
+ * @param {number|null|undefined} dias
+ * @returns {string}
+ */
 const fmtDias = (dias) => {
   if (dias === null || dias === undefined) return '—';
   if (dias === 0) return 'Hoy';
@@ -63,8 +68,8 @@ const CarteraPanel = () => {
 
   useEffect(() => {
     fetch(`${N8N}/crm-cartera-get`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setClientes(d.clientes); else setError('Error al cargar la cartera — respuesta inesperada'); })
+      .then(res => res.json())
+      .then(data => { if (data.ok) setClientes(data.clientes); else setError('Error al cargar la cartera — respuesta inesperada'); })
       .catch(() => { setClientes([]); setError('Error al cargar la cartera — comprueba la conexión'); });
   // N8N es constante de módulo, no reactiva
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -316,15 +321,16 @@ const CarteraPanel = () => {
                         </span>
                       </td>
                       <td className="px-4 py-4 font-mono text-slate-500">
-                        {c.proxima_renovacion ? (
-                          <span className={
-                            new Date(c.proxima_renovacion) < new Date(Date.now() + 60 * 86400000)
+                        {c.proxima_renovacion ? (() => {
+                          const d   = new Date(c.proxima_renovacion);
+                          const now = new Date();
+                          const col = d < now
+                            ? 'text-slate-600'
+                            : d < new Date(Date.now() + 60 * 86400000)
                               ? 'text-amber-400'
-                              : 'text-slate-400'
-                          }>
-                            {fmtFecha(c.proxima_renovacion)}
-                          </span>
-                        ) : '—'}
+                              : 'text-slate-400';
+                          return <span className={col}>{fmtFecha(c.proxima_renovacion)}</span>;
+                        })() : '—'}
                       </td>
                       <td className="px-4 py-4 font-mono font-bold text-slate-300">
                         {c.mrr > 0 ? `${Number(c.mrr).toFixed(0)}€` : '—'}
@@ -410,11 +416,11 @@ const CarteraPanel = () => {
                 setNuevoCliente(false);
                 // Recargar cartera e ir directamente al nuevo cliente
                 fetch(`${N8N}/crm-cartera-get`)
-                  .then(r => r.json())
-                  .then(d => {
-                    if (d.ok) {
-                      setClientes(d.clientes);
-                      const nuevo = d.clientes.find(c => c.id === cliente?.id);
+                  .then(res => res.json())
+                  .then(data => {
+                    if (data.ok) {
+                      setClientes(data.clientes);
+                      const nuevo = data.clientes.find(c => c.id === cliente?.id);
                       if (nuevo) setSeleccionado(nuevo);
                     }
                   })

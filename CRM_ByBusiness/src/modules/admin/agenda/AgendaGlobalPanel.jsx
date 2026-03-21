@@ -413,6 +413,8 @@ const AgendaGlobalPanel = () => {
   const [clienteDrawer, setClienteDrawer] = useState(null);
   const [tooltipEvento, setTooltipEvento] = useState(null);
   const [errorCarga, setErrorCarga]       = useState(false);
+  const [errorClientes, setErrorClientes] = useState(false);
+  const [renovaciones, setRenovaciones]   = useState([]);
   const tooltipWrapperRef                 = useRef(null);
   /**
    * Caché de horarios de trabajo: Map<usuario_id, Array<{dia_semana, hora_inicio, hora_fin}>>.
@@ -423,8 +425,11 @@ const AgendaGlobalPanel = () => {
   const abrirClienteDesdeAgenda = useCallback((clienteId) => {
     fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
       .then(res => res.json())
-      .then(data => { if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]); })
-      .catch(() => { setClienteDrawer(null); });
+      .then(data => {
+        if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]);
+        else setErrorCarga(true);
+      })
+      .catch(() => { setClienteDrawer(null); setErrorCarga(true); });
   }, []);
 
   const tooltipHandlers = useMemo(() => ({
@@ -445,19 +450,24 @@ const AgendaGlobalPanel = () => {
     fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
       .then(res => res.json())
       .then(data => {
-        if (data.ok) setEventos(data.eventos.map(evento => {
-          const { start, end } = redistribuirHora(
-            { ...evento, start: new Date(evento.start), end: new Date(evento.end) },
-            horariosRef.current
-          );
-          return {
-            ...evento,
-            start,
-            end,
-            title:   evento.titulo,
-            tooltip: evento.descripcion ? `${evento.titulo} — ${evento.descripcion}` : evento.titulo,
-          };
-        }));
+        if (data.ok) {
+          setEventos(data.eventos.map(evento => {
+            const { start, end } = redistribuirHora(
+              { ...evento, start: new Date(evento.start), end: new Date(evento.end) },
+              horariosRef.current
+            );
+            return {
+              ...evento,
+              start,
+              end,
+              title:   evento.titulo,
+              tooltip: evento.descripcion ? `${evento.titulo} — ${evento.descripcion}` : evento.titulo,
+            };
+          }));
+        } else {
+          setEventos([]);
+          setErrorCarga(true);
+        }
       })
       .catch(() => { setEventos([]); setErrorCarga(true); })
       .finally(() => setLoading(false));
@@ -468,8 +478,11 @@ const AgendaGlobalPanel = () => {
   useEffect(() => {
     fetch(`${N8N}/crm-clientes`)
       .then(res => res.json())
-      .then(data => { if (data.ok) setClientes(data.clientes); })
-      .catch(() => { setClientes([]); });
+      .then(data => {
+        if (data.ok) setClientes(data.clientes);
+        else { setClientes([]); setErrorClientes(true); }
+      })
+      .catch(() => { setClientes([]); setErrorClientes(true); });
   }, []);
 
   // Carga horarios de trabajo de todos los usuarios al montar el panel.
@@ -491,7 +504,26 @@ const AgendaGlobalPanel = () => {
         });
         horariosRef.current = mapaHorarios;
       })
-      .catch(() => { horariosRef.current = new Map(); });
+      .catch(() => { horariosRef.current = new Map(); setErrorCarga(true); });
+  }, []);
+
+  useEffect(() => {
+    fetch(`${N8N}/crm-cartera-get`)
+      .then(r => r.json())
+      .then(d => {
+        const clientes = d.ok ? (d.clientes || []) : [];
+        const now  = new Date();
+        const in60 = new Date(Date.now() + 60 * 86400000);
+        setRenovaciones(
+          clientes
+            .filter(c => c.proxima_renovacion
+              && new Date(c.proxima_renovacion) >= now
+              && new Date(c.proxima_renovacion) <= in60)
+            .sort((a, b) => new Date(a.proxima_renovacion) - new Date(b.proxima_renovacion))
+        );
+      })
+      .catch(() => setRenovaciones([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo]);
@@ -566,12 +598,18 @@ const AgendaGlobalPanel = () => {
         ))}
       </div>
 
-      {/* ── Calendario ── */}
-      <div className="flex-1 min-h-0">
+      {/* ── Calendario + Renovaciones ── */}
+      <div className="flex flex-1 min-h-0 gap-3">
+        <div className="flex-1 min-w-0">
         <TooltipCtx.Provider value={tooltipHandlers}>
         {errorCarga && (
           <div className="mb-2 px-3 py-2 bg-red-900/20 border border-red-900/40 rounded-sm text-[10px] text-red-400 font-mono uppercase tracking-widest">
             Error al cargar la agenda — comprueba la conexión con n8n
+          </div>
+        )}
+        {errorClientes && (
+          <div className="mb-2 px-3 py-2 bg-red-900/20 border border-red-900/40 rounded-sm text-[10px] text-red-400 font-mono uppercase tracking-widest">
+            Error al cargar clientes — el selector de nueva cita puede estar vacío
           </div>
         )}
         {loading && eventosFiltrados.length === 0 ? (
@@ -609,6 +647,35 @@ const AgendaGlobalPanel = () => {
           />
         )}
         </TooltipCtx.Provider>
+        </div>
+
+        {/* Sidebar — Renovaciones próximas (60 días) */}
+        <div className="w-52 shrink-0 flex flex-col border-l border-slate-800 pl-3 overflow-y-auto custom-scrollbar">
+          <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono font-black mb-3 shrink-0">
+            Renovaciones · <span className="text-[#D00000]">{renovaciones.length}</span>
+          </p>
+          {renovaciones.length === 0 ? (
+            <p className="text-[10px] text-slate-700 font-mono">Sin renovaciones en 60 días</p>
+          ) : renovaciones.map(c => {
+            const d    = new Date(c.proxima_renovacion);
+            const days = Math.ceil((d - new Date()) / 86400000);
+            return (
+              <button
+                key={c.id}
+                onClick={() => abrirClienteDesdeAgenda(c.id)}
+                className="flex items-start gap-2 py-2 border-b border-slate-900 hover:bg-slate-900/40 transition-colors text-left w-full"
+              >
+                <CalendarClock size={10} className={`mt-0.5 shrink-0 ${days <= 14 ? 'text-amber-400' : 'text-slate-600'}`} />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-mono text-slate-300 truncate leading-tight">{c.nombre_comercial}</p>
+                  <p className={`text-[9px] font-mono ${days <= 14 ? 'text-amber-400' : 'text-slate-500'}`}>
+                    {format(d, 'dd/MM/yy')} · {days}d
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {modalCita && (
