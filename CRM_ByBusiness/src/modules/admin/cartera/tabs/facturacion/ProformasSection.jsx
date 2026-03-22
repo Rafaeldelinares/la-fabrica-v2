@@ -27,7 +27,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
     fetch(`${n8nUrl}/crm-proformas?cliente_id=${cliente.id}`)
       .then(r => r.json())
       .then(d => { setProformas(d.proformas || []); setLoading(false); })
-      .catch(err => { if (import.meta.env.DEV) console.error('[ProformasSection] cargar:', err); setError('Error al cargar proformas'); setLoading(false); });
+      .catch(() => { setError('Error al cargar proformas'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
 
   useEffect(() => { cargar(); }, [cargar]);
@@ -44,7 +44,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
       if (d.ok) cargar();
       else setError(d.error || `Error en ${endpoint}`);
     } catch (err) {
-      if (import.meta.env.DEV) console.error('[ProformasSection] accion:', err);
+      void err;
       setError('Error de conexión');
     } finally {
       setBusy(null);
@@ -167,7 +167,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                     <FileText size={10} /> Generar factura
                   </button>
                 )}
-                {pf.estado === 'aceptada' && (
+                {pf.estado === 'aceptada' && !pf.contrato_digital_id && (
                   <button
                     disabled={busy === `contrato-${pf.id}`}
                     onClick={() => accion('crm-70-post-contrato-digital', {
@@ -181,6 +181,11 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                   >
                     <FileText size={10} /> Generar contrato
                   </button>
+                )}
+                {pf.estado === 'aceptada' && pf.contrato_digital_id && (
+                  <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
+                    <CheckCircle size={10} /> Contrato generado
+                  </span>
                 )}
               </div>
 

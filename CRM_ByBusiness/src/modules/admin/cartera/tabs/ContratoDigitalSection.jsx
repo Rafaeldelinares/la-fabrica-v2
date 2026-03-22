@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { Send, Plus, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
+import { Send, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
 
 const ESTADO_BADGE = {
   borrador:             'bg-slate-700/60 text-slate-400 border-slate-600',
@@ -20,55 +20,27 @@ const ESTADO_ICON = {
   vencido:             <XCircle size={10} />,
 };
 
-const CANALES = ['whatsapp', 'email', 'ambos'];
-
 /**
- * ContratoDigitalSection — muestra y gestiona contratos digitales del cliente.
- * Permite crear (borrador), enviar por WhatsApp/email y ver el estado de aceptación.
+ * ContratoDigitalSection — muestra contratos digitales del cliente (solo lectura).
+ * Los contratos se generan desde una proforma aceptada (relación 1:1).
+ * Permite enviar contratos en estado borrador.
  * @param {{ cliente: object, n8nUrl: string }} props
  */
 const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
   const [contratos, setContratos] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
-  const [showForm,  setShowForm]  = useState(false);
   const [busy,      setBusy]      = useState(null);
-  const [form, setForm] = useState({ objeto: '', importe_mensual: '', canal_envio: 'whatsapp' });
 
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
     fetch(`${n8nUrl}/crm-contratos-digitales?cliente_id=${cliente.id}`)
       .then(r => r.json())
       .then(d => { setContratos(d.contratos || []); setLoading(false); })
-      .catch(err => { if (import.meta.env.DEV) console.error('[ContratoDigitalSection] cargar:', err); setError('Error al cargar contratos digitales'); setLoading(false); });
+      .catch(() => { setError('Error al cargar contratos digitales'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
 
   useEffect(() => { cargar(); }, [cargar]);
-
-  const handleCrear = async () => {
-    if (!form.objeto.trim()) return;
-    setBusy('crear');
-    try {
-      const r = await fetch(`${n8nUrl}/crm-70-post-contrato-digital`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id:      cliente.id,
-          objeto:          form.objeto.trim(),
-          importe_mensual: parseFloat(form.importe_mensual) || null,
-          canal_envio:     form.canal_envio,
-          contrato_id:     cliente.contrato_activo_id || undefined,
-        }),
-      });
-      const d = await r.json();
-      if (d.ok) {
-        setShowForm(false);
-        setForm({ objeto: '', importe_mensual: '', canal_envio: 'whatsapp' });
-        cargar();
-      } else { setError('Error al crear contrato digital'); }
-    } catch (err) { if (import.meta.env.DEV) console.error('[ContratoDigitalSection]:', err); setError('Error de conexión'); }
-    finally { setBusy(null); }
-  };
 
   const handleEnviar = async (contrato) => {
     setBusy(`enviar-${contrato.id}`);
@@ -82,7 +54,7 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
       const d = await r.json();
       if (d.ok) cargar();
       else setError('Error al enviar contrato');
-    } catch (err) { if (import.meta.env.DEV) console.error('[ContratoDigitalSection]:', err); setError('Error de conexión'); }
+    } catch (err) { setError('Error de conexión'); void err; }
     finally { setBusy(null); }
   };
 
@@ -96,19 +68,11 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
     <div className="flex flex-col gap-2 px-5 py-4">
       <div className="flex items-center justify-between mb-1">
         <p className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Contratos Digitales</p>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest border border-[#D00000]/40 hover:border-[#D00000] text-[#D00000] rounded-sm px-2.5 py-1 transition-colors"
-          >
-            <Plus size={9} /> Nuevo
-          </button>
-        )}
       </div>
 
       {error && <p className="text-[10px] text-red-400 font-mono">{error}</p>}
 
-      {contratos.length === 0 && !showForm && (
+      {contratos.length === 0 && (
         <div className="border border-dashed border-slate-800 rounded-sm p-5 text-center">
           <p className="text-slate-600 text-xs font-mono">Sin contratos digitales</p>
         </div>
@@ -145,46 +109,6 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
           )}
         </div>
       ))}
-
-      {showForm && (
-        <div className="border border-slate-700 rounded-sm p-4 bg-slate-900/50 flex flex-col gap-2">
-          <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mb-1">Nuevo contrato digital</p>
-          <textarea
-            rows={3}
-            placeholder="Objeto del contrato (ej: Gestión integral de reputación digital…)"
-            value={form.objeto}
-            onChange={e => setForm(f => ({ ...f, objeto: e.target.value }))}
-            className="bg-slate-950 border border-slate-700 rounded-sm px-3 py-2 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full resize-none"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[9px] text-slate-600 font-mono mb-1">€/mes (opcional)</p>
-              <input type="number" placeholder="0.00" value={form.importe_mensual}
-                onChange={e => setForm(f => ({ ...f, importe_mensual: e.target.value }))}
-                className="bg-slate-950 border border-slate-700 rounded-sm px-2 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full" />
-            </div>
-            <div>
-              <p className="text-[9px] text-slate-600 font-mono mb-1">Canal de envío</p>
-              <select value={form.canal_envio}
-                onChange={e => setForm(f => ({ ...f, canal_envio: e.target.value }))}
-                className="bg-slate-950 border border-slate-700 rounded-sm px-2 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full">
-                {CANALES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-2 mt-1">
-            <button onClick={handleCrear}
-              disabled={busy === 'crear' || !form.objeto.trim()}
-              className="flex-1 py-1.5 text-[10px] font-mono uppercase tracking-widest border border-slate-600 rounded-sm text-slate-300 hover:text-white transition-colors disabled:opacity-40">
-              {busy === 'crear' ? 'Generando…' : 'Generar borrador'}
-            </button>
-            <button onClick={() => { setShowForm(false); setError(null); }}
-              className="px-3 py-1.5 text-[10px] font-mono text-slate-600 hover:text-slate-400 transition-colors">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

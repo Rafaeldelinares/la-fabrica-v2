@@ -9,6 +9,7 @@ import NuevoClienteDrawer from './NuevoClienteDrawer';
 import { useAuth } from '../../auth/AuthContext';
 
 const PAGE_SIZE = 15;
+const N8N = import.meta.env.VITE_N8N_URL;
 
 const SEMAFORO_CONFIG = {
   verde: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Al día',    desc: 'Contacto en los últimos 30 días, sin pagos pendientes ni renovaciones urgentes.' },
@@ -64,8 +65,6 @@ const CarteraPanel = () => {
   const [pagina, setPagina]             = useState(1);
   const [error, setError]               = useState('');
 
-  const N8N = import.meta.env.VITE_N8N_URL;
-
   useEffect(() => {
     fetch(`${N8N}/crm-cartera-get`)
       .then(res => res.json())
@@ -85,7 +84,7 @@ const CarteraPanel = () => {
     if (!clientes) return [];
     return clientes.filter(c => {
       if (filtroSemaforo && c.semaforo !== filtroSemaforo) return false;
-      if (filtroAnio && String(c.año_alta) !== String(filtroAnio)) return false;
+      if (filtroAnio && !busqueda && String(c.año_alta) !== String(filtroAnio)) return false;
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (c.nombre_comercial || '').toLowerCase().includes(q)
@@ -102,7 +101,7 @@ const CarteraPanel = () => {
   const stats = useMemo(() => {
     if (!clientes) return { total: 0, verde: 0, ambar: 0, rojo: 0 };
     const base = clientes.filter(c => {
-      if (filtroAnio && String(c.año_alta) !== String(filtroAnio)) return false;
+      if (filtroAnio && !busqueda && String(c.año_alta) !== String(filtroAnio)) return false;
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (c.nombre_comercial || '').toLowerCase().includes(q)
