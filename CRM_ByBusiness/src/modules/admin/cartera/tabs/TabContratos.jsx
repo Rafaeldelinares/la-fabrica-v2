@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 import { FileText, Plus } from 'lucide-react';
 import DatePickerField from '../../../../shared/ui/DatePickerField';
 import { fmtFecha } from '../../../../utils/dates';
+import ContratoDigitalSection from './ContratoDigitalSection';
 
 const ESTADOS_CONTRATO = ['activo', 'pausado', 'cancelado'];
 
@@ -28,15 +29,15 @@ const TabContratos = ({ cliente, n8nUrl }) => {
   const [errorCarga,       setErrorCarga]       = useState(null);
   const [cambiandoEstado,  setCambiandoEstado]  = useState(null);
 
-  const cargarContratos = () => {
+  const cargarContratos = useCallback(() => {
     setErrorCarga(null);
     fetch(`${n8nUrl}/crm-contratos-cliente?cliente_id=${cliente.id}`)
       .then(res => res.json())
       .then(data => setContratos(data.ok ? data.contratos : []))
-      .catch(() => { setContratos([]); setErrorCarga('Error al cargar contratos'); });
-  };
+      .catch(err => { if (import.meta.env.DEV) console.error('[TabContratos] cargar:', err); setContratos([]); setErrorCarga('Error al cargar contratos'); });
+  }, [cliente.id, n8nUrl]);
 
-  useEffect(() => { cargarContratos(); }, [cliente.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { cargarContratos(); }, [cargarContratos]);
 
   const handleCambiarEstado = (contrato, nuevoEstado) => {
     if (contrato.estado === nuevoEstado) return;
@@ -48,7 +49,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
     })
       .then(res => res.json())
       .then(d => { if (d.ok) cargarContratos(); })
-      .catch(() => {})
+      .catch(err => { if (import.meta.env.DEV) console.error('[TabContratos] cambiarEstado:', err); })
       .finally(() => setCambiandoEstado(null));
   };
 
@@ -79,7 +80,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
       } else {
         setErrorGuardar('Error al guardar el contrato');
       }
-    } catch { setErrorGuardar('Error de conexión'); } finally { setGuardandoNuevo(false); }
+    } catch (err) { if (import.meta.env.DEV) console.error('[TabContratos] nuevoContrato:', err); setErrorGuardar('Error de conexión'); } finally { setGuardandoNuevo(false); }
   };
 
   if (contratos === null) return (
@@ -227,12 +228,16 @@ const TabContratos = ({ cliente, n8nUrl }) => {
           <Plus size={11} /> Añadir nuevo servicio
         </button>
       )}
+
+      <div className="border-t border-slate-800 mt-2 -mx-5">
+        <ContratoDigitalSection cliente={cliente} n8nUrl={n8nUrl} />
+      </div>
     </div>
   );
 };
 
 TabContratos.propTypes = {
-  cliente: PropTypes.object.isRequired,
+  cliente: PropTypes.shape({ id: PropTypes.number.isRequired }).isRequired,
   n8nUrl:  PropTypes.string.isRequired,
 };
 

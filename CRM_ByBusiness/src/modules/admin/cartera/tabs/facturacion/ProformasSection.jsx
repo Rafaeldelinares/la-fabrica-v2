@@ -27,7 +27,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
     fetch(`${n8nUrl}/crm-proformas?cliente_id=${cliente.id}`)
       .then(r => r.json())
       .then(d => { setProformas(d.proformas || []); setLoading(false); })
-      .catch(() => { setError('Error al cargar proformas'); setLoading(false); });
+      .catch(err => { if (import.meta.env.DEV) console.error('[ProformasSection] cargar:', err); setError('Error al cargar proformas'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
 
   useEffect(() => { cargar(); }, [cargar]);
@@ -43,7 +43,8 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
       const d = await r.json();
       if (d.ok) cargar();
       else setError(d.error || `Error en ${endpoint}`);
-    } catch {
+    } catch (err) {
+      if (import.meta.env.DEV) console.error('[ProformasSection] accion:', err);
       setError('Error de conexión');
     } finally {
       setBusy(null);
@@ -164,6 +165,21 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                     className="flex items-center gap-1 text-[10px] font-mono uppercase border border-blue-800 rounded-sm px-3 py-1 text-blue-400 hover:bg-blue-900/20 disabled:opacity-40 transition-colors"
                   >
                     <FileText size={10} /> Generar factura
+                  </button>
+                )}
+                {pf.estado === 'aceptada' && (
+                  <button
+                    disabled={busy === `contrato-${pf.id}`}
+                    onClick={() => accion('crm-70-post-contrato-digital', {
+                      cliente_id:      cliente.id,
+                      proforma_id:     pf.id,
+                      objeto:          (pf.lineas || []).map(l => l.descripcion).filter(Boolean).join(', ') || pf.numero || 'Servicios contratados',
+                      importe_mensual: pf.total || null,
+                      canal_envio:     'whatsapp',
+                    }, `contrato-${pf.id}`)}
+                    className="flex items-center gap-1 text-[10px] font-mono uppercase border border-slate-600 rounded-sm px-3 py-1 text-slate-400 hover:text-[#D00000] hover:border-[#D00000]/60 disabled:opacity-40 transition-colors"
+                  >
+                    <FileText size={10} /> Generar contrato
                   </button>
                 )}
               </div>
