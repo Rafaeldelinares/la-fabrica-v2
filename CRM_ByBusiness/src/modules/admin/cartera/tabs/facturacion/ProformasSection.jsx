@@ -8,10 +8,10 @@ import ModalNuevaProforma from './ModalNuevaProforma';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
-/** borrador→enviada→pendiente_cliente→aceptada|rechazada */
+/** borrador→verificada→pendiente_cliente→aceptada|rechazada */
 const ESTADO_BADGE = {
   borrador:          'bg-slate-700 text-slate-300',
-  enviada:           'bg-blue-900/50 text-blue-300',
+  verificada:        'bg-blue-900/50 text-blue-300',
   pendiente_cliente: 'bg-amber-900/50 text-amber-300',
   aceptada:          'bg-emerald-900/50 text-emerald-300',
   rechazada:         'bg-red-900/50 text-red-400',
@@ -91,7 +91,7 @@ EvidenciaModal.propTypes = {
 
 /**
  * ProformasSection — Lista de proformas con máquina de estados:
- * borrador → enviada → pendiente_cliente → aceptada | rechazada
+ * borrador → verificada → pendiente_cliente → aceptada | rechazada
  * @param {{ cliente: object, n8nUrl: string, operadorId: string|number }} props
  */
 const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
@@ -166,8 +166,8 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
 
         /* ── visibilidad por estado ── */
         const showPencil    = es === 'borrador';
-        const showCheck     = es === 'borrador' || es === 'enviada';
-        const showFileText  = es === 'enviada'  || es === 'pendiente_cliente';
+        const showCheck     = es === 'borrador' || es === 'verificada';
+        const showFileText  = es === 'verificada'  || es === 'pendiente_cliente';
         const showMsgWa     = es === 'pendiente_cliente';
         const showMail      = es === 'pendiente_cliente';
         const showEye       = es === 'aceptada' || tieneRespuesta;
@@ -213,7 +213,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                   )}
                   {showCheck && (
                     <ActionIcon icon={CheckCircle} estado={pf.verificada_admin ? 'activo' : 'pendiente'}
-                      title={pf.verificada_admin ? 'Verificada por admin' : 'Verificar y marcar como enviada'}
+                      title={pf.verificada_admin ? 'Verificada por admin' : 'Verificar proforma'}
                       onClick={() => accion('crm-proforma-verificar', { proforma_id: pf.id }, `verif-${pf.id}`)}
                       disabled={busy === `verif-${pf.id}`} />
                   )}
