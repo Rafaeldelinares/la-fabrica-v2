@@ -46,6 +46,9 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!lineas.length) return setError('Añade al menos una línea');
+    const descripciones = lineas.map(l => l.descripcion.trim().toLowerCase()).filter(Boolean);
+    const hasDuplicates = descripciones.length !== new Set(descripciones).size;
+    if (hasDuplicates) return setError('Hay líneas con el mismo producto. Eliminá los duplicados antes de guardar.');
     setSaving(true); setError(null);
     try {
       let proformaId;
@@ -180,25 +183,25 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
                 <div key={l._id} className="grid grid-cols-[1fr_56px_80px_60px_28px] gap-2 items-end">
                   <div>
                     {productos.length > 0 && (
-                      <select
-                        className={`${SELECT} mb-1`}
-                        defaultValue=""
-                        onChange={e => {
-                          const p = productos.find(x => String(x.id) === e.target.value);
-                          if (p) {
-                            updLine(l._id, 'descripcion', p.descripcion || p.nombre);
-                            if (p.precio_base != null) updLine(l._id, 'precio_unitario', +p.precio_base);
-                          }
-                          e.target.value = '';
-                        }}
-                      >
-                        <option value="" disabled>— catálogo —</option>
+                      <datalist id={`dl-${l._id}`}>
                         {productos.map(p => (
-                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                          <option key={p.id} value={p.descripcion || p.nombre} />
                         ))}
-                      </select>
+                      </datalist>
                     )}
-                    <input className={INPUT} value={l.descripcion} onChange={e => updLine(l._id, 'descripcion', e.target.value)} required placeholder="Descripción libre o seleccionar del catálogo" />
+                    <input
+                      className={INPUT}
+                      list={productos.length > 0 ? `dl-${l._id}` : undefined}
+                      value={l.descripcion}
+                      onChange={e => {
+                        const val = e.target.value;
+                        updLine(l._id, 'descripcion', val);
+                        const match = productos.find(p => (p.descripcion || p.nombre) === val);
+                        if (match && match.precio_base != null) updLine(l._id, 'precio_unitario', +match.precio_base);
+                      }}
+                      required
+                      placeholder="Descripción libre o seleccionar del catálogo…"
+                    />
                   </div>
                   <div>
                     <span className={LABEL}>Cant.</span>
