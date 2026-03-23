@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { X, Plus, Trash2 } from 'lucide-react';
 
@@ -6,21 +6,29 @@ const lineaVacia = () => ({ _id: Date.now() + Math.random(), descripcion: '', ca
 const subtotalLinea = (l) => +(l.cantidad * l.precio_unitario * (1 - l.dto_pct / 100)).toFixed(2);
 const totalLineas   = (ls) => ls.reduce((s, l) => s + subtotalLinea(l), 0).toFixed(2);
 
-const INPUT = 'bg-slate-900 border border-slate-700 text-white text-xs font-mono rounded-sm px-2 py-1 w-full focus:border-[#D00000] focus:outline-none';
-const LABEL = 'text-[10px] text-slate-500 uppercase tracking-widest font-mono';
+const INPUT  = 'bg-slate-900 border border-slate-700 text-white text-xs font-mono rounded-sm px-2 py-1 w-full focus:border-[#D00000] focus:outline-none';
+const SELECT = 'bg-slate-800 border border-slate-700 text-slate-400 text-[10px] font-mono rounded-sm px-2 py-1 w-full focus:border-[#D00000] focus:outline-none cursor-pointer';
+const LABEL  = 'text-[10px] text-slate-500 uppercase tracking-widest font-mono';
 
 /**
  * ModalNuevaProforma — Modal para crear una proforma con líneas de producto.
  * @param {{ cliente: object, operadorId: string|number, n8nUrl: string, onClose: Function, onCreated: Function }} props
  */
 const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated }) => {
-  const [notas,           setNotas]           = useState('');
-  const [fraccionado,     setFraccionado]     = useState(false);
-  const [numFracciones,   setNumFracciones]   = useState(2);
-  const [requiereFactura, setRequiereFactura] = useState(true);
-  const [lineas,          setLineas]          = useState([lineaVacia()]);
-  const [saving,          setSaving]          = useState(false);
-  const [error,           setError]           = useState(null);
+  const [notas,         setNotas]         = useState('');
+  const [fraccionado,   setFraccionado]   = useState(false);
+  const [numFracciones, setNumFracciones] = useState(2);
+  const [lineas,        setLineas]        = useState([lineaVacia()]);
+  const [productos,     setProductos]     = useState([]);
+  const [saving,        setSaving]        = useState(false);
+  const [error,         setError]         = useState(null);
+
+  useEffect(() => {
+    fetch(`${n8nUrl}/crm-productos`)
+      .then(r => r.json())
+      .then(d => setProductos(d.productos || []))
+      .catch(() => {});
+  }, [n8nUrl]);
 
   const updLine = (id, field, val) =>
     setLineas(prev => prev.map(l => l._id === id ? { ...l, [field]: val } : l));
@@ -36,12 +44,11 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          cliente_id:       cliente.id,
-          operador_id:      operadorId,
+          cliente_id:     cliente.id,
+          operador_id:    operadorId,
           notas,
           fraccionado,
-          num_fracciones:   fraccionado ? numFracciones : 1,
-          requiere_factura: requiereFactura,
+          num_fracciones: fraccionado ? numFracciones : 1,
         }),
       });
       const dataP = await resP.json();
@@ -96,10 +103,6 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
               <input type="checkbox" checked={fraccionado} onChange={e => setFraccionado(e.target.checked)} className="accent-[#D00000]" />
               <span className={LABEL}>Pago aplazado</span>
             </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={requiereFactura} onChange={e => setRequiereFactura(e.target.checked)} className="accent-[#D00000]" />
-              <span className={LABEL}>Requiere factura</span>
-            </label>
             {fraccionado && (
               <div className="flex items-center gap-2">
                 <span className={LABEL}>Fracciones</span>
@@ -135,8 +138,23 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
               {lineas.map(l => (
                 <div key={l._id} className="grid grid-cols-[1fr_56px_80px_60px_28px] gap-2 items-end">
                   <div>
-                    <span className={LABEL}>Descripción</span>
-                    <input className={INPUT} value={l.descripcion} onChange={e => updLine(l._id, 'descripcion', e.target.value)} required placeholder="Servicio o producto" />
+                    {productos.length > 0 && (
+                      <select
+                        className={`${SELECT} mb-1`}
+                        defaultValue=""
+                        onChange={e => {
+                          const p = productos.find(x => String(x.id) === e.target.value);
+                          if (p) updLine(l._id, 'descripcion', p.descripcion || p.nombre);
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="" disabled>— catálogo —</option>
+                        {productos.map(p => (
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                        ))}
+                      </select>
+                    )}
+                    <input className={INPUT} value={l.descripcion} onChange={e => updLine(l._id, 'descripcion', e.target.value)} required placeholder="Descripción libre o seleccionar del catálogo" />
                   </div>
                   <div>
                     <span className={LABEL}>Cant.</span>
@@ -184,7 +202,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
 
 ModalNuevaProforma.propTypes = {
   cliente:       PropTypes.shape({ id: PropTypes.number.isRequired, nombre_comercial: PropTypes.string }).isRequired,
-  operadorId:    PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  operadorId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   n8nUrl:        PropTypes.string.isRequired,
   onClose:       PropTypes.func.isRequired,
   onCreated:     PropTypes.func.isRequired,
