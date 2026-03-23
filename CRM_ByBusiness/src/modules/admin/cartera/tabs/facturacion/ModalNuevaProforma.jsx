@@ -11,14 +11,20 @@ const SELECT = 'bg-slate-800 border border-slate-700 text-slate-400 text-[10px] 
 const LABEL  = 'text-[10px] text-slate-500 uppercase tracking-widest font-mono';
 
 /**
- * ModalNuevaProforma — Modal para crear una proforma con líneas de producto.
- * @param {{ cliente: object, operadorId: string|number, n8nUrl: string, onClose: Function, onCreated: Function }} props
+ * ModalNuevaProforma — Modal para crear o editar una proforma con líneas de producto.
+ * @param {{ cliente: object, operadorId: string|number, n8nUrl: string, onClose: Function, onCreated: Function, proformaEditar?: object }} props
  */
-const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated }) => {
-  const [notas,         setNotas]         = useState('');
-  const [fraccionado,   setFraccionado]   = useState(false);
-  const [numFracciones, setNumFracciones] = useState(2);
-  const [lineas,        setLineas]        = useState([lineaVacia()]);
+const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, proformaEditar }) => {
+  const editMode = !!proformaEditar;
+
+  const [notas,         setNotas]         = useState(proformaEditar?.notas || '');
+  const [fraccionado,   setFraccionado]   = useState(proformaEditar?.fraccionado || false);
+  const [numFracciones, setNumFracciones] = useState(proformaEditar?.num_fracciones || 2);
+  const [lineas,        setLineas]        = useState(
+    proformaEditar?.lineas?.length
+      ? proformaEditar.lineas.map(l => ({ ...l, _id: Date.now() + Math.random() }))
+      : [lineaVacia()]
+  );
   const [productos,     setProductos]     = useState([]);
   const [saving,        setSaving]        = useState(false);
   const [error,         setError]         = useState(null);
@@ -40,20 +46,37 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
     if (!lineas.length) return setError('Añade al menos una línea');
     setSaving(true); setError(null);
     try {
-      const resP = await fetch(`${n8nUrl}/crm-proforma-crear`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id:     cliente.id,
-          operador_id:    operadorId,
-          notas,
-          fraccionado,
-          num_fracciones: fraccionado ? numFracciones : 1,
-        }),
-      });
-      const dataP = await resP.json();
-      if (!dataP.ok) throw new Error(dataP.error || 'Error al crear proforma');
-      const proformaId = dataP.proforma?.id;
+      let proformaId;
+      if (editMode) {
+        const resE = await fetch(`${n8nUrl}/crm-proforma-editar`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            proforma_id:    proformaEditar.id,
+            notas,
+            fraccionado,
+            num_fracciones: fraccionado ? numFracciones : 1,
+          }),
+        });
+        const dataE = await resE.json();
+        if (!dataE.ok) throw new Error(dataE.error || 'Error al editar proforma');
+        proformaId = proformaEditar.id;
+      } else {
+        const resP = await fetch(`${n8nUrl}/crm-proforma-crear`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            cliente_id:     cliente.id,
+            operador_id:    operadorId,
+            notas,
+            fraccionado,
+            num_fracciones: fraccionado ? numFracciones : 1,
+          }),
+        });
+        const dataP = await resP.json();
+        if (!dataP.ok) throw new Error(dataP.error || 'Error al crear proforma');
+        proformaId = dataP.proforma?.id;
+      }
       for (const l of lineas) {
         const r = await fetch(`${n8nUrl}/crm-proforma-linea`, {
           method: 'POST',
@@ -83,7 +106,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
 
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800 shrink-0">
           <p className="text-xs font-black uppercase tracking-widest text-white">
-            Nueva Proforma — {cliente.nombre_comercial}
+            {editMode ? `Editar ${proformaEditar.numero}` : 'Nueva Proforma'} — {cliente.nombre_comercial}
           </p>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
             <X size={16} />
@@ -189,7 +212,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
                 type="submit" disabled={saving}
                 className="text-[10px] font-mono uppercase tracking-widest bg-[#D00000] hover:bg-red-800 disabled:opacity-50 text-white rounded-sm px-4 py-2 transition-colors"
               >
-                {saving ? 'Guardando…' : 'Crear Proforma'}
+                {saving ? 'Guardando…' : editMode ? 'Guardar Cambios' : 'Crear Proforma'}
               </button>
             </div>
           </div>
@@ -202,7 +225,8 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated })
 
 ModalNuevaProforma.propTypes = {
   cliente:       PropTypes.shape({ id: PropTypes.number.isRequired, nombre_comercial: PropTypes.string }).isRequired,
-  operadorId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  operadorId:     PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  proformaEditar: PropTypes.object,
   n8nUrl:        PropTypes.string.isRequired,
   onClose:       PropTypes.func.isRequired,
   onCreated:     PropTypes.func.isRequired,

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
   Plus, ChevronDown, ChevronRight, Trash2,
-  CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw,
+  CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw, Pencil,
 } from 'lucide-react';
 import ModalNuevaProforma from './ModalNuevaProforma';
 
@@ -100,7 +100,8 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
   const [expanded,  setExpanded]  = useState({});
-  const [showModal, setShowModal] = useState(false);
+  const [showModal,    setShowModal]    = useState(false);
+  const [editProforma, setEditProforma] = useState(null);
   const [busy,      setBusy]      = useState(null);
   const [evidencia, setEvidencia] = useState(null);
 
@@ -164,13 +165,14 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
         const es            = pf.estado;
 
         /* ── visibilidad por estado ── */
+        const showPencil    = es === 'borrador';
         const showCheck     = es === 'borrador' || es === 'enviada';
         const showFileText  = es === 'enviada'  || es === 'pendiente_cliente';
         const showMsgWa     = es === 'pendiente_cliente';
         const showMail      = es === 'pendiente_cliente';
         const showEye       = es === 'aceptada' || tieneRespuesta;
         const showReabrir   = es === 'pendiente_cliente';
-        const showIcons     = showCheck || showFileText || showMsgWa || showMail || showEye || showReabrir;
+        const showIcons     = showPencil || showCheck || showFileText || showMsgWa || showMail || showEye || showReabrir;
 
         /* FileText disabled si pendiente_cliente y ya hay contrato activo */
         const fileTextDisabled = (es === 'pendiente_cliente' && !!contrato) || busy === `contrato-${pf.id}`;
@@ -198,6 +200,12 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
               {showIcons && (
                 <div className="flex items-center gap-0.5 ml-2 shrink-0" onClick={e => e.stopPropagation()}>
 
+                  {showPencil && (
+                    <ActionIcon icon={Pencil} estado="pendiente"
+                      title="Editar proforma"
+                      onClick={() => setEditProforma(pf)}
+                      disabled={false} />
+                  )}
                   {showCheck && (
                     <ActionIcon icon={CheckCircle} estado={pf.verificada_admin ? 'activo' : 'pendiente'}
                       title={pf.verificada_admin ? 'Verificada por admin' : 'Verificar y marcar como enviada'}
@@ -314,6 +322,17 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
           </div>
         );
       })}
+
+      {editProforma && (
+        <ModalNuevaProforma
+          cliente={cliente}
+          operadorId={operadorId}
+          n8nUrl={n8nUrl}
+          proformaEditar={editProforma}
+          onClose={() => setEditProforma(null)}
+          onCreated={() => { setEditProforma(null); cargar(); }}
+        />
+      )}
 
       {showModal && (
         <ModalNuevaProforma
