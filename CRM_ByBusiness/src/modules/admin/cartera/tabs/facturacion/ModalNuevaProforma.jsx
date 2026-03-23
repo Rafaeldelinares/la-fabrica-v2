@@ -183,24 +183,28 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
                 <div key={l._id} className="grid grid-cols-[1fr_56px_80px_60px_28px] gap-2 items-end">
                   <div>
                     {productos.length > 0 && (
-                      <datalist id={`dl-${l._id}`}>
+                      <select
+                        className={`${SELECT} mb-1`}
+                        value=""
+                        onChange={e => {
+                          const p = productos.find(x => String(x.id) === e.target.value);
+                          if (!p) return;
+                          updLine(l._id, 'descripcion', p.descripcion || p.nombre);
+                          if (p.precio_base != null) updLine(l._id, 'precio_unitario', +p.precio_base);
+                        }}
+                      >
+                        <option value="" disabled>— catálogo —</option>
                         {productos.map(p => (
-                          <option key={p.id} value={p.descripcion || p.nombre} />
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
                         ))}
-                      </datalist>
+                      </select>
                     )}
                     <input
                       className={INPUT}
-                      list={productos.length > 0 ? `dl-${l._id}` : undefined}
                       value={l.descripcion}
-                      onChange={e => {
-                        const val = e.target.value;
-                        updLine(l._id, 'descripcion', val);
-                        const match = productos.find(p => (p.descripcion || p.nombre) === val);
-                        if (match && match.precio_base != null) updLine(l._id, 'precio_unitario', +match.precio_base);
-                      }}
+                      onChange={e => updLine(l._id, 'descripcion', e.target.value)}
                       required
-                      placeholder="Descripción libre o seleccionar del catálogo…"
+                      placeholder="Descripción libre o usar catálogo ↑"
                     />
                   </div>
                   <div>
