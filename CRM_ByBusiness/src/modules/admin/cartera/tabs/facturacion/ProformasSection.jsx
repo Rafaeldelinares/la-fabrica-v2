@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
   Plus, ChevronDown, ChevronRight, Trash2,
-  CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw, Pencil,
+  CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw, Pencil, X,
 } from 'lucide-react';
 import ModalNuevaProforma from './ModalNuevaProforma';
 
@@ -87,6 +87,74 @@ EvidenciaModal.propTypes = {
   onClose:  PropTypes.func.isRequired,
 };
 
+/**
+ * ContratoModal — Popup con detalles del contrato digital.
+ * @param {{ contrato: object, onClose: Function }} props
+ */
+function ContratoModal({ contrato, onClose }) {
+  const LABEL = 'text-[10px] text-slate-500 uppercase tracking-widest font-mono';
+  const VAL   = 'text-xs text-white font-mono';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
+      <div
+        className="w-full max-w-lg bg-slate-950 border border-slate-700 rounded-sm shadow-2xl p-5 flex flex-col gap-4"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <p className="text-xs font-black uppercase tracking-widest text-white font-mono">
+            Contrato {contrato.referencia}
+          </p>
+          <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className={LABEL}>Objeto</p>
+            <p className={`${VAL} text-slate-300 text-[11px] leading-relaxed`}>{contrato.objeto}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className={LABEL}>Importe</p>
+              <p className={VAL}>{contrato.importe_mensual ? `${(+contrato.importe_mensual).toFixed(2)}€` : '—'}</p>
+            </div>
+            <div>
+              <p className={LABEL}>Estado</p>
+              <p className={VAL}>{contrato.estado}</p>
+            </div>
+            <div>
+              <p className={LABEL}>Canal</p>
+              <p className={VAL}>{contrato.canal_envio || '—'}</p>
+            </div>
+            <div>
+              <p className={LABEL}>Creado</p>
+              <p className={VAL}>{contrato.created_at ? new Date(contrato.created_at).toLocaleDateString('es-ES') : '—'}</p>
+            </div>
+          </div>
+        </div>
+
+        {contrato.pdf_url ? (
+          <a
+            href={contrato.pdf_url}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[10px] font-mono uppercase tracking-widest bg-[#D00000] hover:bg-red-800 text-white rounded-sm px-4 py-2 text-center transition-colors"
+          >
+            Ver PDF
+          </a>
+        ) : (
+          <p className="text-[10px] text-slate-500 font-mono text-center">PDF no disponible aún</p>
+        )}
+      </div>
+    </div>
+  );
+}
+ContratoModal.propTypes = {
+  contrato: PropTypes.object.isRequired,
+  onClose: PropTypes.func.isRequired,
+};
+
 /* ─── componente principal ────────────────────────────────────────────────── */
 
 /**
@@ -102,8 +170,9 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   const [expanded,  setExpanded]  = useState({});
   const [showModal,    setShowModal]    = useState(false);
   const [editProforma, setEditProforma] = useState(null);
-  const [busy,      setBusy]      = useState(null);
-  const [evidencia, setEvidencia] = useState(null);
+  const [busy,         setBusy]         = useState(null);
+  const [evidencia,    setEvidencia]    = useState(null);
+  const [contratoVista, setContratoVista] = useState(null);
 
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
@@ -221,7 +290,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                     <ActionIcon icon={FileText} estado={contrato ? 'activo' : 'pendiente'}
                       title={fileTextDisabled && es === 'pendiente_cliente' ? 'Contrato ya creado' : contrato ? 'Ver contrato PDF' : 'Generar contrato digital'}
                       onClick={() => !fileTextDisabled && (contrato
-                        ? window.open(contrato.pdf_url, '_blank')
+                        ? setContratoVista(contrato)
                         : accion('crm-70-post-contrato-digital', {
                             cliente_id: cliente.id, proforma_id: pf.id,
                             objeto: (pf.lineas || []).map(l => l.descripcion).filter(Boolean).join(', ') || pf.numero || 'Servicios contratados',
@@ -350,6 +419,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
       )}
 
       {evidencia && <EvidenciaModal contrato={evidencia} onClose={() => setEvidencia(null)} />}
+      {contratoVista && <ContratoModal contrato={contratoVista} onClose={() => setContratoVista(null)} />}
     </div>
   );
 };
