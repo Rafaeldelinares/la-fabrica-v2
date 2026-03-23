@@ -22,7 +22,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
   const [numFracciones, setNumFracciones] = useState(proformaEditar?.num_fracciones || 2);
   const [lineas,        setLineas]        = useState(
     proformaEditar?.lineas?.length
-      ? proformaEditar.lineas.map(l => ({ ...l, _id: Date.now() + Math.random() }))
+      ? proformaEditar.lineas.map(l => ({ ...l, _id: Date.now() + Math.random(), dto_pct: l.dto_pct ?? 0, cantidad: +l.cantidad || 1, precio_unitario: +l.precio_unitario || 0 }))
       : [lineaVacia()]
   );
   const [productos,     setProductos]     = useState([]);
