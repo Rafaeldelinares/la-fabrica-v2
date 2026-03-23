@@ -185,7 +185,10 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
                         defaultValue=""
                         onChange={e => {
                           const p = productos.find(x => String(x.id) === e.target.value);
-                          if (p) updLine(l._id, 'descripcion', p.descripcion || p.nombre);
+                          if (p) {
+                            updLine(l._id, 'descripcion', p.descripcion || p.nombre);
+                            if (p.precio_base != null) updLine(l._id, 'precio_unitario', +p.precio_base);
+                          }
                           e.target.value = '';
                         }}
                       >
