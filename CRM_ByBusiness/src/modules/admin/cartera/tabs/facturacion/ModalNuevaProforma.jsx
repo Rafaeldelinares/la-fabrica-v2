@@ -20,6 +20,8 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
   const [notas,         setNotas]         = useState(proformaEditar?.notas || '');
   const [fraccionado,   setFraccionado]   = useState(proformaEditar?.fraccionado || false);
   const [numFracciones, setNumFracciones] = useState(proformaEditar?.num_fracciones || 2);
+  const [aplicarIva,    setAplicarIva]    = useState(proformaEditar?.iva_pct != null);
+  const [ivaPct,        setIvaPct]        = useState(proformaEditar?.iva_pct ?? 21);
   const [lineas,        setLineas]        = useState(
     proformaEditar?.lineas?.length
       ? proformaEditar.lineas.map(l => ({ ...l, _id: Date.now() + Math.random(), dto_pct: l.dto_pct ?? 0, cantidad: +l.cantidad || 1, precio_unitario: +l.precio_unitario || 0 }))
@@ -56,6 +58,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
             notas,
             fraccionado,
             num_fracciones: fraccionado ? numFracciones : 1,
+            iva_pct:        aplicarIva ? ivaPct : null,
           }),
         });
         const dataE = await resE.json();
@@ -71,6 +74,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
             notas,
             fraccionado,
             num_fracciones: fraccionado ? numFracciones : 1,
+            iva_pct:        aplicarIva ? ivaPct : null,
           }),
         });
         const dataP = await resP.json();
@@ -132,6 +136,20 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
                 <input
                   type="number" min={2} max={12} value={numFracciones}
                   onChange={e => setNumFracciones(+e.target.value)}
+                  className="w-16 bg-slate-900 border border-slate-700 text-white text-xs font-mono rounded-sm px-2 py-1 focus:border-[#D00000] focus:outline-none"
+                />
+              </div>
+            )}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={aplicarIva} onChange={e => setAplicarIva(e.target.checked)} className="accent-[#D00000]" />
+              <span className={LABEL}>Aplicar IVA</span>
+            </label>
+            {aplicarIva && (
+              <div className="flex items-center gap-2">
+                <span className={LABEL}>IVA %</span>
+                <input
+                  type="number" min={0} max={100} step={0.01} value={ivaPct}
+                  onChange={e => setIvaPct(+e.target.value)}
                   className="w-16 bg-slate-900 border border-slate-700 text-white text-xs font-mono rounded-sm px-2 py-1 focus:border-[#D00000] focus:outline-none"
                 />
               </div>
@@ -200,7 +218,15 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-800">
-            <p className="text-xs font-black text-white font-mono">TOTAL (sin IVA): {totalLineas(lineas)}€</p>
+            {aplicarIva ? (
+              <div className="flex flex-col items-start gap-0.5">
+                <p className="text-[10px] text-slate-400 font-mono">BASE: {totalLineas(lineas)}€</p>
+                <p className="text-[10px] text-slate-400 font-mono">IVA ({ivaPct}%): {(+totalLineas(lineas) * ivaPct / 100).toFixed(2)}€</p>
+                <p className="text-xs font-black text-white font-mono">TOTAL: {(+totalLineas(lineas) * (1 + ivaPct / 100)).toFixed(2)}€</p>
+              </div>
+            ) : (
+              <p className="text-xs font-black text-white font-mono">TOTAL (sin IVA): {totalLineas(lineas)}€</p>
+            )}
             <div className="flex gap-2">
               <button
                 type="button" onClick={onClose}

@@ -194,7 +194,12 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                 {es}
               </span>
 
-              <span className="text-xs font-mono text-slate-300 ml-auto">{Number(pf.total || 0).toFixed(2)}€</span>
+              <span className="text-xs font-mono text-slate-300 ml-auto">
+                {Number(pf.total || 0).toFixed(2)}€
+                {pf.iva_pct != null && (
+                  <span className="text-[9px] font-mono text-amber-500 ml-1">+IVA {pf.iva_pct}%</span>
+                )}
+              </span>
 
               {/* ── action icons — visibilidad según máquina de estados ── */}
               {showIcons && (
