@@ -205,12 +205,12 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
                     <input type="number" min={0.01} step={0.01} className={INPUT} value={l.cantidad} onChange={e => updLine(l._id, 'cantidad', +e.target.value)} />
                   </div>
                   <div>
-                    <span className={LABEL}>Precio €</span>
+                    <span className={`${LABEL} text-emerald-600`}>{subtotalLinea(l).toFixed(2)}€</span>
                     <input type="number" min={0} step={0.01} className={INPUT} value={l.precio_unitario} onChange={e => updLine(l._id, 'precio_unitario', +e.target.value)} />
                   </div>
                   <div>
-                    <span className={`${LABEL} text-emerald-600`}>{subtotalLinea(l).toFixed(2)}€</span>
-                    <input type="number" min={0} max={100} step={0.01} className={INPUT} value={l.dto_pct} onChange={e => updLine(l._id, 'dto_pct', +e.target.value)} placeholder="Dto %" />
+                    <span className={LABEL}>Dto %</span>
+                    <input type="number" min={0} max={100} step={0.01} className={INPUT} value={l.dto_pct} onChange={e => updLine(l._id, 'dto_pct', +e.target.value)} placeholder="0" />
                   </div>
                   <button type="button" onClick={() => delLine(l._id)} className="text-slate-600 hover:text-red-400 pb-0.5 transition-colors">
                     <Trash2 size={13} />
