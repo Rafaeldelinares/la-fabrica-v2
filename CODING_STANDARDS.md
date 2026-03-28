@@ -86,6 +86,15 @@ independiente del estándar Navy Industrial. En estos proyectos están PERMITIDO
 - GGA NO debe aplicar reglas Navy Industrial a rutas escaparate-com/ o escaparate-es/
 salvo indicación explícita del usuario.
 
+EXCEPCIÓN — DIGITAL HUB (digital.ia-bybusiness.com y digital.ia-bybusiness.es):
+El proyecto digital-hub/ tiene su propio sistema de diseño Light Mode independiente
+del estándar Navy Industrial. En este proyecto están PERMITIDOS:
+- rounded-xl, rounded-2xl, rounded-full
+- Paleta de color propia (bg-white, bg-slate-50, blue-600, slate-900)
+- Fuente Outfit (Google Fonts)
+- GGA NO debe aplicar reglas Navy Industrial a rutas digital-hub/
+salvo indicación explícita del usuario.
+
 EXCEPCIÓN — CSS custom properties vía inline style:
 Cuando Tailwind no puede generar clases arbitrarias con valores dinámicos de runtime
 (ej: anchos proporcionales calculados en JS), se permite el patrón:
