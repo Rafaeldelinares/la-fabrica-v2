@@ -10,6 +10,7 @@ import OperatorDashboard from '../../components/dashboard/OperatorDashboard';
 const UsuariosList      = lazy(() => import('../../modules/admin/usuarios/UsuariosList'));
 const WhatsAppPanel     = lazy(() => import('../../components/dashboard/WhatsAppPanel'));
 const LeadsPanel        = lazy(() => import('../../modules/admin/leads/LeadsPanel'));
+const LeadsLandingPanel = lazy(() => import('../../modules/admin/leads/LeadsLandingPanel'));
 const MisResultados     = lazy(() => import('../../components/dashboard/MisResultados'));
 const AgendaPersonal    = lazy(() => import('../../components/dashboard/AgendaPersonal'));
 const CandidatosPanel   = lazy(() => import('../../modules/admin/candidatos/CandidatosPanel'));
@@ -21,6 +22,7 @@ const EntrenamientoPanel = lazy(() => import('../../modules/entrenamiento/Entren
 const SupervisorPanel   = lazy(() => import('../../modules/entrenamiento/SupervisorPanel'));
 const GbpPanel          = lazy(() => import('../../modules/admin/gbp/GbpPanel'));
 const CarteraPanel      = lazy(() => import('../../modules/admin/cartera/CarteraPanel'));
+const GestoriaPanel     = lazy(() => import('../../modules/admin/facturacion/GestoriaPanel'));
 
 /** Skeleton Navy Industrial mostrado mientras un panel lazy está cargando. */
 const PanelSkeleton = () => (
@@ -63,11 +65,13 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
             {activeTab === 'AGENDA_GLOB' && <AgendaGlobalPanel />}
             {activeTab === 'MONITOR' && <div className="text-white">MONITORIZACIÓN REAL-TIME (En construcción)</div>}
             {activeTab === 'LEADS_MGMT' && <LeadsPanel />}
+            {activeTab === 'LEADS_LANDING' && <LeadsLandingPanel />}
             {activeTab === 'CANDIDATOS' && <CandidatosPanel />}
             {activeTab === 'USUARIOS' && <UsuariosList />}
             {activeTab === 'AUDITORIA' && <AuditoriaPanel />}
             {activeTab === 'VENTAS' && <VentasPanel />}
             {activeTab === 'FACTURACION' && <FacturacionPanel />}
+            {activeTab === 'GESTORIA' && <GestoriaPanel />}
 
             {/* Operator Views */}
             {activeTab === 'NEXT_CALL' && <OperatorDashboard />}
