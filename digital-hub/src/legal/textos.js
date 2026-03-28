@@ -20,7 +20,7 @@ DATOS IDENTIFICATIVOS DEL RESPONSABLE
 Denominación social: AGENCIA PARTNER BY BUSINESS
 NIF: B10577021
 Domicilio social: Calle Cuevas Bajas, 4. Edificio Picasso. Planta 1ª. Oficina 7. 29004 Málaga, España
-Correo electrónico: legal@ia-bybusiness.com
+Correo electrónico: informacion@ia-bybusiness.com
 Sitio web: https://ia-bybusiness.com
 
 OBJETO Y ÁMBITO DE APLICACIÓN
@@ -84,7 +84,7 @@ RESPONSABLE DEL TRATAMIENTO
 Identidad: AGENCIA PARTNER BY BUSINESS
 NIF: B10577021
 Domicilio: Calle Cuevas Bajas, 4. Edificio Picasso. Planta 1ª. Oficina 7. 29004 Málaga, España
-Correo electrónico: privacidad@ia-bybusiness.com
+Correo electrónico: informacion@ia-bybusiness.com
 
 FINALIDAD DEL TRATAMIENTO
 
@@ -126,7 +126,7 @@ CÓMO EJERCER SUS DERECHOS
 
 Para ejercer cualquiera de los derechos anteriores, puede dirigirse a nosotros mediante:
 
-Correo electrónico: privacidad@ia-bybusiness.com
+Correo electrónico: informacion@ia-bybusiness.com
 Correo postal: Calle Cuevas Bajas, 4. Edificio Picasso. Planta 1ª. Oficina 7. 29004 Málaga, España (Att. Privacidad)
 
 Deberá acreditar su identidad adjuntando copia de su DNI o documento equivalente. Responderemos a su solicitud en el plazo máximo de un mes desde su recepción.
@@ -205,7 +205,7 @@ Puede retirar en cualquier momento el consentimiento otorgado para las cookies n
 
 MÁS INFORMACIÓN
 
-Para cualquier consulta sobre nuestra política de cookies, puede contactarnos en: privacidad@ia-bybusiness.com
+Para cualquier consulta sobre nuestra política de cookies, puede contactarnos en: informacion@ia-bybusiness.com
 
 FECHA DE ÚLTIMA ACTUALIZACIÓN: Marzo de 2026`,
 };
