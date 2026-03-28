@@ -20,10 +20,10 @@ services:
     image: n8nio/n8n:latest
     container_name: fabrica-n8n
     environment:
-      - N8N_HOST=n8n.localhost
+      - N8N_HOST=n8n.ia-bybusiness.online
       - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://n8n.localhost/
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.ia-bybusiness.online/
       - DB_TYPE=postgresdb
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
@@ -41,7 +41,7 @@ services:
       - postgres
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.n8n.rule=Host(`n8n.localhost`)"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.localhost`) || Host(`n8n.ia-bybusiness.online`)"
       - "traefik.http.routers.n8n.entrypoints=web"
       - "traefik.http.services.n8n.loadbalancer.server.port=5678"
     networks:

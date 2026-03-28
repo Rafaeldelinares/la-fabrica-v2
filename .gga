@@ -8,7 +8,7 @@ FILE_PATTERNS="*.go,*.js,*.jsx,*.tsx,*.ts,*.php,*.sql,*.sh"
 EXCLUDE_PATTERNS="node_modules,vendor,.git,dist,build,*.test.go,*.spec.js,*.d.ts"
 
 # Estándares de La Fábrica
-RULES_FILE="AGENTS.md"
+RULES_FILE="CODING_STANDARDS.md"
 
 STRICT_MODE="true"
 TIMEOUT="180"

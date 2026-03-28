@@ -197,9 +197,10 @@ def deploy_workflow(id_or_name):
         "name":        fixed_wf["name"],
         "nodes":       fixed_wf["nodes"],
         "connections": fixed_wf["connections"],
-        "settings":    fixed_wf.get("settings", {}),
-        "staticData":  fixed_wf.get("staticData"),
+        "settings":    fixed_wf.get("settings") or {},
     }
+    # info(f"DEBUG Payload: {json.dumps(payload)[:200]}...")
+
 
     # 3. Check if exists on VPS
     step("Checking VPS")
