@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
   Plus, ChevronDown, ChevronRight, Trash2,
-  CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw, Pencil, X,
+  CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw, Pencil, X, Receipt,
 } from 'lucide-react';
 import ModalNuevaProforma from './ModalNuevaProforma';
 
@@ -171,8 +171,9 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   const [showModal,    setShowModal]    = useState(false);
   const [editProforma, setEditProforma] = useState(null);
   const [busy,         setBusy]         = useState(null);
-  const [evidencia,    setEvidencia]    = useState(null);
+  const [evidencia,     setEvidencia]     = useState(null);
   const [contratoVista, setContratoVista] = useState(null);
+  const [confirmReabrir, setConfirmReabrir] = useState(null);
 
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
@@ -227,7 +228,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
       {!proformas.length && <p className="text-xs text-slate-500 font-mono px-5 py-6">No hay proformas registradas.</p>}
 
       {proformas.map(pf => {
-        const contrato      = contratos.find(c => c.proforma_id === pf.id) || null;
+        const contrato      = contratos.find(c => c.proforma_id === pf.id && c.estado !== 'obsoleto') || null;
         const waEstado      = contrato?.whatsapp_estado || 'pendiente';
         const emEstado      = contrato?.email_estado    || 'pendiente';
         const tieneRespuesta = ['aceptado','rechazado'].includes(waEstado) || ['aceptado','rechazado'].includes(emEstado);
@@ -235,16 +236,17 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
 
         /* ── visibilidad por estado ── */
         const showPencil    = es === 'borrador';
-        const showCheck     = es === 'borrador' || es === 'verificada';
-        const showFileText  = es === 'verificada'  || es === 'pendiente_cliente';
-        const showMsgWa     = es === 'pendiente_cliente';
-        const showMail      = es === 'pendiente_cliente';
+        const showCheck     = true; // Siempre mostrar para ver estado de verificación
+        const showFileText  = es !== 'borrador'; 
+        const showMsgWa     = es !== 'borrador' && es !== 'verificada';
+        const showMail      = es !== 'borrador' && es !== 'verificada';
         const showEye       = es === 'aceptada' || tieneRespuesta;
-        const showReabrir   = es === 'pendiente_cliente';
-        const showIcons     = showPencil || showCheck || showFileText || showMsgWa || showMail || showEye || showReabrir;
+        const showFacturar  = es === 'aceptada' && pf.requiere_factura;
+        const showReabrir   = es !== 'borrador' && es !== 'aceptada';
+        const showIcons     = true;
 
-        /* FileText disabled si pendiente_cliente y ya hay contrato activo */
-        const fileTextDisabled = (es === 'pendiente_cliente' && !!contrato) || busy === `contrato-${pf.id}`;
+        /* FileText: disabled solo si no hay contrato y no se puede generar (pendiente_cliente sin contrato) */
+        const fileTextDisabled = (!contrato && es === 'pendiente_cliente') || busy === `contrato-${pf.id}`;
 
         return (
           <div key={pf.id} className="border-b border-slate-800">
@@ -317,9 +319,15 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                       onClick={() => tieneRespuesta && setEvidencia(contrato)}
                       disabled={!tieneRespuesta} />
                   )}
+                  {showFacturar && (
+                    <ActionIcon icon={Receipt} estado="activo"
+                      title="Generar factura"
+                      onClick={() => accion('crm-factura-generar', { proforma_id: pf.id }, `factura-${pf.id}`)}
+                      disabled={busy === `factura-${pf.id}`} />
+                  )}
                   {showReabrir && (
                     <ActionIcon icon={RotateCcw} estado="warning" title="Reabrir proforma"
-                      onClick={() => accion('crm-proforma-reabrir', { proforma_id: pf.id }, `reabrir-${pf.id}`)}
+                      onClick={() => setConfirmReabrir(pf)}
                       disabled={busy === `reabrir-${pf.id}`} />
                   )}
                 </div>
@@ -334,10 +342,10 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                     <thead>
                       <tr className="border-b border-slate-800">
                         <th className="text-left pb-1 font-normal text-slate-500">Descripción</th>
-                        <th className="text-right pb-1 font-normal text-slate-500">Cant.</th>
-                        <th className="text-right pb-1 font-normal text-slate-500">Precio</th>
-                        <th className="text-right pb-1 font-normal text-slate-500">Dto%</th>
-                        <th className="text-right pb-1 font-normal text-slate-500">Subtotal</th>
+                        <th className="text-right pb-1 pl-3 font-normal text-slate-500">Cant.</th>
+                        <th className="text-right pb-1 pl-3 font-normal text-slate-500">Precio</th>
+                        <th className="text-right pb-1 pl-3 font-normal text-slate-500">Dto%</th>
+                        <th className="text-right pb-1 pl-3 font-normal text-slate-500">Subtotal</th>
                         {es === 'borrador' && <th />}
                       </tr>
                     </thead>
@@ -345,10 +353,10 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                       {(pf.lineas || []).map(l => (
                         <tr key={l.id} className="border-b border-slate-900">
                           <td className="py-1 text-slate-300">{l.descripcion}</td>
-                          <td className="py-1 text-right">{l.cantidad}</td>
-                          <td className="py-1 text-right">{Number(l.precio_unitario).toFixed(2)}€</td>
-                          <td className="py-1 text-right">{l.dto_pct}%</td>
-                          <td className="py-1 text-right text-slate-200">{Number(l.subtotal).toFixed(2)}€</td>
+                          <td className="py-1 pl-3 text-right">{l.cantidad}</td>
+                          <td className="py-1 pl-3 text-right">{Number(l.precio_unitario).toFixed(2)}€</td>
+                          <td className="py-1 pl-3 text-right">{l.dto_pct}%</td>
+                          <td className="py-1 pl-3 text-right text-slate-200">{Number(l.subtotal).toFixed(2)}€</td>
                           {es === 'borrador' && (
                             <td className="py-1 text-right">
                               <button
@@ -420,6 +428,63 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
 
       {evidencia && <EvidenciaModal contrato={evidencia} onClose={() => setEvidencia(null)} />}
       {contratoVista && <ContratoModal contrato={contratoVista} onClose={() => setContratoVista(null)} />}
+
+      {confirmReabrir && (
+        <div
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center"
+          onClick={() => setConfirmReabrir(null)}
+        >
+          <div
+            className="w-full max-w-sm bg-slate-950 border border-slate-700 rounded-sm shadow-2xl p-5 flex flex-col gap-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <p className="text-xs font-black uppercase tracking-widest text-white font-mono">
+                Confirmar reapertura
+              </p>
+              <button onClick={() => setConfirmReabrir(null)} className="text-slate-500 hover:text-white transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] font-mono text-slate-300">
+                Vas a reabrir la proforma{' '}
+                <span className="text-white font-black">{confirmReabrir.numero || `PF-${confirmReabrir.id}`}</span>.
+              </p>
+              <ul className="flex flex-col gap-1.5 mt-1 pl-3 border-l-2 border-[#D00000]/40">
+                <li className="text-[10px] font-mono text-slate-400">
+                  La proforma volverá a estado{' '}
+                  <span className="text-slate-200 font-black">borrador</span>.
+                </li>
+                <li className="text-[10px] font-mono text-slate-400">
+                  El contrato digital asociado pasará a estado{' '}
+                  <span className="text-amber-400 font-black">obsoleto</span>{' '}
+                  y deberá generarse uno nuevo.
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={() => {
+                  accion('crm-proforma-reabrir', { proforma_id: confirmReabrir.id }, `reabrir-${confirmReabrir.id}`);
+                  setConfirmReabrir(null);
+                }}
+                className="flex-1 text-[10px] font-mono uppercase tracking-widest bg-[#D00000] hover:bg-red-800 text-white rounded-sm px-4 py-2 transition-colors"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setConfirmReabrir(null)}
+                className="flex-1 text-[10px] font-mono uppercase tracking-widest border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-slate-200 rounded-sm px-4 py-2 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
