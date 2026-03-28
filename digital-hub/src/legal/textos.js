@@ -17,21 +17,21 @@ En cumplimiento con el artículo 10 de la Ley 34/2002, de 11 de julio, de Servic
 
 DATOS IDENTIFICATIVOS DEL RESPONSABLE
 
-Denominación social: IA-ByBusiness S.L. (en constitución)
-NIF: B-XXXXXXXX [placeholder — completar antes del lanzamiento]
-Domicilio social: Calle Ejemplo, 1, 1.º A, 28001 Madrid, España
+Denominación social: AGENCIA PARTNER BY BUSINESS
+NIF: B10577021
+Domicilio social: Calle Cuevas Bajas, 4. Edificio Picasso. Planta 1ª. Oficina 7. 29004 Málaga, España
 Correo electrónico: legal@ia-bybusiness.com
 Sitio web: https://ia-bybusiness.com
 
 OBJETO Y ÁMBITO DE APLICACIÓN
 
-El presente Aviso Legal regula el acceso, navegación y uso del sitio web https://ia-bybusiness.com (en adelante, "el Sitio Web"), del que es titular IA-ByBusiness S.L. (en adelante, "la Empresa").
+El presente Aviso Legal regula el acceso, navegación y uso del sitio web https://ia-bybusiness.com (en adelante, "el Sitio Web"), del que es titular AGENCIA PARTNER BY BUSINESS (en adelante, "la Empresa").
 
 El acceso al Sitio Web implica la aceptación expresa de las presentes condiciones. La Empresa se reserva el derecho a modificar en cualquier momento las condiciones de uso, siendo responsabilidad del usuario revisarlas periódicamente.
 
 ACTIVIDAD COMERCIAL
 
-La Empresa presta servicios de consultoría, implantación y desarrollo de soluciones de inteligencia artificial para negocios y PYMEs en España y Latinoamérica. Los servicios incluyen, entre otros, agentes conversacionales, automatización de procesos y análisis de datos.
+AGENCIA PARTNER BY BUSINESS presta servicios de consultoría, implantación y desarrollo de soluciones de inteligencia artificial para negocios y PYMEs en España y Latinoamérica. Los servicios incluyen, entre otros, agentes conversacionales, automatización de procesos y análisis de datos.
 
 CONDICIONES DE USO DEL SITIO WEB
 
@@ -64,9 +64,9 @@ El Sitio Web puede contener enlaces a páginas web de terceros. La Empresa no co
 
 LEGISLACIÓN APLICABLE Y JURISDICCIÓN
 
-Las presentes condiciones se rigen por la legislación española. Para la resolución de cualquier controversia derivada del acceso o uso del Sitio Web, las partes se someten a los Juzgados y Tribunales de la ciudad de Madrid, con renuncia expresa a cualquier otro fuero que pudiera corresponderles.
+Las presentes condiciones se rigen por la legislación española. Para la resolución de cualquier controversia derivada del acceso o uso del Sitio Web, las partes se someten a los Juzgados y Tribunales de la ciudad de Málaga, con renuncia expresa a cualquier otro fuero que pudiera corresponderles.
 
-FECHA DE ÚLTIMA ACTUALIZACIÓN: Marzo de 2025`,
+FECHA DE ÚLTIMA ACTUALIZACIÓN: Marzo de 2026`,
 };
 
 /**
@@ -81,9 +81,9 @@ En cumplimiento del Reglamento (UE) 2016/679 del Parlamento Europeo y del Consej
 
 RESPONSABLE DEL TRATAMIENTO
 
-Identidad: IA-ByBusiness S.L. (en constitución)
-NIF: B-XXXXXXXX [placeholder]
-Domicilio: Calle Ejemplo, 1, 1.º A, 28001 Madrid, España
+Identidad: AGENCIA PARTNER BY BUSINESS
+NIF: B10577021
+Domicilio: Calle Cuevas Bajas, 4. Edificio Picasso. Planta 1ª. Oficina 7. 29004 Málaga, España
 Correo electrónico: privacidad@ia-bybusiness.com
 
 FINALIDAD DEL TRATAMIENTO
@@ -127,7 +127,7 @@ CÓMO EJERCER SUS DERECHOS
 Para ejercer cualquiera de los derechos anteriores, puede dirigirse a nosotros mediante:
 
 Correo electrónico: privacidad@ia-bybusiness.com
-Correo postal: Calle Ejemplo, 1, 1.º A, 28001 Madrid, España (Att. Privacidad)
+Correo postal: Calle Cuevas Bajas, 4. Edificio Picasso. Planta 1ª. Oficina 7. 29004 Málaga, España (Att. Privacidad)
 
 Deberá acreditar su identidad adjuntando copia de su DNI o documento equivalente. Responderemos a su solicitud en el plazo máximo de un mes desde su recepción.
 
@@ -143,7 +143,7 @@ SEGURIDAD DE LOS DATOS
 
 La Empresa aplica las medidas técnicas y organizativas adecuadas para garantizar la seguridad de sus datos personales y evitar su destrucción, pérdida, acceso o alteración ilícitos, de conformidad con lo establecido en el artículo 32 del RGPD.
 
-FECHA DE ÚLTIMA ACTUALIZACIÓN: Marzo de 2025`,
+FECHA DE ÚLTIMA ACTUALIZACIÓN: Marzo de 2026`,
 };
 
 /**
@@ -207,5 +207,5 @@ MÁS INFORMACIÓN
 
 Para cualquier consulta sobre nuestra política de cookies, puede contactarnos en: privacidad@ia-bybusiness.com
 
-FECHA DE ÚLTIMA ACTUALIZACIÓN: Marzo de 2025`,
+FECHA DE ÚLTIMA ACTUALIZACIÓN: Marzo de 2026`,
 };
