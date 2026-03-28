@@ -3,7 +3,6 @@ import PropTypes from 'prop-types';
 import { Printer, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 
-
 /** Formatea número como precio en euros con dos decimales. */
 const fmtEur = (v) => v != null ? `${parseFloat(v || 0).toFixed(2)} €` : '0,00 €';
 
@@ -29,7 +28,16 @@ const LineaProforma = ({ linea, hayDescuentos }) => {
   );
 };
 
-LineaProforma.propTypes = { linea: PropTypes.object.isRequired, hayDescuentos: PropTypes.bool };
+LineaProforma.propTypes = {
+  linea: PropTypes.shape({
+    descripcion:     PropTypes.string,
+    cantidad:        PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+    precio_unitario: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+    subtotal:        PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    dto_pct:         PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  }).isRequired,
+  hayDescuentos: PropTypes.bool,
+};
 
 /**
  * Visor e impresor de proforma — misma estructura visual que la factura ByBusiness.
@@ -46,9 +54,6 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
   const emisorTelefono  = proforma.emisor_telefono  || '';
 
   const totalBruto    = parseFloat(proforma.total || 0);
-  const tipoIva       = 21;
-  const baseImponible = Math.round((totalBruto / (1 + tipoIva / 100)) * 100) / 100;
-  const cuotaIva      = Math.round((totalBruto - baseImponible) * 100) / 100;
   const lineas        = proforma.lineas || [];
   const hayDescuentos = lineas.some(l => parseFloat(l.dto_pct || 0) > 0);
   const referencia    = proforma.numero || `PRO-${String(proforma.id).padStart(4, '0')}`;
@@ -166,14 +171,6 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
               {/* Totales */}
               <div className="flex justify-end mb-5">
                 <div className="w-64 space-y-0">
-                  <div className="flex justify-between px-2 py-1.5 border-b border-slate-200">
-                    <span className="text-xs text-slate-600">Subtotal</span>
-                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(baseImponible)}</span>
-                  </div>
-                  <div className="flex justify-between px-2 py-1.5 border-b border-slate-200">
-                    <span className="text-xs text-slate-600">IVA {tipoIva}%</span>
-                    <span className="font-mono font-bold text-slate-800 text-xs">{fmtEur(cuotaIva)}</span>
-                  </div>
                   <div className="flex justify-between px-2 py-2 mt-1">
                     <span className="text-sm font-black text-slate-900 uppercase tracking-wider">Total</span>
                     <span className="font-mono font-black text-lg text-slate-900">{fmtEur(totalBruto)}</span>
@@ -212,9 +209,35 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
 };
 
 ProformaViewer.propTypes = {
-  proforma: PropTypes.object.isRequired,
-  cliente:  PropTypes.object,
-  onClose:  PropTypes.func.isRequired,
+  proforma: PropTypes.shape({
+    id:               PropTypes.number.isRequired,
+    numero:           PropTypes.string,
+    fecha:            PropTypes.string,
+    total:            PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    notas:            PropTypes.string,
+    lineas:           PropTypes.arrayOf(PropTypes.shape({
+      id:              PropTypes.number,
+      descripcion:     PropTypes.string,
+      cantidad:        PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      precio_unitario: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      subtotal:        PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      dto_pct:         PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    })),
+    emisor_empresa:   PropTypes.string,
+    emisor_nombre:    PropTypes.string,
+    emisor_nif:       PropTypes.string,
+    emisor_dir:       PropTypes.string,
+    emisor_cp:        PropTypes.string,
+    emisor_municipio: PropTypes.string,
+    emisor_telefono:  PropTypes.string,
+  }).isRequired,
+  cliente: PropTypes.shape({
+    nombre_comercial: PropTypes.string,
+    cif:              PropTypes.string,
+    direccion:        PropTypes.string,
+    localidad:        PropTypes.string,
+  }),
+  onClose: PropTypes.func.isRequired,
 };
 
 export default ProformaViewer;

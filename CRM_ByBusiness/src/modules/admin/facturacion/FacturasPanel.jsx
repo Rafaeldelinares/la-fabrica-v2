@@ -1,17 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import FacturaViewer from './FacturaViewer';
-import { FileText, Eye, ExternalLink, ChevronUp, ChevronDown } from 'lucide-react';
+import { FileText, Eye, ExternalLink, ChevronUp, ChevronDown, MessageCircle, Mail } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
+/** Formatea un número como moneda EUR. */
 const fmtEur  = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
-const fmtDate = (d) => fmtFecha(d);
-
 const ESTADO_BADGE = {
   emitida:  'bg-blue-500/10 text-blue-400 border-blue-500/20',
   cobrada:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -19,8 +18,40 @@ const ESTADO_BADGE = {
   anulada:  'bg-slate-700 text-slate-500 border-slate-600',
 };
 
+const COLOR_CANAL = {
+  pendiente: 'text-slate-500 hover:text-slate-300',
+  enviado:   'text-amber-400 hover:text-amber-300',
+  aceptado:  'text-emerald-400 hover:text-emerald-300',
+  rechazado: 'text-red-500 hover:text-red-400',
+  activo:    'text-emerald-400 hover:text-emerald-300',
+  inactivo:  'text-slate-600 cursor-not-allowed',
+};
+
+/** Botón de acción con icono — muestra estado visual (idle/loading/done/error) y tooltip. */
+function ActionIcon({ icon: Icon, estado, onClick, disabled, title }) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={title}
+      className={`p-1 transition-colors rounded-sm ${COLOR_CANAL[estado] ?? COLOR_CANAL.pendiente}`}
+    >
+      <Icon size={14} />
+    </button>
+  );
+}
+
+ActionIcon.propTypes = {
+  icon:     PropTypes.elementType.isRequired,
+  title:    PropTypes.string.isRequired,
+  onClick:  PropTypes.func.isRequired,
+  estado:   PropTypes.oneOf(['pendiente', 'activo', 'inactivo', 'enviado', 'aceptado', 'rechazado']),
+  disabled: PropTypes.bool,
+}
+
 const SORT_COLS = ['numero', 'nombre_comercial', 'fecha_emision', 'fecha_vencimiento', 'total_con_iva'];
 
+/** Ordena la lista de facturas por la columna `col` en la dirección `dir` ('asc' | 'desc'). */
 function sortFacturas(list, col, dir) {
   if (!col) return list;
   return [...list].sort((a, b) => {
@@ -41,6 +72,7 @@ function sortFacturas(list, col, dir) {
   });
 }
 
+/** Icono de ordenación con flecha direccional según estado activo. */
 const SortIcon = ({ col, sortCol, sortDir }) => {
   if (sortCol !== col) return <ChevronUp size={9} className="text-slate-700 ml-0.5" />;
   return sortDir === 'asc'
@@ -60,17 +92,34 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [pagina, setPagina]     = useState(1);
   const [sortCol, setSortCol]   = useState('fecha_emision');
   const [sortDir, setSortDir]   = useState('desc');
+  const [busy, setBusy]         = useState(null);
 
   const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 84) / 44));
 
   useEffect(() => { setPagina(1); }, [filasPorPagina]);
 
-  useEffect(() => {
+  /** Carga y ordena las facturas desde el servidor. */
+  const loadFacturas = useCallback(() => {
     fetch(`${N8N}/crm-facturas`)
       .then(r => r.json())
       .then(d => { if (d.ok) setFacturas(d.facturas); })
       .catch(() => setFacturas([]));
-  }, [reloadKey]);
+  }, []); // N8N es constante de módulo (import.meta.env), no reactiva
+
+  useEffect(() => { loadFacturas(); }, [reloadKey, loadFacturas]);
+
+  const accion = async (endpoint, body, key) => {
+    setBusy(key);
+    try {
+      const r = await fetch(`${N8N}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (d.ok) loadFacturas();
+    } catch { /* network error — state already reset */ } finally { setBusy(null); }
+  };
 
   const toggleSort = (col) => {
     if (!SORT_COLS.includes(col)) return;
@@ -130,7 +179,7 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
                       </th>
                       <th className="px-4 py-3">PAGO</th>
                       <th className="px-4 py-3">ESTADO</th>
-                      <th className="px-4 py-3" />
+                      <th className="px-4 py-3">ACCIONES</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -151,8 +200,8 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
                           )}
                           {f.receptor_nif && <p className="text-[10px] text-slate-600 font-mono mt-0.5">{f.receptor_nif}</p>}
                         </td>
-                        <td className="px-4 py-3 font-mono text-slate-400">{fmtDate(f.fecha_emision)}</td>
-                        <td className="px-4 py-3 font-mono text-slate-400">{fmtDate(f.fecha_vencimiento)}</td>
+                        <td className="px-4 py-3 font-mono text-slate-400">{fmtFecha(f.fecha_emision)}</td>
+                        <td className="px-4 py-3 font-mono text-slate-400">{fmtFecha(f.fecha_vencimiento)}</td>
                         <td className="px-4 py-3 font-mono text-slate-300">{fmtEur(f.base_imponible)}</td>
                         <td className="px-4 py-3 font-mono text-slate-400 text-[11px]">
                           {fmtEur(f.cuota_iva)}
@@ -170,12 +219,29 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            onClick={() => setViewing(f)}
-                            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-white transition-colors border border-slate-700 hover:border-slate-500 px-2 py-1 rounded-sm"
-                          >
-                            <Eye size={10} /> Ver
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <ActionIcon icon={FileText} estado={f.pdf_url ? 'activo' : 'pendiente'}
+                              title={f.pdf_url ? 'Ver Factura PDF' : 'Generar PDF'}
+                              onClick={() => f.pdf_url 
+                                ? window.open(f.pdf_url, '_blank')
+                                : accion('crm-factura-generar-pdf', { factura_id: f.id }, `pdf-${f.id}`)
+                              }
+                              disabled={busy === `pdf-${f.id}`} />
+                            <ActionIcon icon={MessageCircle} estado={f.whatsapp_estado || 'pendiente'}
+                              title={`WhatsApp: ${f.whatsapp_estado || 'pendiente'}`}
+                              onClick={() => f.pdf_url && accion('crm-factura-enviar-wa', { factura_id: f.id }, `wa-${f.id}`)}
+                              disabled={!f.pdf_url || busy === `wa-${f.id}`} />
+                            <ActionIcon icon={Mail} estado={f.email_estado || 'pendiente'}
+                              title={`Email: ${f.email_estado || 'pendiente'}`}
+                              onClick={() => f.pdf_url && accion('crm-factura-enviar-email', { factura_id: f.id }, `em-${f.id}`)}
+                              disabled={!f.pdf_url || busy === `em-${f.id}`} />
+                            <button
+                              onClick={() => setViewing(f)}
+                              className="ml-2 flex items-center gap-1 text-[10px] text-slate-500 hover:text-white transition-colors border border-slate-700 hover:border-slate-500 px-2 py-1 rounded-sm"
+                            >
+                              <Eye size={10} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

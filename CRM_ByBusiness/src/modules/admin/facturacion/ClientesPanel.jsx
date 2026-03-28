@@ -4,10 +4,11 @@ import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import ProformaModal from './ProformaModal';
 import ProformaViewer from './ProformaViewer';
-import { Users, ChevronDown, ChevronUp, CheckCircle, Clock, Plus, CreditCard, X, BadgeCheck, FileText, Eye, ExternalLink } from 'lucide-react';
+import { Users, ChevronDown, ChevronUp, CheckCircle, Clock, Plus, CreditCard, X, FileText, ExternalLink, MessageCircle, Mail, Receipt, RotateCcw, Pencil } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
 
+/** Formatea un número como moneda EUR. */
 const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
 
 const METODOS = ['transferencia', 'efectivo', 'tarjeta', 'bizum'];
@@ -35,7 +36,7 @@ const PagoChip = ({ pg, onCobrado }) => {
       });
       const d = await r.json();
       if (d.ok) { setCobrandoId(null); onCobrado && onCobrado(); }
-    } catch { /* error de red — finally restablece el estado */ } finally { setSaving(false); }
+    } catch { /* network error — state already reset */ } finally { setSaving(false); }
   };
 
   if (pg.estado === 'cobrado') {
@@ -82,48 +83,89 @@ const PagoChip = ({ pg, onCobrado }) => {
   );
 };
 
-/**
- * ProformaRow — Fila expandible para una proforma dentro de un ClienteRow.
- * Permite aceptar la proforma, generar la factura, ver el documento imprimible y el plan de pagos.
- * @param {object}   proforma   - Objeto proforma con líneas, pagos, estado y totales
- * @param {object}   cliente    - Datos del cliente para el visor de proforma
- * @param {Function} onRefresh  - Callback para recargar la lista de proformas del cliente
- */
-const ProformaRow = ({ proforma, cliente, onRefresh }) => {
+PagoChip.propTypes = {
+  pg: PropTypes.shape({
+    id:     PropTypes.number.isRequired,
+    estado: PropTypes.string,
+    importe: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  }).isRequired,
+  onCobrado: PropTypes.func.isRequired,
+}
+
+/** borrador→verificada→pendiente_cliente→aceptada|rechazada */
+const ESTADO_BADGE = {
+  borrador:          'bg-slate-700 text-slate-300',
+  verificada:        'bg-blue-900/50 text-blue-300',
+  pendiente_cliente: 'bg-amber-900/50 text-amber-300',
+  aceptada:          'bg-emerald-900/50 text-emerald-300',
+  rechazada:         'bg-red-900/50 text-red-400',
+};
+
+const COLOR_CANAL = {
+  pendiente: 'text-slate-500 hover:text-slate-300',
+  enviado:   'text-amber-400 hover:text-amber-300',
+  aceptado:  'text-emerald-400 hover:text-emerald-300',
+  rechazado: 'text-red-500 hover:text-red-400',
+  activo:    'text-emerald-400 hover:text-emerald-300',
+  warning:   'text-amber-400 hover:text-amber-300',
+  inactivo:  'text-slate-600 cursor-not-allowed',
+};
+
+/** Botón de acción con icono — muestra estado visual (idle/loading/done/error) y tooltip. */
+function ActionIcon({ icon: Icon, estado, onClick, disabled, title }) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      title={title}
+      className={`p-1 transition-colors rounded-sm ${COLOR_CANAL[estado] ?? COLOR_CANAL.pendiente}`}
+    >
+      <Icon size={14} />
+    </button>
+  );
+}
+
+ActionIcon.propTypes = {
+  icon:     PropTypes.elementType.isRequired,
+  title:    PropTypes.string.isRequired,
+  onClick:  PropTypes.func.isRequired,
+  estado:   PropTypes.oneOf(['pendiente', 'activo', 'inactivo', 'enviado', 'warning', 'aceptado', 'rechazado']),
+  disabled: PropTypes.bool,
+}
+
+/** Fila de proforma — muestra estado, acciones de envío y acceso al contrato digital. */
+const ProformaRow = ({ proforma, cliente, contratos = [], onRefresh }) => {
   const [open, setOpen]             = useState(false);
-  const [pagos, setPagos]           = useState(proforma.pagos || []);
-  const [estado, setEstado]         = useState(proforma.estado);
-  const [aceptando, setAceptando]   = useState(false);
-  const [facturando, setFacturando] = useState(false);
-  const [facturaOk, setFacturaOk]   = useState(false);
+  const [busy, setBusy]             = useState(null);
   const [verDoc, setVerDoc]         = useState(false);
-  const base = import.meta.env.VITE_N8N_URL;
+  const n8nUrl = import.meta.env.VITE_N8N_URL;
 
-  const aceptar = async (e) => {
-    e.stopPropagation();
-    setAceptando(true);
+  const contrato      = contratos.find(c => c.proforma_id === proforma.id && c.estado !== 'obsoleto') || null;
+  const waEstado      = contrato?.whatsapp_estado || 'pendiente';
+  const emEstado      = contrato?.email_estado    || 'pendiente';
+
+  const showPencil    = proforma.estado === 'borrador';
+  const showCheck     = true;
+  const showFileText  = proforma.estado !== 'borrador';
+  const showMsgWa     = proforma.estado !== 'borrador' && proforma.estado !== 'verificada';
+  const showMail      = proforma.estado !== 'borrador' && proforma.estado !== 'verificada';
+  const showFacturar  = proforma.estado === 'aceptada' && proforma.requiere_factura;
+  const showReabrir   = proforma.estado !== 'borrador' && proforma.estado !== 'aceptada';
+
+  const accion = async (endpoint, body, key) => {
+    setBusy(key);
     try {
-      const r = await fetch(`${base}/crm-proforma-aceptar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proforma_id: proforma.id }),
+      const r = await fetch(`${n8nUrl}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (d.ok) { setEstado('aceptada'); onRefresh && onRefresh(); }
-    } catch { /* error de red — finally restablece el estado */ } finally { setAceptando(false); }
+      if (d.ok || d.id || d.contrato_id) onRefresh();
+    } catch { /* network error — state already reset */ } finally { setBusy(null); }
   };
 
-  const generarFactura = async (e) => {
-    e.stopPropagation();
-    setFacturando(true);
-    try {
-      const r = await fetch(`${base}/crm-factura-generar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proforma_id: proforma.id, tipo_iva: 21 }),
-      });
-      const d = await r.json();
-      if (d.ok) { setFacturaOk(true); onRefresh && onRefresh(); }
-    } catch { /* error de red — finally restablece el estado */ } finally { setFacturando(false); }
-  };
+  const pagos = proforma.pagos || [];
 
   return (
     <>
@@ -138,39 +180,61 @@ const ProformaRow = ({ proforma, cliente, onRefresh }) => {
       <button onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between px-4 py-2.5 text-xs hover:bg-slate-800/30 transition-colors">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-slate-500">{proforma.numero || `PRO-${String(proforma.id).padStart(4,'0')}`}</span>
-          <span className="text-slate-300">{fmtFecha(proforma.fecha)}</span>
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-sm border ${
-            estado === 'aceptada'
-              ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
-              : 'bg-slate-800 text-slate-400 border-slate-700'
-          }`}>{estado}</span>
+          <span className="font-mono text-slate-500 w-24 shrink-0 text-left">{proforma.numero || `PRO-${proforma.id}`}</span>
+          <span className={`text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 rounded-sm ${ESTADO_BADGE[proforma.estado] || 'bg-slate-700 text-slate-400'}`}>
+            {proforma.estado}
+          </span>
         </div>
-        <div className="flex items-center gap-3">
-          {estado === 'borrador' && (
-            <button onClick={aceptar} disabled={aceptando}
-              className="flex items-center gap-1 text-[10px] font-black text-emerald-500 hover:text-emerald-300 border border-emerald-800/50 hover:border-emerald-600 px-2 py-1 rounded-sm transition-colors uppercase tracking-widest disabled:opacity-50"
-            >
-              <BadgeCheck size={11} /> {aceptando ? '…' : 'Aceptar'}
-            </button>
-          )}
-          {estado === 'aceptada' && proforma.requiere_factura && !facturaOk && (
-            <button onClick={generarFactura} disabled={facturando}
-              className="flex items-center gap-1 text-[10px] font-black text-blue-400 hover:text-blue-300 border border-blue-800/50 hover:border-blue-600 px-2 py-1 rounded-sm transition-colors uppercase tracking-widest disabled:opacity-50"
-            >
-              <FileText size={11} /> {facturando ? '…' : 'Factura'}
-            </button>
-          )}
-          {facturaOk && (
-            <span className="flex items-center gap-1 text-[10px] text-blue-400 font-mono"><FileText size={10} /> Facturada</span>
-          )}
-          <button onClick={e => { e.stopPropagation(); setVerDoc(true); }}
-            className="flex items-center gap-1 text-[10px] font-black text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 px-2 py-1 rounded-sm transition-colors uppercase tracking-widest"
-          >
-            <Eye size={11} /> Ver
-          </button>
-          <span className="font-mono font-bold text-white">{fmtEur(proforma.total)}</span>
-          {proforma.fraccionado && <span className="text-[10px] text-slate-500 font-mono">{proforma.num_fracciones} cuotas</span>}
+        <div className="flex items-center gap-2">
+          {/* Action Icons portados de ProformasSection */}
+          <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+            {showPencil && (
+              <ActionIcon icon={Pencil} estado="pendiente" title="Editar" onClick={() => {}} />
+            )}
+            {showCheck && (
+              <ActionIcon icon={CheckCircle} estado={proforma.verificada_admin ? 'activo' : 'pendiente'}
+                title={proforma.verificada_admin ? 'Verificada' : 'Verificar'}
+                onClick={() => accion('crm-proforma-verificar', { proforma_id: proforma.id }, `verif-${proforma.id}`)}
+                disabled={busy === `verif-${proforma.id}`} />
+            )}
+            {showFileText && (
+              <ActionIcon icon={FileText} estado={contrato ? 'activo' : 'pendiente'}
+                title={contrato ? 'Ver contrato PDF' : 'Generar contrato'}
+                onClick={() => contrato
+                  ? window.open(contrato.pdf_url, '_blank')
+                  : accion('crm-70-post-contrato-digital', {
+                      cliente_id: cliente.id, proforma_id: proforma.id,
+                      objeto: (proforma.lineas || []).map(l => l.descripcion).filter(Boolean).join(', ') || proforma.numero || 'Servicios',
+                      importe_mensual: proforma.total || null, canal_envio: 'whatsapp',
+                    }, `contrato-${proforma.id}`)
+                }
+                disabled={busy === `contrato-${proforma.id}`} />
+            )}
+            {showMsgWa && (
+              <ActionIcon icon={MessageCircle} estado={!contrato ? 'inactivo' : waEstado}
+                title={`WhatsApp: ${waEstado}`}
+                onClick={() => contrato && accion('crm-72-post-contrato-enviar', { contrato_id: contrato.id }, `wa-${proforma.id}`)}
+                disabled={!contrato || busy === `wa-${proforma.id}` || waEstado === 'aceptado'} />
+            )}
+            {showMail && (
+              <ActionIcon icon={Mail} estado={!contrato ? 'inactivo' : emEstado}
+                title={`Email: ${emEstado}`}
+                onClick={() => contrato && accion('crm-75-post-contrato-email', { contrato_id: contrato.id }, `em-${proforma.id}`)}
+                disabled={!contrato || busy === `em-${proforma.id}` || emEstado === 'aceptado'} />
+            )}
+            {showFacturar && (
+              <ActionIcon icon={Receipt} estado="activo" title="Facturar"
+                onClick={() => accion('crm-factura-generar', { proforma_id: proforma.id }, `factura-${proforma.id}`)}
+                disabled={busy === `factura-${proforma.id}`} />
+            )}
+            {showReabrir && (
+              <ActionIcon icon={RotateCcw} estado="warning" title="Reabrir"
+                onClick={() => accion('crm-proforma-reabrir', { proforma_id: proforma.id }, `reabrir-${proforma.id}`)}
+                disabled={busy === `reabrir-${proforma.id}`} />
+            )}
+          </div>
+
+          <span className="font-mono font-bold text-white ml-2">{fmtEur(proforma.total)}</span>
           {open ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
         </div>
       </button>
@@ -214,8 +278,41 @@ const ProformaRow = ({ proforma, cliente, onRefresh }) => {
 };
 
 ProformaRow.propTypes = {
-  proforma:  PropTypes.object.isRequired,
-  cliente:   PropTypes.object,
+  proforma: PropTypes.shape({
+    id:               PropTypes.number.isRequired,
+    numero:           PropTypes.string,
+    estado:           PropTypes.string,
+    total:            PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    lineas:           PropTypes.arrayOf(PropTypes.shape({
+      descripcion:     PropTypes.string,
+      producto_nombre: PropTypes.string,
+      cantidad:        PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      precio_unitario: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      subtotal:        PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    })),
+    pagos:            PropTypes.arrayOf(PropTypes.shape({
+      id:              PropTypes.number,
+      importe:         PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+      estado:          PropTypes.string,
+      fecha:           PropTypes.string,
+      fraccion_num:    PropTypes.number,
+      total_fracciones: PropTypes.number,
+    })),
+    verificada_admin: PropTypes.bool,
+    requiere_factura: PropTypes.bool,
+  }).isRequired,
+  cliente: PropTypes.shape({
+    id:              PropTypes.number.isRequired,
+    nombre_comercial: PropTypes.string,
+  }),
+  contratos: PropTypes.arrayOf(PropTypes.shape({
+    id:               PropTypes.number,
+    proforma_id:      PropTypes.number,
+    estado:           PropTypes.string,
+    pdf_url:          PropTypes.string,
+    whatsapp_estado:  PropTypes.string,
+    email_estado:     PropTypes.string,
+  })),
   onRefresh: PropTypes.func,
 };
 
@@ -230,13 +327,19 @@ ProformaRow.propTypes = {
 const ClienteRow = ({ cliente, onNuevaProforma, onAbrirCliente }) => {
   const [open, setOpen] = useState(false);
   const [proformas, setProformas] = useState(null);
+  const [contratos, setContratos] = useState([]);
   const N8N_URL = import.meta.env.VITE_N8N_URL;
 
   const loadProformas = () => {
-    fetch(`${N8N_URL}/crm-proformas?cliente_id=${cliente.id}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setProformas(d.proformas); })
-      .catch(() => setProformas([]));
+    Promise.all([
+      fetch(`${N8N_URL}/crm-proformas?cliente_id=${cliente.id}`).then(r => r.json()),
+      fetch(`${N8N_URL}/crm-71-get-contratos-digitales?cliente_id=${cliente.id}`).then(r => r.json()),
+    ])
+      .then(([dataProformas, dataContratos]) => {
+        if (dataProformas.ok) setProformas(dataProformas.proformas);
+        setContratos(Array.isArray(dataContratos) ? dataContratos : (dataContratos.contratos || []));
+      })
+      .catch(() => { setProformas([]); setContratos([]); });
   };
 
   const toggle = () => {
@@ -288,7 +391,7 @@ const ClienteRow = ({ cliente, onNuevaProforma, onAbrirCliente }) => {
             <div className="animate-pulse h-10 bg-slate-800 rounded-sm" />
           ) : proformas.length === 0 ? (
             <p className="text-[10px] text-slate-700 italic font-mono uppercase tracking-widest py-2">Sin proformas</p>
-          ) : proformas.map(p => <ProformaRow key={p.id} proforma={p} cliente={cliente} onRefresh={loadProformas} />)}
+          ) : proformas.map(p => <ProformaRow key={p.id} proforma={p} cliente={cliente} contratos={contratos} onRefresh={loadProformas} />)}
         </div>
       )}
     </div>
@@ -296,7 +399,15 @@ const ClienteRow = ({ cliente, onNuevaProforma, onAbrirCliente }) => {
 };
 
 ClienteRow.propTypes = {
-  cliente:         PropTypes.object.isRequired,
+  cliente: PropTypes.shape({
+    id:               PropTypes.number.isRequired,
+    nombre_comercial: PropTypes.string,
+    localidad:        PropTypes.string,
+    operador_nombre:  PropTypes.string,
+    total_cobrado:    PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    total_pendiente:  PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    num_proformas:    PropTypes.number,
+  }).isRequired,
   onNuevaProforma: PropTypes.func.isRequired,
   onAbrirCliente:  PropTypes.func.isRequired,
 };
@@ -317,6 +428,7 @@ const ClientesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
 
   useEffect(() => { setPagina(1); }, [filasPorPagina]);
 
+  /** Carga la lista de clientes desde el servidor. */
   const loadClientes = () => {
     fetch(`${N8N_URL}/crm-clientes`)
       .then(r => r.json())
