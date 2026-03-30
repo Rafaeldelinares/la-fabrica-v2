@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -389,7 +390,7 @@ const EventoTag = ({ event }) => {
   return (
     <div
       className="flex items-center gap-1 overflow-hidden w-full h-full px-0.5"
-      onMouseEnter={e => set?.(event, e.clientX, e.clientY)}
+      onMouseMove={e => set?.(event, e.clientX, e.clientY)}
       onMouseLeave={() => clear?.()}
     >
       <Icon size={9} className="shrink-0 opacity-70" />
@@ -437,8 +438,10 @@ const AgendaGlobalPanel = () => {
 
   const tooltipHandlers = useMemo(() => ({
     set: (evento, x, y) => {
-      tooltipWrapperRef.current?.style.setProperty('--tt-x', `${Math.min(x + 14, window.innerWidth - 272)}px`);
-      tooltipWrapperRef.current?.style.setProperty('--tt-y', `${Math.min(y + 10, window.innerHeight - 210)}px`);
+      if (tooltipWrapperRef.current) {
+        tooltipWrapperRef.current.style.left = `${Math.min(x + 14, window.innerWidth - 272)}px`;
+        tooltipWrapperRef.current.style.top = `${Math.min(y + 10, window.innerHeight - 210)}px`;
+      }
       setTooltipEvento(evento);
     },
     clear: () => setTooltipEvento(null),
@@ -512,16 +515,16 @@ const AgendaGlobalPanel = () => {
 
   useEffect(() => {
     fetch(`${N8N}/crm-cartera-get`)
-      .then(r => r.json())
-      .then(d => {
-        const clientes = d.ok ? (d.clientes || []) : [];
-        const now  = new Date();
-        const in60 = new Date(Date.now() + 60 * 86400000);
+      .then(res => res.json())
+      .then(data => {
+        const clientes = data.ok ? (data.clientes || []) : [];
+        const ahora              = new Date();
+        const fechaLimite60Dias  = new Date(Date.now() + 60 * 86400000);
         setRenovaciones(
           clientes
-            .filter(c => c.proxima_renovacion
-              && new Date(c.proxima_renovacion) >= now
-              && new Date(c.proxima_renovacion) <= in60)
+            .filter(cliente => cliente.proxima_renovacion
+              && new Date(cliente.proxima_renovacion) >= ahora
+              && new Date(cliente.proxima_renovacion) <= fechaLimite60Dias)
             .sort((a, b) => new Date(a.proxima_renovacion) - new Date(b.proxima_renovacion))
         );
       })
@@ -616,8 +619,15 @@ const AgendaGlobalPanel = () => {
           </div>
         )}
         {loading && eventosFiltrados.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <p className="text-[10px] text-slate-700 font-mono uppercase tracking-widest animate-pulse">Cargando agenda...</p>
+          <div className="h-full flex flex-col gap-1 p-2">
+            {[...Array(7)].map((_, i) => (
+              <div key={i} className="flex gap-1 flex-1">
+                <div className="w-12 shrink-0 bg-slate-800/40 rounded-sm animate-pulse" />
+                {[...Array(5)].map((__, j) => (
+                  <div key={j} className="flex-1 bg-slate-800/20 rounded-sm animate-pulse" />
+                ))}
+              </div>
+            ))}
           </div>
         ) : (
           <Calendar
@@ -627,6 +637,7 @@ const AgendaGlobalPanel = () => {
             date={fecha}
             onView={setView}
             onNavigate={setFecha}
+
             onSelectEvent={setEventoSel}
             eventPropGetter={estiloEvento}
             components={CALENDAR_COMPONENTS}
@@ -646,7 +657,6 @@ const AgendaGlobalPanel = () => {
                 `${format(start, 'd MMM', { locale: es })} – ${format(end, 'd MMM yyyy', { locale: es })}`,
             }}
             className="agenda-calendar-height"
-            popup
           />
         )}
         </TooltipCtx.Provider>
@@ -659,20 +669,20 @@ const AgendaGlobalPanel = () => {
           </p>
           {renovaciones.length === 0 ? (
             <p className="text-[10px] text-slate-700 font-mono">Sin renovaciones en 60 días</p>
-          ) : renovaciones.map(c => {
-            const d    = new Date(c.proxima_renovacion);
-            const days = Math.ceil((d - new Date()) / 86400000);
+          ) : renovaciones.map(cliente => {
+            const fechaRenovacion = new Date(cliente.proxima_renovacion);
+            const diasRestantes   = Math.ceil((fechaRenovacion - new Date()) / 86400000);
             return (
               <button
-                key={c.id}
-                onClick={() => abrirClienteDesdeAgenda(c.id)}
+                key={cliente.id}
+                onClick={() => abrirClienteDesdeAgenda(cliente.id)}
                 className="flex items-start gap-2 py-2 border-b border-slate-900 hover:bg-slate-900/40 transition-colors text-left w-full"
               >
-                <CalendarClock size={10} className={`mt-0.5 shrink-0 ${days <= 14 ? 'text-amber-400' : 'text-slate-600'}`} />
+                <CalendarClock size={10} className={`mt-0.5 shrink-0 ${diasRestantes <= 14 ? 'text-amber-400' : 'text-slate-600'}`} />
                 <div className="min-w-0">
-                  <p className="text-[10px] font-mono text-slate-300 truncate leading-tight">{c.nombre_comercial}</p>
-                  <p className={`text-[9px] font-mono ${days <= 14 ? 'text-amber-400' : 'text-slate-500'}`}>
-                    {format(d, 'dd/MM/yy')} · {days}d
+                  <p className="text-[10px] font-mono text-slate-300 truncate leading-tight">{cliente.nombre_comercial}</p>
+                  <p className={`text-[9px] font-mono ${diasRestantes <= 14 ? 'text-amber-400' : 'text-slate-500'}`}>
+                    {format(fechaRenovacion, 'dd/MM/yy')} · {diasRestantes}d
                   </p>
                 </div>
               </button>
@@ -704,9 +714,12 @@ const AgendaGlobalPanel = () => {
           </div>
         </div>
       )}
-      <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}>
-        {tooltipEvento && <TooltipContenido evento={tooltipEvento} />}
-      </div>
+      {createPortal(
+        <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}>
+          {tooltipEvento && <TooltipContenido evento={tooltipEvento} />}
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
