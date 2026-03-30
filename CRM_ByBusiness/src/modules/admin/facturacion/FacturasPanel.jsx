@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import Card from '../../../shared/ui/Card';
-import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
-import FacturaViewer from './FacturaViewer';
-import { FileText, Eye, ExternalLink, ChevronUp, ChevronDown, MessageCircle, Mail } from 'lucide-react';
+import {
+  FileText, ExternalLink, ChevronDown, ChevronRight,
+  MessageCircle, Mail, Building2,
+} from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
-/** Formatea un número como moneda EUR. */
-const fmtEur  = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
+const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
+
 const ESTADO_BADGE = {
-  emitida:  'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  cobrada:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  vencida:  'bg-red-500/10 text-red-400 border-red-500/20',
-  anulada:  'bg-slate-700 text-slate-500 border-slate-600',
+  emitida: 'bg-blue-900/50 text-blue-300',
+  cobrada: 'bg-emerald-900/50 text-emerald-300',
+  vencida: 'bg-red-900/50 text-red-400',
+  anulada: 'bg-slate-700 text-slate-500',
 };
 
 const COLOR_CANAL = {
@@ -27,7 +27,17 @@ const COLOR_CANAL = {
   inactivo:  'text-slate-600 cursor-not-allowed',
 };
 
-/** Botón de acción con icono — muestra estado visual (idle/loading/done/error) y tooltip. */
+const ESTADOS_FACTURA = ['emitida', 'cobrada', 'vencida', 'anulada'];
+
+const ORDEN_OPCIONES = [
+  { value: 'fecha_desc',  label: 'Fecha ↓' },
+  { value: 'fecha_asc',   label: 'Fecha ↑' },
+  { value: 'total_desc',  label: 'Total ↓' },
+  { value: 'total_asc',   label: 'Total ↑' },
+  { value: 'cliente_asc', label: 'Cliente A→Z' },
+];
+
+/** Botón de acción con icono — estado visual vía COLOR_CANAL. */
 function ActionIcon({ icon: Icon, estado, onClick, disabled, title }) {
   return (
     <button
@@ -44,69 +54,174 @@ function ActionIcon({ icon: Icon, estado, onClick, disabled, title }) {
 ActionIcon.propTypes = {
   icon:     PropTypes.elementType.isRequired,
   title:    PropTypes.string.isRequired,
-  onClick:  PropTypes.func.isRequired,
-  estado:   PropTypes.oneOf(['pendiente', 'activo', 'inactivo', 'enviado', 'aceptado', 'rechazado']),
+  onClick:  PropTypes.func,
+  estado:   PropTypes.string,
   disabled: PropTypes.bool,
-}
-
-const SORT_COLS = ['numero', 'nombre_comercial', 'fecha_emision', 'fecha_vencimiento', 'total_con_iva'];
-
-/** Ordena la lista de facturas por la columna `col` en la dirección `dir` ('asc' | 'desc'). */
-function sortFacturas(list, col, dir) {
-  if (!col) return list;
-  return [...list].sort((a, b) => {
-    let va = a[col], vb = b[col];
-    if (col === 'fecha_emision' || col === 'fecha_vencimiento') {
-      va = va ? new Date(va).getTime() : 0;
-      vb = vb ? new Date(vb).getTime() : 0;
-    } else if (col === 'total_con_iva') {
-      va = parseFloat(va) || 0;
-      vb = parseFloat(vb) || 0;
-    } else {
-      va = (va || '').toString().toLowerCase();
-      vb = (vb || '').toString().toLowerCase();
-    }
-    if (va < vb) return dir === 'asc' ? -1 : 1;
-    if (va > vb) return dir === 'asc' ? 1 : -1;
-    return 0;
-  });
-}
-
-/** Icono de ordenación con flecha direccional según estado activo. */
-const SortIcon = ({ col, sortCol, sortDir }) => {
-  if (sortCol !== col) return <ChevronUp size={9} className="text-slate-700 ml-0.5" />;
-  return sortDir === 'asc'
-    ? <ChevronUp size={9} className="text-[#D00000] ml-0.5" />
-    : <ChevronDown size={9} className="text-[#D00000] ml-0.5" />;
 };
 
-SortIcon.propTypes = { col: PropTypes.string.isRequired, sortCol: PropTypes.string, sortDir: PropTypes.string };
+/**
+ * FilaFactura — fila expandible con líneas y pagos.
+ * @param {{ factura: object, busy: string|null, onAccion: Function }} props
+ */
+function FilaFactura({ factura: f, busy, onAccion }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="border-b border-slate-800/60">
+      {/* Fila principal */}
+      <div
+        className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-slate-800/20 transition-colors"
+        onClick={() => setExpanded(p => !p)}
+      >
+        {expanded
+          ? <ChevronDown size={11} className="text-slate-600 shrink-0" />
+          : <ChevronRight size={11} className="text-slate-600 shrink-0" />}
+
+        <span className="text-xs font-mono font-bold text-white w-36 shrink-0">{f.numero}</span>
+
+        <span className="text-xs font-mono text-slate-400 w-24 shrink-0">{fmtFecha(f.fecha_emision)}</span>
+
+        <span className={`text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 rounded-sm shrink-0 ${ESTADO_BADGE[f.estado] || ESTADO_BADGE.emitida}`}>
+          {f.estado}
+        </span>
+
+        <span className="text-xs font-mono font-bold text-white ml-auto shrink-0">
+          {fmtEur(f.total_con_iva)}
+        </span>
+
+        <div className="flex items-center gap-0.5 ml-2 shrink-0" onClick={e => e.stopPropagation()}>
+          <ActionIcon
+            icon={FileText}
+            estado={f.pdf_url ? 'activo' : 'pendiente'}
+            title={f.pdf_url ? 'Ver Factura PDF' : 'Generar PDF'}
+            onClick={() => f.pdf_url
+              ? window.open(f.pdf_url, '_blank')
+              : onAccion('crm-factura-generar-pdf', { factura_id: f.id }, `pdf-${f.id}`)
+            }
+            disabled={busy === `pdf-${f.id}`}
+          />
+          <ActionIcon
+            icon={MessageCircle}
+            estado={!f.pdf_url ? 'inactivo' : (f.whatsapp_estado || 'pendiente')}
+            title={!f.pdf_url ? 'Genera el PDF primero' : `WhatsApp: ${f.whatsapp_estado || 'pendiente'}`}
+            onClick={() => f.pdf_url && onAccion('crm-factura-enviar-wa', { factura_id: f.id }, `wa-${f.id}`)}
+            disabled={!f.pdf_url || busy === `wa-${f.id}`}
+          />
+          <ActionIcon
+            icon={Mail}
+            estado={!f.pdf_url ? 'inactivo' : (f.email_estado || 'pendiente')}
+            title={!f.pdf_url ? 'Genera el PDF primero' : `Email: ${f.email_estado || 'pendiente'}`}
+            onClick={() => f.pdf_url && onAccion('crm-factura-enviar-email', { factura_id: f.id }, `em-${f.id}`)}
+            disabled={!f.pdf_url || busy === `em-${f.id}`}
+          />
+        </div>
+      </div>
+
+      {/* Detalle expandido: líneas + pagos */}
+      {expanded && (
+        <div className="px-10 pb-3 flex flex-col gap-3">
+          {/* Líneas */}
+          {(f.lineas || []).length > 0 && (
+            <table className="w-full text-[10px] font-mono text-slate-400">
+              <thead>
+                <tr className="border-b border-slate-800">
+                  <th className="text-left pb-1 font-normal text-slate-500">Descripción</th>
+                  <th className="text-right pb-1 pl-3 font-normal text-slate-500">Cant.</th>
+                  <th className="text-right pb-1 pl-3 font-normal text-slate-500">Precio</th>
+                  <th className="text-right pb-1 pl-3 font-normal text-slate-500">Dto%</th>
+                  <th className="text-right pb-1 pl-3 font-normal text-slate-500">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {f.lineas.map(l => (
+                  <tr key={l.id} className="border-b border-slate-900">
+                    <td className="py-1 text-slate-300">{l.descripcion}</td>
+                    <td className="py-1 pl-3 text-right">{l.cantidad}</td>
+                    <td className="py-1 pl-3 text-right">{Number(l.precio_unitario).toFixed(2)}€</td>
+                    <td className="py-1 pl-3 text-right">{l.dto_pct ?? 0}%</td>
+                    <td className="py-1 pl-3 text-right text-slate-200">{Number(l.subtotal).toFixed(2)}€</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {/* Pagos */}
+          {(f.pagos || []).length > 0 && (
+            <div className="flex flex-col gap-1">
+              <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest mb-0.5">Pagos</p>
+              {f.pagos.map(p => (
+                <div key={p.id} className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
+                  <span className="w-28 shrink-0">{fmtFecha(p.fecha_vencimiento)}</span>
+                  <span className="text-slate-300 font-bold">{fmtEur(p.importe)}</span>
+                  <span className={`px-1.5 py-0.5 rounded-sm text-[9px] uppercase tracking-widest shrink-0 ${p.estado === 'cobrado' ? 'bg-emerald-900/50 text-emerald-300' : 'bg-amber-900/50 text-amber-300'}`}>
+                    {p.estado}
+                  </span>
+                  {p.metodo && <span className="text-slate-600">{p.metodo}</span>}
+                  {p.estado !== 'cobrado' && (
+                    <button
+                      onClick={() => onAccion('crm-pago-cobrar', { pago_id: p.id, metodo: p.metodo || 'transferencia' }, `cobrar-${p.id}`)}
+                      disabled={busy === `cobrar-${p.id}`}
+                      className="ml-auto text-[9px] font-mono uppercase tracking-widest border border-emerald-800 text-emerald-400 hover:bg-emerald-900/30 px-2 py-0.5 rounded-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Cobrar
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+FilaFactura.propTypes = {
+  factura:  PropTypes.object.isRequired,
+  busy:     PropTypes.string,
+  onAccion: PropTypes.func.isRequired,
+};
 
 /**
- * Panel de facturas emitidas. El nombre de empresa es clickeable y abre la ficha del cliente.
- * @param {Function} onAbrirCliente - Callback para abrir ClienteDrawer con el cliente_id
+ * FacturasPanel — Vista global de facturas agrupadas por cliente con búsqueda y filtros.
+ * El nombre de empresa es clickeable y abre la ficha del cliente.
+ * @param {{ onAbrirCliente: Function, reloadKey: number }} props
  */
-const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
-  const [facturas, setFacturas] = useState(null);
-  const [viewing, setViewing]   = useState(null);
-  const [pagina, setPagina]     = useState(1);
-  const [sortCol, setSortCol]   = useState('fecha_emision');
-  const [sortDir, setSortDir]   = useState('desc');
-  const [busy, setBusy]         = useState(null);
+const FacturasPanel = ({ onAbrirCliente, reloadKey }) => {
+  const [grupos,       setGrupos]       = useState(null);
+  const [expandidos,   setExpandidos]   = useState({});
+  const [busy,         setBusy]         = useState(null);
+  const [busqueda,     setBusqueda]     = useState('');
+  const [filtroEstado, setFiltroEstado] = useState('todos');
+  const [orden,        setOrden]        = useState('fecha_desc');
 
-  const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 84) / 44));
-
-  useEffect(() => { setPagina(1); }, [filasPorPagina]);
-
-  /** Carga y ordena las facturas desde el servidor. */
-  const loadFacturas = useCallback(() => {
+  const loadData = useCallback(() => {
     fetch(`${N8N}/crm-facturas`)
       .then(r => r.json())
-      .then(d => { if (d.ok) setFacturas(d.facturas); })
-      .catch(() => setFacturas([]));
-  }, []); // N8N es constante de módulo (import.meta.env), no reactiva
+      .then(d => {
+        const lista = d.facturas || [];
+        const mapa = {};
+        lista.forEach(f => {
+          const cid = f.cliente_id || 0;
+          if (!mapa[cid]) mapa[cid] = { cliente_id: cid, nombre_comercial: f.nombre_comercial || '—', facturas: [] };
+          mapa[cid].facturas.push(f);
+        });
+        const agrupados = Object.values(mapa).sort((a, b) =>
+          (a.nombre_comercial || '').localeCompare(b.nombre_comercial || '')
+        );
+        setGrupos(agrupados);
+        setExpandidos({});
+      })
+      .catch(() => setGrupos([]));
+  }, []);
 
-  useEffect(() => { loadFacturas(); }, [reloadKey, loadFacturas]);
+  useEffect(() => {
+    setBusqueda('');
+    setFiltroEstado('todos');
+    setOrden('fecha_desc');
+    loadData();
+  }, [reloadKey, loadData]);
 
   const accion = async (endpoint, body, key) => {
     setBusy(key);
@@ -117,171 +232,178 @@ const FacturasPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
         body: JSON.stringify(body),
       });
       const d = await r.json();
-      if (d.ok) loadFacturas();
-    } catch { /* network error — state already reset */ } finally { setBusy(null); }
+      if (d.ok || d.id || d.factura_id || d.pago_id) loadData();
+    } catch (err) {
+      console.error('[FacturasPanel] accion error:', err);
+    } finally { setBusy(null); }
   };
 
-  const toggleSort = (col) => {
-    if (!SORT_COLS.includes(col)) return;
-    if (sortCol === col) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortCol(col);
-      setSortDir('asc');
+  const toggleGrupo = (cid) => setExpandidos(p => ({ ...p, [cid]: !p[cid] }));
+
+  /** Grupos filtrados y ordenados según búsqueda, estado y orden activos. */
+  const gruposFiltrados = useMemo(() => {
+    if (!grupos) return [];
+    const term = busqueda.trim().toLowerCase();
+
+    let resultado = grupos.reduce((acc, g) => {
+      let facts = g.facturas;
+
+      // Filtro por estado
+      if (filtroEstado !== 'todos') {
+        facts = facts.filter(f => f.estado === filtroEstado);
+      }
+
+      if (term) {
+        const matchCliente = (g.nombre_comercial || '').toLowerCase().includes(term);
+        if (matchCliente) {
+          // mostrar todo el grupo (ya filtrado por estado)
+        } else {
+          // mostrar solo facturas cuyo numero coincida
+          facts = facts.filter(f => (f.numero || '').toLowerCase().includes(term));
+        }
+      }
+
+      if (facts.length === 0) return acc;
+      acc.push({ ...g, facturas: facts });
+      return acc;
+    }, []);
+
+    // Ordenar grupos
+    switch (orden) {
+      case 'cliente_asc':
+        resultado = [...resultado].sort((a, b) =>
+          (a.nombre_comercial || '').localeCompare(b.nombre_comercial || ''));
+        break;
+      case 'fecha_desc':
+        resultado = [...resultado].sort((a, b) => {
+          const fa = Math.max(...a.facturas.map(f => new Date(f.fecha_emision || 0).getTime()));
+          const fb = Math.max(...b.facturas.map(f => new Date(f.fecha_emision || 0).getTime()));
+          return fb - fa;
+        });
+        break;
+      case 'fecha_asc':
+        resultado = [...resultado].sort((a, b) => {
+          const fa = Math.min(...a.facturas.map(f => new Date(f.fecha_emision || 0).getTime()));
+          const fb = Math.min(...b.facturas.map(f => new Date(f.fecha_emision || 0).getTime()));
+          return fa - fb;
+        });
+        break;
+      case 'total_desc':
+        resultado = [...resultado].sort((a, b) => {
+          const ta = a.facturas.reduce((s, f) => s + parseFloat(f.total_con_iva || 0), 0);
+          const tb = b.facturas.reduce((s, f) => s + parseFloat(f.total_con_iva || 0), 0);
+          return tb - ta;
+        });
+        break;
+      case 'total_asc':
+        resultado = [...resultado].sort((a, b) => {
+          const ta = a.facturas.reduce((s, f) => s + parseFloat(f.total_con_iva || 0), 0);
+          const tb = b.facturas.reduce((s, f) => s + parseFloat(f.total_con_iva || 0), 0);
+          return ta - tb;
+        });
+        break;
+      default:
+        break;
     }
-    setPagina(1);
-  };
+    return resultado;
+  }, [grupos, busqueda, filtroEstado, orden]);
 
-  const thClass = (col) =>
-    `px-4 py-3 font-mono select-none ${SORT_COLS.includes(col) ? 'cursor-pointer hover:text-slate-300' : ''} ${sortCol === col ? 'text-slate-300' : ''}`;
+  if (grupos === null) return (
+    <div className="flex flex-col gap-2 p-4 animate-pulse">
+      {[...Array(3)].map((_, i) => <div key={i} className="h-10 bg-slate-800 rounded-sm" />)}
+    </div>
+  );
+
+  if (grupos.length === 0) return (
+    <div className="flex items-center justify-center py-20">
+      <EmptyState
+        title="Sin facturas"
+        icon={FileText}
+        description="Las facturas se generan al aceptar una proforma con 'Requiere factura' activado"
+      />
+    </div>
+  );
 
   return (
-    <>
-      <Card className="flex flex-col h-full bg-slate-900 border-slate-800 !p-0 overflow-hidden">
-        {facturas === null ? (
-          <div className="flex-1 flex items-center justify-center py-20 animate-pulse">
-            <div className="flex flex-col gap-3 items-center">
-              <div className="h-4 w-48 bg-slate-800 rounded-sm" />
-              <div className="h-3 w-32 bg-slate-800 rounded-sm" />
-            </div>
-          </div>
-        ) : facturas.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center py-20">
-            <EmptyState title="Sin facturas" icon={FileText}
-              description="Las facturas se generan al aceptar una proforma con 'Requiere factura' activado" />
-          </div>
-        ) : (() => {
-          const sorted = sortFacturas(facturas, sortCol, sortDir);
-          const totalPaginas = Math.ceil(sorted.length / filasPorPagina);
-          const paginadas = sorted.slice((pagina - 1) * filasPorPagina, pagina * filasPorPagina);
-          return (
-            <>
-              <div className="flex-1 overflow-auto">
-                <table className="w-full text-left text-xs text-slate-400">
-                  <thead className="text-[10px] text-slate-500 uppercase font-black tracking-widest bg-slate-950/50 border-b border-slate-800">
-                    <tr>
-                      <th className={thClass('numero')} onClick={() => toggleSort('numero')}>
-                        <span className="flex items-center">Nº FACTURA <SortIcon col="numero" sortCol={sortCol} sortDir={sortDir} /></span>
-                      </th>
-                      <th className={thClass('nombre_comercial')} onClick={() => toggleSort('nombre_comercial')}>
-                        <span className="flex items-center">CLIENTE <SortIcon col="nombre_comercial" sortCol={sortCol} sortDir={sortDir} /></span>
-                      </th>
-                      <th className={thClass('fecha_emision')} onClick={() => toggleSort('fecha_emision')}>
-                        <span className="flex items-center">FECHA <SortIcon col="fecha_emision" sortCol={sortCol} sortDir={sortDir} /></span>
-                      </th>
-                      <th className={thClass('fecha_vencimiento')} onClick={() => toggleSort('fecha_vencimiento')}>
-                        <span className="flex items-center">VENCE <SortIcon col="fecha_vencimiento" sortCol={sortCol} sortDir={sortDir} /></span>
-                      </th>
-                      <th className="px-4 py-3 font-mono">BASE</th>
-                      <th className="px-4 py-3 font-mono">IVA</th>
-                      <th className={thClass('total_con_iva')} onClick={() => toggleSort('total_con_iva')}>
-                        <span className="flex items-center">TOTAL <SortIcon col="total_con_iva" sortCol={sortCol} sortDir={sortDir} /></span>
-                      </th>
-                      <th className="px-4 py-3">PAGO</th>
-                      <th className="px-4 py-3">ESTADO</th>
-                      <th className="px-4 py-3">ACCIONES</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginadas.map(f => (
-                      <tr key={f.id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
-                        <td className="px-4 py-3 font-mono font-bold text-white">{f.numero}</td>
-                        <td className="px-4 py-3">
-                          {f.cliente_id ? (
-                            <button
-                              onClick={() => onAbrirCliente(f.cliente_id)}
-                              className="group flex items-center gap-1 text-left"
-                            >
-                              <span className="font-bold text-slate-200 group-hover:text-blue-400 uppercase tracking-wide transition-colors">{f.nombre_comercial}</span>
-                              <ExternalLink size={9} className="text-slate-700 group-hover:text-blue-400 transition-colors shrink-0" />
-                            </button>
-                          ) : (
-                            <p className="font-bold text-slate-200 uppercase tracking-wide">{f.nombre_comercial}</p>
-                          )}
-                          {f.receptor_nif && <p className="text-[10px] text-slate-600 font-mono mt-0.5">{f.receptor_nif}</p>}
-                        </td>
-                        <td className="px-4 py-3 font-mono text-slate-400">{fmtFecha(f.fecha_emision)}</td>
-                        <td className="px-4 py-3 font-mono text-slate-400">{fmtFecha(f.fecha_vencimiento)}</td>
-                        <td className="px-4 py-3 font-mono text-slate-300">{fmtEur(f.base_imponible)}</td>
-                        <td className="px-4 py-3 font-mono text-slate-400 text-[11px]">
-                          {fmtEur(f.cuota_iva)}
-                          <span className="text-slate-600 ml-1">({f.tipo_iva}%)</span>
-                        </td>
-                        <td className="px-4 py-3 font-mono font-bold text-white">{fmtEur(f.total_con_iva)}</td>
-                        <td className="px-4 py-3">
-                          {f.fraccionado
-                            ? <span className="text-[10px] text-slate-500 font-mono">{f.num_fracciones} cuotas</span>
-                            : <span className="text-[10px] text-slate-600">{f.metodo_pago || '—'}</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge className={ESTADO_BADGE[f.estado] || ESTADO_BADGE.emitida}>
-                            {f.estado}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-1">
-                            <ActionIcon icon={FileText} estado={f.pdf_url ? 'activo' : 'pendiente'}
-                              title={f.pdf_url ? 'Ver Factura PDF' : 'Generar PDF'}
-                              onClick={() => f.pdf_url 
-                                ? window.open(f.pdf_url, '_blank')
-                                : accion('crm-factura-generar-pdf', { factura_id: f.id }, `pdf-${f.id}`)
-                              }
-                              disabled={busy === `pdf-${f.id}`} />
-                            <ActionIcon icon={MessageCircle} estado={f.whatsapp_estado || 'pendiente'}
-                              title={`WhatsApp: ${f.whatsapp_estado || 'pendiente'}`}
-                              onClick={() => f.pdf_url && accion('crm-factura-enviar-wa', { factura_id: f.id }, `wa-${f.id}`)}
-                              disabled={!f.pdf_url || busy === `wa-${f.id}`} />
-                            <ActionIcon icon={Mail} estado={f.email_estado || 'pendiente'}
-                              title={`Email: ${f.email_estado || 'pendiente'}`}
-                              onClick={() => f.pdf_url && accion('crm-factura-enviar-email', { factura_id: f.id }, `em-${f.id}`)}
-                              disabled={!f.pdf_url || busy === `em-${f.id}`} />
-                            <button
-                              onClick={() => setViewing(f)}
-                              className="ml-2 flex items-center gap-1 text-[10px] text-slate-500 hover:text-white transition-colors border border-slate-700 hover:border-slate-500 px-2 py-1 rounded-sm"
-                            >
-                              <Eye size={10} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {totalPaginas > 1 && (
-                <div className="shrink-0 flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/40">
-                  <span className="text-[10px] text-slate-600 font-mono">
-                    {(pagina - 1) * filasPorPagina + 1}–{Math.min(pagina * filasPorPagina, sorted.length)} de {sorted.length}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setPagina(p => Math.max(1, p - 1))}
-                      disabled={pagina === 1}
-                      className="px-2 py-1 text-[10px] font-mono border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    >‹</button>
-                    <span className="text-[10px] font-mono text-slate-500 px-2">{pagina}/{totalPaginas}</span>
-                    <button
-                      onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
-                      disabled={pagina === totalPaginas}
-                      className="px-2 py-1 text-[10px] font-mono border border-slate-700 rounded-sm text-slate-400 hover:text-white hover:border-slate-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    >›</button>
-                  </div>
-                </div>
-              )}
-            </>
-          );
-        })()}
-      </Card>
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Barra de filtros */}
+      <div className="shrink-0 bg-slate-950/50 border-b border-slate-800 px-4 py-2 flex items-center gap-3 flex-wrap">
+        <input
+          type="text"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="🔍 Buscar cliente o nº factura..."
+          className="bg-slate-900 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 placeholder:text-slate-700 flex-1 min-w-0 max-w-xs"
+        />
+        <select
+          value={filtroEstado}
+          onChange={e => setFiltroEstado(e.target.value)}
+          className="bg-slate-900 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 shrink-0"
+        >
+          <option value="todos">Estado: Todos</option>
+          {ESTADOS_FACTURA.map(e => <option key={e} value={e}>{e}</option>)}
+        </select>
+        <select
+          value={orden}
+          onChange={e => setOrden(e.target.value)}
+          className="bg-slate-900 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 shrink-0"
+        >
+          {ORDEN_OPCIONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
 
-      {viewing && <FacturaViewer factura={viewing} onClose={() => setViewing(null)} />}
-    </>
+      {/* Listado */}
+      {gruposFiltrados.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center py-20">
+          <EmptyState title="Sin coincidencias" icon={FileText} description="Ninguna factura coincide con los filtros aplicados" />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {gruposFiltrados.map(g => (
+            <div key={g.cliente_id} className="border-b border-slate-700">
+              {/* Cabecera de cliente */}
+              <div
+                className="flex items-center gap-3 px-4 py-2.5 bg-slate-900/60 cursor-pointer hover:bg-slate-800/40 transition-colors"
+                onClick={() => toggleGrupo(g.cliente_id)}
+              >
+                {expandidos[g.cliente_id]
+                  ? <ChevronDown size={12} className="text-slate-500 shrink-0" />
+                  : <ChevronRight size={12} className="text-slate-500 shrink-0" />}
+                <Building2 size={11} className="text-slate-600 shrink-0" />
+                <button
+                  onClick={e => { e.stopPropagation(); onAbrirCliente(g.cliente_id); }}
+                  className="group flex items-center gap-1 text-left"
+                >
+                  <span className="text-xs font-black uppercase tracking-wide text-slate-200 group-hover:text-blue-400 transition-colors">
+                    {g.nombre_comercial}
+                  </span>
+                  <ExternalLink size={9} className="text-slate-700 group-hover:text-blue-400 transition-colors" />
+                </button>
+                <span className="ml-auto text-[10px] font-mono text-slate-600">
+                  {g.facturas.length} factura{g.facturas.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {/* Facturas del cliente */}
+              {expandidos[g.cliente_id] && g.facturas.map(f => (
+                <FilaFactura
+                  key={f.id}
+                  factura={f}
+                  busy={busy}
+                  onAccion={accion}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
 FacturasPanel.propTypes = {
-  onAbrirCliente:   PropTypes.func.isRequired,
-  alturaDisponible: PropTypes.number.isRequired,
-  reloadKey:        PropTypes.number.isRequired,
+  onAbrirCliente: PropTypes.func.isRequired,
+  reloadKey:      PropTypes.number.isRequired,
 };
 
 export default FacturasPanel;
