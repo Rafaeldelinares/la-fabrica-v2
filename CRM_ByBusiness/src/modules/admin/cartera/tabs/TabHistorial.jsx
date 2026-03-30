@@ -48,7 +48,7 @@ const TabHistorial = ({ timeline, onDeleteInteraccion, onEditInteraccion }) => {
 
   return (
     <div className="flex flex-col gap-3 px-5 py-4">
-      {timeline.map((ev, i) => {
+      {timeline.filter(Boolean).map((ev, i) => {
         const esInteraccionManual = ev.tipo_evento === 'interaccion';
         const esBorrando = confirmandoBorrar === ev.evento_id;
         return (

@@ -2,7 +2,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const NanoScraper = require('./scraper-nano');
 const HeavyScraper = require('./scraper-heavy');
-const MapsScraper = require('./scraper-maps');
 const log = require('./logger');
 const { v4: uuidv4 } = require('uuid');
 
@@ -29,7 +28,11 @@ async function getHeavy() {
 }
 /** Devuelve la instancia singleton del MapsScraper, inicializándola si es necesario. */
 async function getMaps() {
-    if (!mapsScraper) { mapsScraper = new MapsScraper(); await mapsScraper.initialize(); }
+    if (!mapsScraper) {
+        const MapsScraper = require('./scraper-maps');
+        mapsScraper = new MapsScraper();
+        await mapsScraper.initialize();
+    }
     return mapsScraper;
 }
 
@@ -40,8 +43,11 @@ async function getMaps() {
 // POST /api/v1/jobs - Crear trabajo asíncrono
 app.post('/api/v1/jobs', async (req, res) => {
     log.info(`[API] POST /api/v1/jobs: ${JSON.stringify(req.body)}`);
+    const { keywords, depth } = req.body;
+    if (!keywords || !Array.isArray(keywords) || keywords.length === 0) {
+        return res.status(400).json({ error: 'keywords is required and must be a non-empty array' });
+    }
     try {
-        const { keywords, depth } = req.body;
         const queryFull = keywords[0] || "";
 
         // Separar Negocio y Ciudad (simple split por último espacio o heurística)
@@ -169,7 +175,7 @@ app.post('/api/v1/maps/url', async (req, res) => {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'url required' });
     try {
-        const scraper = await getMaps();
+        const scraper = await getNano();
         const result  = await scraper.scrapeByURL(url);
         res.json(result);
     } catch (e) {
