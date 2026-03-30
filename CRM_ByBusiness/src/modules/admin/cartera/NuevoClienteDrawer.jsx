@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { useAuth } from '../../auth/AuthContext';
 import { X, Plus, CheckCircle, Building2, Phone, MapPin, User, BadgeCheck } from 'lucide-react';
 
 const PROVINCIAS = [
@@ -36,6 +37,7 @@ const Input = ({ ...props }) => (
 const NuevoClienteDrawer = ({ onClose, onCreado }) => {
   const N8N = import.meta.env.VITE_N8N_URL;
   const creadoTimerRef = useRef(null);
+  const { user } = useAuth();
 
   const [form, setForm] = useState({
     nombre_comercial: '',
@@ -50,6 +52,7 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
     provincia: '',
     gestor_id: '',
     notas_internas: '',
+    origen_cliente: '',
   });
   const [gestores, setGestores]   = useState([]);
   const [guardando, setGuardando] = useState(false);
@@ -60,10 +63,10 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
 
   useEffect(() => {
     fetch(`${N8N}/crm-usuarios-get`)
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok) {
-          setGestores(d.usuarios.filter(u => ['admin', 'operador'].includes(u.rol)));
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) {
+          setGestores(data.usuarios.filter(u => ['admin', 'operador'].includes(u.rol)));
         }
       })
       .catch(() => { setError('Error al cargar gestores — el selector estará vacío'); });
@@ -76,6 +79,17 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
       setError('El nombre comercial es obligatorio.');
       return;
     }
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const CIF_RE = /^[A-HJNP-SUVW]\d{7}[0-9A-J]$/i;
+    const NIF_RE = /^\d{8}[A-Z]$/i;
+    if (form.email && !EMAIL_RE.test(form.email.trim())) {
+      setError('El email no tiene un formato válido.');
+      return;
+    }
+    if (form.cif && !CIF_RE.test(form.cif.trim()) && !NIF_RE.test(form.cif.trim())) {
+      setError('El CIF/NIF no tiene formato válido (ej: B12345678 o 12345678A).');
+      return;
+    }
     setError('');
     setGuardando(true);
     try {
@@ -85,6 +99,8 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
         body: JSON.stringify({
           ...form,
           gestor_id: form.gestor_id ? parseInt(form.gestor_id) : null,
+          usuario_creador: user?.id || null,
+          nombre_gestor: gestores.find(g => g.id === parseInt(form.gestor_id))?.nombre || '',
         }),
       });
       const d = await r.json();
@@ -190,6 +206,29 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
               </select>
             </Field>
           </div>
+        </div>
+
+        {/* Captación */}
+        <div className="px-5 py-4 border-b border-slate-800">
+          <p className="text-[10px] text-slate-600 uppercase tracking-widest font-mono mb-3 flex items-center gap-1.5">
+            <BadgeCheck size={10} /> Captación
+          </p>
+          <Field label="Origen del cliente">
+            <select
+              value={form.origen_cliente}
+              onChange={set('origen_cliente')}
+              className="bg-slate-900 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 w-full transition-colors"
+            >
+              <option value="">— Seleccionar origen —</option>
+              <option value="Referencia">Referencia</option>
+              <option value="Web">Web</option>
+              <option value="Llamada fría">Llamada fría</option>
+              <option value="Visita presencial">Visita presencial</option>
+              <option value="Feria / Evento">Feria / Evento</option>
+              <option value="Redes sociales">Redes sociales</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </Field>
         </div>
 
         {/* Gestión */}
