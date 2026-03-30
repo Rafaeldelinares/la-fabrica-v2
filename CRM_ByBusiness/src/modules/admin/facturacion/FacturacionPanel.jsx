@@ -3,19 +3,21 @@ import PropTypes from 'prop-types';
 import ClientesPanel from './ClientesPanel';
 import RenovacionesPanel from './RenovacionesPanel';
 import FacturasPanel from './FacturasPanel';
+import ProformasPanel from './ProformasPanel';
 import ClienteDrawer from '../cartera/ClienteDrawer';
-import { Users, RefreshCw, FileText } from 'lucide-react';
+import { Users, RefreshCw, FileText, ClipboardList } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
 const TABS = [
   { id: 'clientes',     label: 'CLIENTES',     icon: Users },
+  { id: 'proformas',    label: 'PROFORMAS',    icon: ClipboardList },
   { id: 'facturas',     label: 'FACTURAS',     icon: FileText },
   { id: 'renovaciones', label: 'RENOVACIONES', icon: RefreshCw },
 ];
 
-/** Panel de facturación con tres pestañas: Clientes, Facturas y Renovaciones. */
+/** Panel de facturación con cuatro pestañas: Clientes, Proformas, Facturas y Renovaciones. */
 const FacturacionPanel = () => {
   const { user } = useAuth();
   const [tab, setTab] = useState('clientes');
@@ -36,9 +38,9 @@ const FacturacionPanel = () => {
   /** Fetch puntual del cliente por id y abre el ClienteDrawer. */
   const abrirCliente = useCallback((clienteId) => {
     fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok && d.clientes?.length) setClienteDrawer(d.clientes[0]); })
-      .catch(() => {});
+      .then(res => res.json())
+      .then(data => { if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]); })
+      .catch(err => console.error('[FacturacionPanel] Error abriendo cliente:', err));
   }, []);
 
   return (
@@ -69,6 +71,7 @@ const FacturacionPanel = () => {
 
       <div ref={contenidoRef} className="flex-1 min-h-0 overflow-hidden">
         {tab === 'clientes'     && <ClientesPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} reloadKey={reloadKey} />}
+        {tab === 'proformas'    && <ProformasPanel    alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} reloadKey={reloadKey} />}
         {tab === 'facturas'     && <FacturasPanel     alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} reloadKey={reloadKey} />}
         {tab === 'renovaciones' && <RenovacionesPanel alturaDisponible={alturaContenido} onAbrirCliente={abrirCliente} reloadKey={reloadKey} />}
       </div>
