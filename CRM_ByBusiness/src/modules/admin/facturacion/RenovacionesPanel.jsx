@@ -39,6 +39,8 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [meses,        setMeses]        = useState(12);
   const [mesFiltro,    setMesFiltro]    = useState(null);
   const [pagina,       setPagina]       = useState(1);
+  const [busqueda,     setBusqueda]     = useState('');
+  const [urgencia,     setUrgencia]     = useState('todas');
   const N8N = import.meta.env.VITE_N8N_URL;
 
   const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 380) / 40));
@@ -77,8 +79,22 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
 
   const lista = useMemo(() => {
     if (!renovaciones) return [];
-    return mesFiltro ? renovaciones.filter(r => mesKey(r.fecha_fin) === mesFiltro) : renovaciones;
-  }, [renovaciones, mesFiltro]);
+    let result = mesFiltro ? renovaciones.filter(r => mesKey(r.fecha_fin) === mesFiltro) : renovaciones;
+    if (busqueda.trim()) {
+      const term = busqueda.trim().toLowerCase();
+      result = result.filter(r => (r.nombre_comercial || '').toLowerCase().includes(term));
+    }
+    if (urgencia !== 'todas') {
+      result = result.filter(r => {
+        const d = r.dias_restantes;
+        if (urgencia === 'vencida')  return d <= 0;
+        if (urgencia === 'urgente')  return d > 0 && d <= 15;
+        if (urgencia === 'proxima')  return d > 15 && d <= 30;
+        return true;
+      });
+    }
+    return result;
+  }, [renovaciones, mesFiltro, busqueda, urgencia]);
 
   const totalMRR  = useMemo(() => (renovaciones || []).reduce((s, r) => s + Number(r.importe_mensual || 0), 0), [renovaciones]);
   const filtroMRR = useMemo(() => lista.reduce((s, r) => s + Number(r.importe_mensual || 0), 0), [lista]);
@@ -189,6 +205,26 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
                 </span>
                 <button onClick={() => { setMesFiltro(null); setPagina(1); }} className="text-[9px] text-[#D00000] font-mono hover:underline">× limpiar filtro</button>
               </div>
+            )}
+          </div>
+
+          {/* Barra búsqueda + urgencia */}
+          <div className="shrink-0 bg-slate-950/50 border border-slate-800 rounded-sm px-4 py-2 flex items-center gap-3">
+            <input
+              type="text" value={busqueda} onChange={e => { setBusqueda(e.target.value); setPagina(1); }}
+              placeholder="🔍 Buscar cliente..."
+              className="bg-slate-900 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 placeholder:text-slate-700 w-48"
+            />
+            <select value={urgencia} onChange={e => { setUrgencia(e.target.value); setPagina(1); }}
+              className="bg-slate-900 border border-slate-700 rounded-sm px-3 py-1.5 text-xs text-slate-300 font-mono outline-none focus:border-slate-500">
+              <option value="todas">Todas</option>
+              <option value="vencida">Vencidas</option>
+              <option value="urgente">Urgentes (&lt;15d)</option>
+              <option value="proxima">Próximas (&lt;30d)</option>
+            </select>
+            {(busqueda || urgencia !== 'todas') && (
+              <button onClick={() => { setBusqueda(''); setUrgencia('todas'); setPagina(1); }}
+                className="text-[10px] text-[#D00000] font-mono hover:underline">× limpiar</button>
             )}
           </div>
 
