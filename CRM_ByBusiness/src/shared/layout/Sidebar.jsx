@@ -18,7 +18,8 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
-  X
+  X,
+  Target
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
@@ -42,6 +43,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
       name: 'Negocio / Cartera',
       items: [
         { name: 'Clientes',         icon: <Briefcase size={18} />,       id: 'CARTERA' },
+        { name: 'Campañas',         icon: <Target size={18} />,          id: 'CAMPAÑAS' },
         { name: 'Gestión Leads',    icon: <Database size={18} />,        id: 'LEADS_MGMT' },
         { name: 'Leads Landing',    icon: <Database size={18} />,        id: 'LEADS_LANDING' },
         { name: 'Ventas',           icon: <TrendingUp size={18} />,      id: 'VENTAS' },

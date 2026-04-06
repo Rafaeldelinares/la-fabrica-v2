@@ -301,3 +301,50 @@ FORMATO DE RESPUESTA OBLIGATORIO:
 STATUS: [PASSED o FAILED]
 
 [Si FAILED, lista de violaciones línea por línea]
+
+---
+
+## SKILLS REGISTRY - La Fábrica IA
+
+### Context Management
+| Skill | Description | Location |
+|-------|-------------|----------|
+| `context-guardian` | Protocolo para mantener uso de contexto por debajo del 85% con checkpoints automáticos y limpieza de archivos grandes | [SKILL.md](.fabrica-twin/skills/context-guardian/SKILL.md) |
+
+### Digital Twins System (FABRICA_TWIN)
+| Skill | Description | Location |
+|-------|-------------|----------|
+| `fabrica-twin` | Sistema de gemelos digitales para capturar, documentar y reutilizar patrones de trabajo | [SKILL.md](.fabrica-twin/skills/fabrica-twin/SKILL.md) |
+
+### Cloud Storage Integration
+| Skill | Description | Location |
+|-------|-------------|----------|
+| `dropbox-integration` | Skill para integrar Dropbox API v2 con OAuth2 y refresh tokens automáticos | [SKILL.md](/home/rafael/.claude/skills/dropbox-integration/SKILL.md) |
+
+### Usage Notes
+- **Cargar skills automáticamente** cuando el contexto coincida con trigger keywords
+- **Context Guardian es OBLIGATORIO** - mantener contexto <85% previene compactaciones
+- **Checkpoint cada ~35 tool-calls** - usar `mem_session_summary` preventivamente
+- **Limpieza node_modules** - ejecutar script `./cleanup-script.sh` cuando directorio >100MB
+
+---
+
+## VERIFICACIÓN AUTOMÁTICA MCPs
+
+**Al inicio de cada sesión con opencode**, ejecutar automáticamente:
+```bash
+/opt/fabrica/.opencode-startup.sh
+```
+
+**Propósito:** Verificar que todos los MCPs estén operativos antes de comenzar a trabajar.
+
+**MCPs verificados:**
+1. PostgreSQL VPS (postgres-vps) - túnel localhost:5433
+2. n8n-mcp-local - API localhost:5678  
+3. n8n-mcp-vps - API https://n8n.ia-bybusiness.online
+4. PostgreSQL fabrica (postgres-fabrica) - localhost:5432
+5. PostgreSQL monitor (postgres-monitor) - localhost:5435
+
+**Resultado esperado:** `✅ TODOS LOS MCPs FUNCIONALES (5/5)`
+
+**Si hay fallos:** Mostrar workarounds disponibles y sugerir reparación.

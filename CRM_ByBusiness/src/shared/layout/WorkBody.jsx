@@ -22,6 +22,7 @@ const EntrenamientoPanel = lazy(() => import('../../modules/entrenamiento/Entren
 const SupervisorPanel   = lazy(() => import('../../modules/entrenamiento/SupervisorPanel'));
 const GbpPanel          = lazy(() => import('../../modules/admin/gbp/GbpPanel'));
 const CarteraPanel      = lazy(() => import('../../modules/admin/cartera/CarteraPanel'));
+const CampañasPanel     = lazy(() => import('../../modules/admin/campanas/CampañasPanel'));
 const GestoriaPanel     = lazy(() => import('../../modules/admin/facturacion/GestoriaPanel'));
 
 /** Skeleton Navy Industrial mostrado mientras un panel lazy está cargando. */
@@ -63,7 +64,23 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
             {/* Admin Views */}
             {activeTab === 'DASHBOARD_EXE' && <DashboardPanel />}
             {activeTab === 'AGENDA_GLOB' && <AgendaGlobalPanel />}
-            {activeTab === 'MONITOR' && <div className="text-white">MONITORIZACIÓN REAL-TIME (En construcción)</div>}
+            {activeTab === 'MONITOR' && (
+  <div className="flex flex-col items-center justify-center h-full text-center">
+    <div className="p-8 bg-slate-900/50 border border-slate-800 rounded-sm">
+      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center">
+        <svg className="w-8 h-8 text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+        </svg>
+      </div>
+      <h2 className="text-lg font-bold text-white uppercase tracking-wider mb-2">En Construcción</h2>
+      <p className="text-sm text-slate-400 max-w-md">
+        El panel de Monitorización Real-Time está en desarrollo.
+        <br />
+        <span className="text-xs text-slate-500 mt-2 block">Disponible próximamente</span>
+      </p>
+    </div>
+  </div>
+)}
             {activeTab === 'LEADS_MGMT' && <LeadsPanel />}
             {activeTab === 'LEADS_LANDING' && <LeadsLandingPanel />}
             {activeTab === 'CANDIDATOS' && <CandidatosPanel />}
@@ -90,6 +107,7 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
 
             {activeTab === 'GBP_MGMT' && <GbpPanel />}
             {activeTab === 'CARTERA' && <CarteraPanel />}
+            {activeTab === 'CAMPAÑAS' && <CampañasPanel />}
 
             {/* Common Views */}
             {activeTab === 'WHATSAPP_PANEL' && <WhatsAppPanel />}

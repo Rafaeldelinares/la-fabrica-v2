@@ -1,24 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../modules/auth/AuthContext';
-import DatePickerField from '../../shared/ui/DatePickerField';
-import Button from '../../shared/ui/Button';
-import Card from '../../shared/ui/Card';
-import Badge from '../../shared/ui/Badge';
-import EmptyState from '../../shared/ui/EmptyState';
-import Stat from '../../shared/ui/Stat';
-import { Database, ExternalLink, Copy, Phone, Calendar, GraduationCap, TrendingUp } from 'lucide-react';
-import { fmtFecha, fmtFechaHora } from '../../utils/dates';
+import useOperatorData from '../../hooks/useOperatorData';
+import TrainingModeWrapper from './TrainingModeWrapper';
+import OperatorErrorBoundary from './OperatorErrorBoundary';
+import OperatorSkeleton from './OperatorSkeleton';
+import Zone1Filters from './zones/Zone1Filters';
+import Zone2Content from './zones/Zone2Content';
+import Zone3Sidebar from './zones/Zone3Sidebar';
 
 const N8N = import.meta.env.VITE_N8N_URL;
+
+// Función no-op estable para modo training (evita recreación en cada render)
+const noop = () => {};
 
 /**
  * Dashboard principal del operador de llamadas.
  * Gestiona el flujo completo: asignación de lead, registro de resultado,
  * historial de trazabilidad y llamadas programadas.
  * Soporta modo simulación (en_practicas) con leads ficticios y seguimiento de progreso.
+ * 
+ * @param {Object} props - Props opcionales del TrainingModeWrapper
+ * @param {Array} props.trainingLeads - Leads de entrenamiento (solo modo training)
+ * @param {Object} props.trainingStats - Estadísticas de entrenamiento
+ * @param {string} props.sesionId - ID de sesión de entrenamiento
  */
-const OperatorDashboard = () => {
+const OperatorDashboard = ({ 
+  trainingLeads = [], 
+  trainingStats = null, 
+  sesionId = null 
+}) => {
   const { user } = useAuth();
   const isTraining = user?.role === 'en_practicas';
 
@@ -27,125 +37,296 @@ const OperatorDashboard = () => {
   const [lead, setLead] = useState(null);
   const [llamadaId, setLlamadaId] = useState(null);
   const [startTime, setStartTime] = useState(null);
-  const [resultado, setResultado] = useState('');
   const [notas, setNotas] = useState('');
-  const [fechaProgramada, setFechaProgramada] = useState('');
-  const [nombreResponsable, setNombreResponsable] = useState('');
   const [sessionLeads, setSessionLeads] = useState([]);
-  const [activeTab, setActiveTab] = useState('LLAMADA');
   const [elapsedString, setElapsedString] = useState('00:00');
-  const [historial, setHistorial] = useState([]);
-  const [programadas, setProgramadas] = useState([]);
-
   const [errorRed, setErrorRed] = useState('');
+  // Nuevos estados para Zone1Filters
+  const [campanasActivas, setCampanasActivas] = useState([]);
+  const [campanaSeleccionada, setCampanaSeleccionada] = useState(null);
+  const [callbacksHoy, setCallbacksHoy] = useState([]);
+  const [leadsDisponibles, setLeadsDisponibles] = useState(0);
+  const [loadingCampanas, setLoadingCampanas] = useState(false);
 
-  // Training-specific state
-  const [sesionId, setSesionId] = useState(null);
-  const [trainingLeads, setTrainingLeads] = useState([]);
-  const [trainingStats, setTrainingStats] = useState(null);
+  // Usar custom hook para data fetching consolidado (SOLO en modo real)
+  // En modo training, los datos vienen del TrainingModeWrapper via cloneElement
+  const operatorData = useOperatorData(user?.id, isTraining, lead?.id);
+  const {
+    programadas: realProgramadas,
+    historial: realHistorial,
+    loading: realDataLoading,
+    error: realDataError,
+    refreshData: realRefreshData,
+  } = isTraining ? {} : operatorData;
 
-  // Auto-iniciar sesión de entrenamiento
+  // En modo training, usar props del wrapper; en modo real, usar datos del hook
+  const programadas = isTraining ? [] : realProgramadas;
+  const historial = isTraining ? [] : realHistorial;
+  const dataLoading = isTraining ? false : realDataLoading;
+  const dataError = isTraining ? null : realDataError;
+  const refreshData = isTraining ? noop : realRefreshData;
+
+  // Cargar campañas activas y callbacks HOY (ambos modos: real y training)
   useEffect(() => {
-    if (!isTraining || !user?.id) return;
-    fetch(`${N8N}/crm-iniciar-sesion-entrenamiento`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ operador_id: user.id }),
-    })
-      .then(res => res.json())
-      .then(data => { if (data.ok) setSesionId(data.sesion.id); })
-      .catch(() => setSesionId(null));
-  }, [isTraining, user?.id]);
+    if (!user?.id) return;
 
-  // Cargar leads de entrenamiento
-  useEffect(() => {
-    if (!isTraining || !user?.id) return;
-    fetch(`${N8N}/crm-leads-entrenamiento?operador_id=${user.id}`)
-      .then(res => res.json())
-      .then(data => { if (data.ok) setTrainingLeads(data.leads); })
-      .catch(() => setTrainingLeads([]));
-  }, [isTraining, user?.id, sessionLeads.length]);
+    const cargarDatosZone1 = async () => {
+      setLoadingCampanas(true);
+      try {
+        // Cargar campañas activas (endpoint LOCAL) - con es_simulacion según modo
+        const campanasRes = await fetch(`${N8N}/crm-campanas-activas-local?operador_id=${user.id}&es_simulacion=${isTraining}`);
+        if (campanasRes.ok) {
+          const campanasData = await campanasRes.json();
+          if (campanasData.ok) {
+            setCampanasActivas(campanasData.campanas || []);
+            // Auto-seleccionar primera campaña si hay
+            if (campanasData.campanas?.length > 0 && !campanaSeleccionada) {
+              setCampanaSeleccionada(campanasData.campanas[0].id);
+            }
+          }
+        }
+
+        // Cargar callbacks HOY (endpoint crm-callbacks-operador ya filtra por fecha)
+        const callbacksRes = await fetch(`${N8N}/crm-callbacks-operador?operador_id=${user.id}&es_simulacion=${isTraining}`);
+        if (callbacksRes.ok) {
+          const callbacksData = await callbacksRes.json();
+          if (callbacksData.ok) {
+            // El endpoint ya devuelve callbacks_hoy filtrados
+            setCallbacksHoy(callbacksData.callbacks_hoy || []);
+          }
+        }
+
+        // Cargar leads disponibles (estimado) - endpoint simple
+        try {
+          const leadsRes = await fetch(`${N8N}/crm-leads-disponibles-simple`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              es_simulacion: isTraining,
+              campana_id: campanaSeleccionada // Filtrar por campaña si está seleccionada
+            })
+          });
+          
+          if (leadsRes.ok) {
+            const leadsData = await leadsRes.json();
+            if (leadsData.ok) {
+              setLeadsDisponibles(leadsData.total_disponibles || 0);
+            } else {
+              // Fallback: estimar basado en campañas activas
+              setLeadsDisponibles(campanasActivas.length * 10);
+            }
+          } else {
+            // Fallback: estimar basado en campañas activas
+            setLeadsDisponibles(campanasActivas.length * 10);
+          }
+        } catch (error) {
+          console.error('Error cargando leads disponibles:', error);
+          // Fallback: estimar basado en campañas activas
+          setLeadsDisponibles(campanasActivas.length * 10);
+        }
+      } catch (error) {
+        console.error('Error cargando datos Zone1:', error);
+        // Fallback básico
+        setLeadsDisponibles(campanasActivas.length * 10);
+      } finally {
+        setLoadingCampanas(false);
+      }
+    };
+
+    cargarDatosZone1();
+    // Refrescar cada 30 segundos
+    const interval = setInterval(cargarDatosZone1, 30000);
+    return () => clearInterval(interval);
+    // Nota: campanasActivas no está en deps porque se actualiza dentro del efecto.
+    // Agregarlo causaría bucle infinito. Usamos campanaSeleccionada como trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTraining, user?.id, campanaSeleccionada]);
 
   /**
    * Solicita el siguiente lead disponible de la cola y lo carga como lead activo.
    * En modo simulación selecciona el lead ficticio con menos intentos previos.
    * En modo real invoca el webhook crm-llamada-activa.
    */
-  const handleAsignarLead = async () => {
+  const handleAsignarLead = useCallback(async () => {
     if (isTraining) {
-      // Seleccionar lead ficticio con menos intentos
       const disponibles = trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id));
       if (!disponibles.length) return;
       const next = disponibles.sort((a, b) => (a.mis_intentos || 0) - (b.mis_intentos || 0))[0];
       setLead(next);
       setStartTime(Date.now());
-      setResultado(''); setNotas(''); setActiveTab('LLAMADA');
-      // Historial del lead ficticio
-      setHistorial(next.mis_llamadas || []);
+      setNotas('');
       return;
     }
     try {
       const resp = await fetch(`${N8N}/crm-llamada-activa?operador_id=${user?.id}`);
       if (!resp.ok) { setErrorRed('Error del servidor al obtener lead.'); return; }
       const data = await resp.json();
-      if (data && data.lead) {
+      if (data?.ok && data.lead) {
         setLead(data.lead);
         setLlamadaId(data.llamada_id);
         setStartTime(Date.now());
-        setResultado(''); setNotas(''); setFechaProgramada(''); setNombreResponsable('');
-        setActiveTab('LLAMADA');
+        setNotas('');
       }
-    } catch (_networkError) {
+    } catch {
       setErrorRed("Error de red al obtener lead. Inténtalo de nuevo.");
     }
-  };
+  }, [isTraining, trainingLeads, sessionLeads, user?.id]);
 
-  /**
-   * Registra el resultado de la llamada activa y libera el lead.
-   * En modo simulación envía al endpoint de entrenamiento.
-   * En modo real envía al endpoint crm-resultado con el payload completo.
-   */
-  const handleRegistrarResultado = () => {
+  const handleResultado = useCallback((resultado, detalles = {}) => {
     if (!resultado) return;
 
     if (isTraining) {
+      // En modo training, siempre usar sesionId del wrapper (viene del servidor)
+      // No usar trainingSesionId del hook que es un Date.now() local
+      const sesionIdToUse = sesionId;
+      if (!sesionIdToUse) {
+        setErrorRed('Error: No hay sesión de entrenamiento activa');
+        return;
+      }
       fetch(`${N8N}/crm-resultado-entrenamiento`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           lead_ficticio_id: lead.id,
           operador_id: user?.id,
-          sesion_id: sesionId,
+          sesion_id: sesionIdToUse,
           resultado, notas,
           duracion_seg: Math.floor((Date.now() - startTime) / 1000),
+          ...detalles,
         }),
       })
-        .then(() => {
+        .then(async resp => {
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const data = await resp.json();
+          if (!data?.ok) throw new Error(data?.message || 'Error del servidor');
           setSessionLeads(prev => [...prev, { ...lead, resultado }]);
-          setLead(null); setResultado(''); setNotas(''); setStartTime(null);
+          setLead(null); setNotas(''); setStartTime(null);
         })
         .catch(() => setErrorRed('Error de red al registrar resultado. Inténtalo de nuevo.'));
       return;
     }
 
     const payload = {
-      llamada_activa_id: llamadaId,
       operador_id: user?.id,
       lead_id: lead?.id,
-      resultado, notas: notas || null,
-      duracion_seg: Math.floor((Date.now() - startTime) / 1000),
-      fecha_programada: fechaProgramada || null,
-      nombre_responsable: nombreResponsable || null,
+      resultado,
+      notas: notas || '',
+      duracion: Math.floor((Date.now() - startTime) / 1000),
+      ...detalles,
     };
-    fetch(`${N8N}/crm-resultado`, {
+    fetch(`${N8N}/crm-registrar-resultado`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-      .then(() => {
+      .then(async resp => {
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        if (!data?.ok) throw new Error(data?.message || 'Error del servidor');
         setSessionLeads(prev => [...prev, { ...lead, resultado }]);
         setLead(null); setLlamadaId(null); setStartTime(null);
-        setResultado(''); setNotas(''); setFechaProgramada(''); setNombreResponsable('');
+        setNotas('');
+        refreshData();
       })
       .catch(() => setErrorRed('Error de red al registrar resultado. Inténtalo de nuevo.'));
-  };
+  }, [isTraining, lead, user?.id, sesionId, startTime, notas, refreshData]);
+
+  const handleEnviarInfo = useCallback((emailDestino, tipoInfo, nota) => {
+    if (!emailDestino || !tipoInfo) {
+      setErrorRed('Por favor completa email y tipo de información');
+      return;
+    }
+
+    const cerrarPayload = {
+      operador_id: user?.id,
+      lead_id: lead?.id,
+      resultado: 'enviar_info',
+      notas: nota || `Email enviado a: ${emailDestino} (${tipoInfo})`,
+      duracion: Math.floor((Date.now() - startTime) / 1000),
+    };
+
+    fetch(`${N8N}/crm-registrar-resultado`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cerrarPayload),
+    })
+      .then(resp => {
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return fetch(`${N8N}/enviar-info`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_id: lead?.id, operador_id: user?.id, email_destino: emailDestino, tipo_info: tipoInfo }),
+        });
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setSessionLeads(prev => [...prev, { ...lead, resultado: 'enviar_info' }]);
+          setLead(null); setLlamadaId(null); setStartTime(null);
+          setNotas('');
+          refreshData();
+        } else {
+          setErrorRed('Error al enviar email: ' + (data.message || 'Error desconocido'));
+        }
+      })
+      .catch(err => setErrorRed('Error de red: ' + err.message));
+  }, [lead, user?.id, startTime, refreshData]);
+
+  // Funciones para Zone1Filters
+  const handleSeleccionarCampana = useCallback((campanaId) => {
+    setCampanaSeleccionada(campanaId);
+    // Actualizar leads disponibles según campaña seleccionada
+    // Esto se hará automáticamente en el próximo ciclo del useEffect
+  }, []);
+
+  const handleTomarCallback = useCallback(async (callback) => {
+    try {
+      // Usar el lead_id del callback para cargarlo directamente
+      if (callback.lead_id) {
+        // Obtener detalles del lead
+        const leadRes = await fetch(`${N8N}/crm-lead-detail?lead_id=${callback.lead_id}`);
+        if (leadRes.ok) {
+          const leadData = await leadRes.json();
+          if (leadData.ok && leadData.lead) {
+            // Crear llamada activa para este lead
+            const llamadaRes = await fetch(`${N8N}/crm-llamada-activa`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                operador_id: user?.id,
+                lead_id: callback.lead_id,
+                es_callback: true,
+                llamada_programada_id: callback.id
+              })
+            });
+
+            if (llamadaRes.ok) {
+              const llamadaData = await llamadaRes.json();
+              if (llamadaData.lead) {
+                setLead(llamadaData.lead);
+                setLlamadaId(llamadaData.llamada_id);
+                setStartTime(Date.now());
+                setNotas('');
+                // Remover callback de la lista
+                setCallbacksHoy(prev => prev.filter(cb => cb.id !== callback.id));
+                return;
+              }
+            }
+          }
+        }
+      }
+      
+      // Fallback: usar el endpoint normal de asignación
+      setErrorRed('Tomando callback...');
+      handleAsignarLead();
+      // Remover callback de la lista después de un breve delay
+      setTimeout(() => {
+        setCallbacksHoy(prev => prev.filter(cb => cb.id !== callback.id));
+        setErrorRed('');
+      }, 1000);
+    } catch (error) {
+      console.error('Error tomando callback:', error);
+      setErrorRed('Error al tomar callback. Usando asignación normal.');
+      // Intentar asignación normal como fallback
+      handleAsignarLead();
+    }
+  }, [user?.id, handleAsignarLead]);
 
   // Timer
   useEffect(() => {
@@ -163,362 +344,88 @@ const OperatorDashboard = () => {
     return () => clearInterval(interval);
   }, [lead, startTime]);
 
-  // Fetch programadas (solo operador real)
   useEffect(() => {
-    if (isTraining || !user?.id) return;
-    fetch(`${N8N}/crm-llamadas-programadas?operador_id=${user.id}`)
-      .then(res => res.json())
-      .then(data => { if (data?.ok) setProgramadas(data.programadas || []); })
-      .catch(() => setProgramadas([]));
-  }, [user?.id, isTraining]);
+    if (dataError) setErrorRed(dataError);
+  }, [dataError]);
 
-  // Fetch historial lead real
-  useEffect(() => {
-    if (isTraining || !lead?.id) return;
-    fetch(`${N8N}/crm-historial?lead_id=${lead.id}`)
-      .then(res => res.json())
-      .then(data => { if (Array.isArray(data)) setHistorial(data); else setHistorial([]); })
-      .catch(() => setHistorial([]));
-  }, [lead?.id, isTraining]);
+  // Mostrar skeleton durante carga inicial
+  if (dataLoading && !lead && sessionLeads.length === 0) {
+    return <OperatorSkeleton />
+  }
 
-  // Fetch stats entrenamiento para Zona 3
-  useEffect(() => {
-    if (!isTraining || !user?.id) return;
-    fetch(`${N8N}/crm-historial-operador?operador_id=${user.id}`)
-      .then(res => res.json())
-      .then(data => { if (data.ok) setTrainingStats(data.resumen); })
-      .catch(() => setTrainingStats(null));
-  }, [isTraining, user?.id, sessionLeads.length]);
-
-  const opcionesResultado = [
-    { id: 'venta',       label: 'VENTA' },
-    { id: 'no_interesa', label: 'NO INTERESA' },
-    { id: 'callback',    label: 'CALLBACK' },
-    { id: 'responsable', label: 'RESPONSABLE' },
-    { id: 'enviar_info', label: 'ENVIAR INFO' },
-    { id: 'no_contesta', label: 'NO CONTESTA' },
-    { id: 'error',       label: 'ERROR' },
-  ];
-
-  return (
+  // Renderizar contenido dentro del wrapper de training
+  const dashboardContent = (
     <div className="flex flex-row h-full gap-4 p-4 bg-slate-950 font-sans">
+      
+      {/* Zona 1 - Filtros y gestión de sesión */}
+      <Zone1Filters
+        isTraining={isTraining}
+        localidad={localidad}
+        setLocalidad={setLocalidad}
+        tipoNegocio={tipoNegocio}
+        setTipoNegocio={setTipoNegocio}
+        errorRed={errorRed}
+        setErrorRed={setErrorRed}
+        handleAsignarLead={handleAsignarLead}
+        trainingLeads={trainingLeads}
+        sessionLeads={sessionLeads}
+        trainingLeadsDisponibles={trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length}
+        // Nuevos props para modo real
+        callbacksHoy={callbacksHoy}
+        campanasActivas={campanasActivas}
+        leadsDisponibles={leadsDisponibles}
+        onSeleccionarCampana={handleSeleccionarCampana}
+        campanaSeleccionada={campanaSeleccionada}
+        onTomarCallback={handleTomarCallback}
+        loading={loadingCampanas}
+      />
 
-      {/* ════════════ ZONA 1 ════════════ */}
-      <div className="w-72 flex flex-col gap-3">
+      {/* Zona 2 - Lead activo + acción */}
+      <Zone2Content
+        leadActivo={lead}
+        llamadaActiva={llamadaId ? { id: llamadaId, inicio: startTime } : null}
+        historialLlamadas={historial}
+        isTraining={isTraining}
+        notas={notas}
+        setNotas={setNotas}
+        elapsedString={elapsedString}
+        onResultado={handleResultado}
+        onEnviarInfo={handleEnviarInfo}
+      />
 
-        {isTraining ? (
-          <div className="flex items-center gap-2 px-2 py-1.5 bg-amber-900/20 border border-amber-800/30 rounded-sm">
-            <GraduationCap size={12} className="text-amber-400 shrink-0" />
-            <span className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Modo simulación activa</span>
-          </div>
-        ) : (
-          <>
-            <input type="text" placeholder="Ciudad / Localidad" value={localidad}
-              onChange={e => setLocalidad(e.target.value)}
-              className="bg-slate-900 border border-slate-800 rounded-sm text-xs text-slate-200 px-3 py-2 outline-none focus:border-[#D00000] font-mono" />
-            <select value={tipoNegocio} onChange={e => setTipoNegocio(e.target.value)}
-              className="bg-slate-900 border border-slate-800 rounded-sm text-xs text-slate-200 px-3 py-2 outline-none focus:border-[#D00000] font-mono uppercase">
-              <option value="Todos">Todos</option>
-              <option value="Restaurante">Restaurante</option>
-              <option value="Ferretería">Ferretería</option>
-              <option value="Taller">Taller</option>
-              <option value="Clínica">Clínica</option>
-              <option value="Otro">Otro</option>
-            </select>
-          </>
-        )}
-
-        {errorRed && (
-          <p className="text-[10px] text-red-400 font-mono text-center py-1">{errorRed}</p>
-        )}
-
-        <Button variant="primary" className="w-full" onClick={() => { setErrorRed(''); handleAsignarLead(); }}
-          disabled={isTraining && trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length === 0}>
-          {isTraining ? 'SIGUIENTE CLIENTE' : 'ASIGNAR SIGUIENTE LEAD'}
-        </Button>
-
-        {isTraining && (
-          <p className="text-[9px] text-slate-600 font-mono text-center">
-            {trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length} clientes disponibles
-          </p>
-        )}
-
-        <div className="flex-1 overflow-y-auto mt-2 flex flex-col gap-2 relative">
-          {sessionLeads.length === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <EmptyState title="Sin gestiones en esta sesión" icon={Database}
-                description={isTraining ? 'Tus llamadas de práctica aparecerán aquí' : 'Tus tickets finalizados aparecerán aquí'} />
-            </div>
-          ) : (
-            sessionLeads.map((item, index) => (
-              <Card key={index} className="flex justify-between items-center !p-3 rounded-sm border-slate-800">
-                <span className="text-xs text-slate-200 font-bold uppercase truncate pr-2 tracking-wider">{item.nombre_comercial}</span>
-                <span className={`text-[9px] font-mono ${item.resultado === 'venta' ? 'text-emerald-400' : 'text-slate-500'}`}>
-                  {item.resultado?.replace(/_/g, ' ')}
-                </span>
-              </Card>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* ════════════ ZONA 2 ════════════ */}
-      <div className="flex-1 flex flex-row gap-4">
-        <div className="flex-1 flex flex-col gap-4">
-
-          <div className="flex border-b border-slate-800">
-            {[['LLAMADA', 'LLAMADA ACTIVA'], ['REPUTACION', 'REPUTACIÓN'], ['GUION', 'GUIÓN']].map(([tabId, tabLabel]) => (
-              <button key={tabId} onClick={() => setActiveTab(tabId)}
-                className={`px-4 py-3 text-xs font-bold transition-all uppercase tracking-wider ${
-                  activeTab === tabId ? 'bg-slate-800 text-white border-b-2 border-[#D00000]' : 'text-slate-500 hover:text-white'
-                }`}>{tabLabel}</button>
-            ))}
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-1 flex flex-col relative">
-
-            {activeTab === 'LLAMADA' && (
-              !lead ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <EmptyState title={isTraining ? 'Pulsa "Siguiente cliente" para empezar' : 'Asigna un lead para empezar'}
-                    icon={Phone} description={isTraining ? 'Se asignará un cliente ficticio para practicar' : 'Tu próxima gestión aparecerá aquí'} />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <h2 className="text-xl font-black uppercase tracking-tighter text-white">{lead.nombre_comercial}</h2>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-3xl font-mono tracking-wider text-white">{lead.telefono}</span>
-                      <button onClick={() => navigator.clipboard.writeText(lead.telefono || '')}
-                        className="text-slate-500 hover:text-white transition-colors p-2 bg-slate-800 rounded-sm">
-                        <Copy size={16} />
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-slate-500 mt-2 font-mono">
-                      <span className="uppercase">{lead.localidad || lead.email || 'SIN LOCALIDAD'}</span>
-                      <span>·</span>
-                      <span className="uppercase">{lead.sector || lead.categoria || 'SIN CATEGORÍA'}</span>
-                    </div>
-                  </div>
-
-                  {/* Perfil ficticio — solo en training */}
-                  {isTraining && lead.perfil_cliente && (
-                    <div className="bg-slate-950 border border-[#D00000]/30 rounded-sm p-3">
-                      <p className="text-[9px] text-[#D00000] uppercase tracking-widest font-black mb-1">Perfil del cliente (solo tú lo ves)</p>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">{lead.perfil_cliente}</p>
-                      {lead.objeciones_tipo && (
-                        <div className="mt-2 pt-2 border-t border-slate-800">
-                          <p className="text-[9px] text-amber-400 uppercase tracking-widest font-black mb-1">Objeciones típicas</p>
-                          <p className="text-[11px] text-slate-400 leading-relaxed">{lead.objeciones_tipo}</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {!isTraining && (
-                    <div className="border-l-2 border-[#D00000] bg-slate-900 p-4 text-xs text-slate-300 italic rounded-r-sm">
-                      "Hola, buenos días, soy Rosa del equipo IA-ByBusiness. Llamo porque hemos detectado que su negocio {lead.nombre_comercial} en {lead.localidad} tiene margen de mejora en su reputación online. ¿Habla usted con el responsable del negocio?"
-                    </div>
-                  )}
-
-                  <div className="text-sm font-mono text-slate-400">{elapsedString}</div>
-
-                  <div className="mt-2">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">Resolución de llamada</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {opcionesResultado.map(res => (
-                        <button key={res.id} onClick={() => setResultado(res.id)}
-                          className={`py-2 px-1 text-[10px] font-bold uppercase transition-all rounded-sm border ${
-                            resultado === res.id
-                              ? 'bg-[#D00000] text-white border-[#D00000]'
-                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white hover:border-slate-500'
-                          }`}>{res.label}</button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {!isTraining && resultado === 'callback' && (
-                    <div className="mt-2 text-xs">
-                      <label className="block text-slate-500 mb-1">PROGRAMAR EN (obligatorio)</label>
-                      <DatePickerField
-                        selected={fechaProgramada ? new Date(fechaProgramada) : null}
-                        onChange={(date) => setFechaProgramada(date ? format(date, "yyyy-MM-dd'T'HH:mm") : '')}
-                        showTimeSelect
-                        placeholderText="DD/MM/AAAA HH:MM"
-                      />
-                    </div>
-                  )}
-
-                  {!isTraining && resultado === 'venta' && (
-                    <div className="mt-2 text-xs">
-                      <label className="block text-slate-500 mb-1">NOMBRE RESPONSABLE (opcional)</label>
-                      <input placeholder="Nombre del responsable" value={nombreResponsable}
-                        onChange={e => setNombreResponsable(e.target.value)}
-                        className="bg-slate-900 border border-slate-700 text-white text-sm rounded-sm p-2 w-full outline-none focus:border-[#D00000]" />
-                    </div>
-                  )}
-
-                  <div className="mt-2 flex-1 flex flex-col">
-                    <textarea rows={3} placeholder="Notas adicionales (opcional)..."
-                      className="bg-slate-900 border border-slate-700 text-white text-xs rounded-sm p-2 w-full outline-none focus:border-[#D00000] resize-none font-mono"
-                      value={notas} onChange={e => setNotas(e.target.value)} />
-                  </div>
-
-                  <Button variant="primary" className="w-full mt-auto py-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!resultado} onClick={handleRegistrarResultado}>
-                    REGISTRAR RESULTADO
-                  </Button>
-                </div>
-              )
-            )}
-
-            {activeTab === 'GUION' && (
-              <div className="flex flex-col gap-3 py-2">
-                {[
-                  { fase: 'APERTURA',                     texto: `"Hola, mi nombre es ${user?.nombre || '[nombre]'} y le llamo de ByBusiness, especialistas en publicidad para Google. ¿Hablo con el responsable?"` },
-                  { fase: 'CUALIFICACIÓN',                     texto: '"¿Cuál es su nombre para dirigirme a usted? — Encantado/a, [nombre]..."' },
-                  { fase: 'GANCHO',                     texto: '"Le llamo porque estamos finalizando el año y como bien sabe, Google actualiza todas sus fichas de empresa para determinar cuáles califican para seguir apareciendo en primera página con búsqueda."' },
-                  { fase: 'DIAGNÓSTICO',                     texto: `"Una vez verificada la ficha de su empresa, vemos que su valoración actual es de ${lead?.rating ? lead.rating + ' estrellas' : '_____ estrellas'} y en este caso es necesario generar un flujo de valoraciones positivas para conseguir la puntuación más alta, además de optimizar el perfil para ser vistos por más clientes."` },
-                  { fase: 'OFERTA',                     texto: `"Esto sería a través de nuestras promociones vigentes que incluyen:\n• 3 formas de búsqueda diferentes y/o modificables\n• Fotografías de los servicios que ofrecen\n• Un publicista encargado de trabajar permanentemente en su ficha\n• Difusión en redes sociales\n• Geolocalización del local\n\nTodo por un ÚNICO pago de 289€ + IVA = 349,69€, para estar durante 18 MESES en la primera página de Google de forma fija y permanente (sin CPC)."` },
-                  { fase: 'CIERRE',                     texto: '"¿Tiene alguna pregunta o duda hasta aquí? — [responder y pasar al cierre]\n\nEn caso de que le interese quedarse con el espacio, le explico cómo trabajamos: por seguridad no pedimos ni número de cuenta ni de tarjeta. Lo que hacemos es un contrato mediante grabación de voz y le enviamos su factura proforma con todo detallado para el abono respectivo.\n\n¿A nombre de quién le enviamos la factura, al suyo o al de empresa?"' },
-                ].map(({ fase, texto }) => (
-                  <div key={fase} className={`border-l-2 bg-slate-900 rounded-r-sm px-4 py-3 ${
-                    fase === 'OFERTA' ? 'border-[#D00000]' : fase === 'CIERRE' ? 'border-emerald-700' : 'border-amber-700'
-                  }`}>
-                    <span className={`text-[9px] font-black uppercase tracking-widest block mb-2 ${
-                      fase === 'OFERTA' ? 'text-[#D00000]' : fase === 'CIERRE' ? 'text-emerald-500' : 'text-amber-500'
-                    }`}>{fase}</span>
-                    <p className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">{texto}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {activeTab === 'REPUTACION' && (
-              !lead ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <EmptyState title="Asigna un lead para empezar" icon={Phone} description="Consulta aquí métricas de reputación" />
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  <div className="flex gap-4">
-                    <Stat className="flex-1" label="RATING" value={`${lead.rating || '-'}★`} />
-                    <Stat className="flex-1" label="RESEÑAS" value={`${lead.num_reseñas || '-'}`} />
-                    <Stat className="flex-1" label="SCORING" value={`${lead.scoring || '-'}`} />
-                  </div>
-                  {lead.google_maps_link && (
-                    <a href={lead.google_maps_link} target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-slate-900 w-fit px-3 py-2 rounded-sm border border-slate-800">
-                      <ExternalLink width={14} height={14} /> Ver en Google Maps
-                    </a>
-                  )}
-                  {isTraining && (
-                    <div className="bg-amber-950/20 border border-amber-800/30 rounded-sm p-3">
-                      <p className="text-[9px] text-amber-400 uppercase tracking-widest font-black mb-1">Datos simulados</p>
-                      <p className="text-[10px] text-slate-400">En el entorno real verás los datos reales de reputación del cliente extraídos de Google.</p>
-                    </div>
-                  )}
-                </div>
-              )
-            )}
-          </div>
-        </div>
-
-        {/* COLUMNA DERECHA (HISTORIAL) */}
-        <div className="w-80 flex flex-col gap-2">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 pl-1 pb-1 border-b border-slate-800">
-            {isTraining ? 'MIS LLAMADAS A ESTE CLIENTE' : 'HISTORIAL'}
-          </h3>
-          <div className="flex-1 overflow-y-auto relative py-1 pr-1 flex flex-col gap-2">
-            {!lead ? (
-              <div className="absolute inset-0 flex items-center justify-center"><EmptyState title="Sin lead activo" /></div>
-            ) : historial.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <EmptyState title="Primera vez con este cliente" />
-              </div>
-            ) : (
-              historial.map((hist, idx) => (
-                <Card key={idx} className="p-3 flex flex-col gap-1 border border-slate-800/50 bg-slate-900/40 rounded-sm">
-                  <div className="text-[10px] text-slate-500 font-mono flex items-center justify-between">
-                    <span>{hist.fecha ? fmtFecha(hist.fecha) : 'Fecha N/A'}</span>
-                    <span className="uppercase">{hist.resultado?.replace(/_/g, ' ') || 'N/A'}</span>
-                  </div>
-                  {hist.notas && <p className="text-xs text-slate-400 line-clamp-2 mt-1">{hist.notas}</p>}
-                </Card>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ════════════ ZONA 3 ════════════ */}
-      <div className="w-60 flex flex-col gap-3 p-4 bg-slate-900/50 border border-slate-800 rounded-sm">
-        {isTraining ? (
-          <>
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1">
-              <TrendingUp size={10} /> MI PROGRESO
-            </h3>
-            {trainingStats ? (
-              <div className="flex flex-col gap-3">
-                <div className="bg-slate-950 border border-slate-800 rounded-sm p-3">
-                  <p className="text-[9px] text-slate-600 uppercase tracking-widest">Total sesiones</p>
-                  <p className="text-xl font-black font-mono text-white">{trainingStats.total_sesiones ?? '—'}</p>
-                </div>
-                <div className="bg-slate-950 border border-slate-800 rounded-sm p-3">
-                  <p className="text-[9px] text-slate-600 uppercase tracking-widest">Llamadas totales</p>
-                  <p className="text-xl font-black font-mono text-white">{trainingStats.total_llamadas ?? '—'}</p>
-                </div>
-                <div className="bg-slate-950 border border-slate-800 rounded-sm p-3">
-                  <p className="text-[9px] text-slate-600 uppercase tracking-widest">Ventas totales</p>
-                  <p className="text-xl font-black font-mono text-emerald-400">{trainingStats.total_ventas ?? '—'}</p>
-                </div>
-                <div className="bg-slate-950 border border-slate-800 rounded-sm p-3">
-                  <p className="text-[9px] text-slate-600 uppercase tracking-widest">Conversión</p>
-                  <p className="text-xl font-black font-mono text-blue-400">{trainingStats.tasa_conversion ?? '—'}<span className="text-sm">%</span></p>
-                </div>
-                {(trainingStats.media_argumentacion || trainingStats.media_cierre) && (
-                  <div className="bg-slate-950 border border-slate-800 rounded-sm p-3">
-                    <p className="text-[9px] text-slate-600 uppercase tracking-widest mb-2">Última evaluación</p>
-                    <div className="flex flex-col gap-1 text-[10px] font-mono">
-                      <span className="text-slate-400">Argum: <span className="text-white">{trainingStats.media_argumentacion ?? '—'}/10</span></span>
-                      <span className="text-slate-400">Objec: <span className="text-white">{trainingStats.media_objeciones ?? '—'}/10</span></span>
-                      <span className="text-slate-400">Cierre: <span className="text-white">{trainingStats.media_cierre ?? '—'}/10</span></span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3 animate-pulse">
-                {[1,2,3].map(i => <div key={i} className="h-16 bg-slate-800 rounded-sm" />)}
-              </div>
-            )}
-          </>
-        ) : (
-          <>
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">PROGRAMADAS</h3>
-            <div className="flex-1 overflow-y-auto flex flex-col gap-3 relative">
-              {programadas.length === 0 ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <EmptyState title="Sin llamadas programadas" icon={Calendar} description="Tus callbacks aparecerán aquí" />
-                </div>
-              ) : (
-                programadas.map(p => (
-                  <Card key={p.id} className="p-3 flex flex-col gap-1 border-slate-800/50 rounded-sm">
-                    <span className="text-xs font-bold text-white uppercase tracking-wider truncate">{p.nombre_comercial}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">
-                      {p.fecha_programada ? fmtFechaHora(p.fecha_programada) : '—'}
-                    </span>
-                    <div><Badge status="pendiente">{p.tipo?.toUpperCase() || 'CALLBACK'}</Badge></div>
-                  </Card>
-                ))
-              )}
-            </div>
-          </>
-        )}
-      </div>
-
+      {/* Zona 3 - Sidebar (programadas + stats sesión) */}
+      <Zone3Sidebar
+        programadas={programadas}
+        sessionLeads={sessionLeads}
+        isTraining={isTraining}
+        trainingStats={trainingStats}
+        refreshData={refreshData}
+      />
     </div>
   );
+
+  // Envolver todo en Error Boundary
+  const wrappedContent = (
+    <OperatorErrorBoundary>
+      {dashboardContent}
+    </OperatorErrorBoundary>
+  );
+
+  // Si está en modo training, usar el wrapper adicional
+  if (isTraining) {
+    return (
+      <TrainingModeWrapper 
+        isTraining={isTraining}
+        userId={user?.id}
+        onError={setErrorRed}
+      >
+        {wrappedContent}
+      </TrainingModeWrapper>
+    );
+  }
+
+  // Modo normal
+  return wrappedContent;
 };
 
 export default OperatorDashboard;

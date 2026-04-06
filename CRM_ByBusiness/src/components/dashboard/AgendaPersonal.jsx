@@ -92,15 +92,16 @@ const TarjetaProgramada = ({ programada }) => {
  */
 const AgendaPersonal = () => {
   const { user } = useAuth();
+  const isTraining = user?.role === 'en_practicas';
   const [programadas, setProgramadas] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const cargar = () => {
     if (!user?.id) return;
     setLoading(true);
-    fetch(`${import.meta.env.VITE_N8N_URL}/crm-llamadas-programadas?operador_id=${user.id}`)
+    fetch(`${import.meta.env.VITE_N8N_URL}/crm-callbacks-operador?operador_id=${user.id}&es_simulacion=${isTraining}`)
       .then(res => { if (!res.ok) throw new Error('HTTP error'); return res.json(); })
-      .then(data => { if (data?.ok) setProgramadas(data.programadas || []); })
+      .then(data => { if (Array.isArray(data)) setProgramadas(data); })
       .catch(() => setProgramadas([]))
       .finally(() => setLoading(false));
   };
