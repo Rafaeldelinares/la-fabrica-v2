@@ -35,7 +35,7 @@ const LeadsPanel = () => {
 
     const cargarLeads = useCallback(() => {
         setLeads(null);
-        fetch(`${N8N}/crm-leads-admin?es_simulacion=${modo === 'entrenamiento'}&limit=50000`)
+        fetch(`${N8N}/crm-leads-admin?es_simulacion=${modo === 'entrenamiento'}&limit=20000`)
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.json();
