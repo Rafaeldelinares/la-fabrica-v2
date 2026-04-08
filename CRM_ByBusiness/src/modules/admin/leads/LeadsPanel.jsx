@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -20,17 +19,23 @@ const LeadsPanel = () => {
     const [error, setError]                     = useState('');
     const [pagina, setPagina]                   = useState(1);
 
-    const cargarGestores = useCallback(() => {
-        fetch(`${N8N}/crm-usuarios-get`)
-            .then(r => r.json())
-            .then(d => { if (d.ok) setGestores(d.usuarios); })
+    const cargarOperadores = useCallback(() => {
+        fetch(`${N8N}/crm-operadores-activos`)
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
+            .then(d => { if (d.ok) setGestores(d.operadores); })
             .catch(() => setGestores([]));
     }, [N8N]);
 
     const cargarLeads = useCallback(() => {
         setLeads(null);
         fetch(`${N8N}/crm-leads-admin`)
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
             .then(data => {
                 if (data.ok) { setLeads(data.leads); setTotal(data.total); setError(''); }
                 else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
@@ -38,7 +43,7 @@ const LeadsPanel = () => {
             .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexión'); });
     }, [N8N]);
 
-    useEffect(() => { cargarLeads(); cargarGestores(); }, [cargarLeads, cargarGestores]);
+    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]);
 
     const leadsFiltrados = (leads ?? []).filter(lead =>
         (!filtroEstado    || lead.estado    === filtroEstado) &&
@@ -124,7 +129,7 @@ const LeadsPanel = () => {
                                         <th className="px-4 py-3">LOCALIDAD</th>
                                         <th className="px-4 py-3">PRIORIDAD</th>
                                         <th className="px-4 py-3">ESTADO</th>
-                                        <th className="px-4 py-3">GESTOR</th>
+                                        <th className="px-4 py-3">OPERADOR</th>
                                         <th className="px-4 py-3 font-mono">SCORING</th>
                                         <th className="px-4 py-3 font-mono">FECHA</th>
                                         <th className="px-4 py-3"></th>
@@ -170,8 +175,5 @@ const LeadsPanel = () => {
         </div>
     );
 };
-
-/** Panel autónomo — no recibe props externas */
-LeadsPanel.propTypes = {};
 
 export default LeadsPanel;

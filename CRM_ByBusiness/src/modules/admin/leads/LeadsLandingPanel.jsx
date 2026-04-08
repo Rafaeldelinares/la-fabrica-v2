@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
-import { Database, RefreshCw, Send, Target, Zap } from 'lucide-react';
+import { Database, RefreshCw, Target, Zap } from 'lucide-react';
 import LeadLandingRow from './LeadLandingRow';
 
 const PAGE_SIZE = 15;
@@ -21,10 +21,13 @@ const LeadsLandingPanel = () => {
     const [error, setError]       = useState('');
     const [pagina, setPagina]     = useState(1);
 
-    const cargarGestores = useCallback(() => {
-        fetch(`${N8N}/crm-usuarios-get`)
-            .then(r => r.json())
-            .then(d => { if (d.ok) setGestores(d.usuarios); })
+    const cargarOperadores = useCallback(() => {
+        fetch(`${N8N}/crm-operadores-activos`)
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
+            .then(d => { if (d.ok) setGestores(d.operadores); })
             .catch(() => { setGestores([]); });
     }, [N8N]);
 
@@ -32,7 +35,10 @@ const LeadsLandingPanel = () => {
         setLeads(null);
         // Endpoint específico para leads de landing
         fetch(`${N8N}/crm-leads-landing-get`)
-            .then(r => r.json())
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
             .then(data => {
                 if (data.ok) { 
                     setLeads(data.leads); 
@@ -46,7 +52,7 @@ const LeadsLandingPanel = () => {
             .catch(() => { setLeads([]); setError('Error de conexión con el servidor'); });
     }, [N8N]);
 
-    useEffect(() => { cargarLeads(); cargarGestores(); }, [cargarLeads, cargarGestores]);
+    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]);
 
     const totalPaginas = Math.max(1, Math.ceil((leads?.length || 0) / PAGE_SIZE));
     const paginaReal   = Math.min(pagina, totalPaginas);
@@ -123,7 +129,7 @@ const LeadsLandingPanel = () => {
                                         <th className="px-5 py-4 font-mono">POTENCIAL IA</th>
                                         <th className="px-5 py-4 font-mono">TELÉFONO</th>
                                         <th className="px-5 py-4">ESTADO</th>
-                                        <th className="px-5 py-4">GESTOR</th>
+                                        <th className="px-5 py-4">OPERADOR</th>
                                         <th className="px-5 py-4"></th>
                                     </tr>
                                 </thead>
