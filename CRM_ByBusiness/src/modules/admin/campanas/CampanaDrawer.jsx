@@ -6,12 +6,12 @@ const N8N = import.meta.env.VITE_N8N_URL;
 
 /**
  * CampanaDrawer — Modal compacto para crear o editar una campaña.
+ * SIMPLIFICADO: Solo usa campo 'activo' (true/false)
  */
 const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
-    estado: 'activa',
     prioridad: 5,
     bonus_por_venta: 0,
     objetivo_ventas: 0,
@@ -34,7 +34,6 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
         id: campana.id,
         nombre: campana.nombre || '',
         descripcion: campana.descripcion || '',
-        estado: campana.estado || 'activa',
         prioridad: campana.prioridad || 5,
         bonus_por_venta: campana.bonus_por_venta || 0,
         objetivo_ventas: campana.objetivo_ventas || 0,
@@ -59,14 +58,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
   };
 
   const handleActivoChange = () => {
-    setForm(prev => {
-      const newActivo = !prev.activo;
-      return { 
-        ...prev, 
-        activo: newActivo,
-        estado: newActivo ? 'activa' : 'inactiva'
-      };
-    });
+    setForm(prev => ({ ...prev, activo: !prev.activo }));
   };
 
   const handleSubmit = async (e) => {
@@ -97,7 +89,6 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
 
   const inputCls = "w-full bg-slate-900 border border-slate-800 rounded-sm px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D00000]";
   const labelCls = "block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5";
-  const selectCls = "w-full bg-slate-900 border border-slate-800 rounded-sm px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D00000]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2">
@@ -177,17 +168,8 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
             <textarea value={form.descripcion} onChange={handleChange('descripcion')} rows={2} className={`${inputCls} resize-none`} />
           </div>
 
-          {/* Grid 3 columnas */}
+          {/* Grid 3 columnas - SIN ESTADO */}
           <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className={labelCls}>Estado</label>
-              <select value={form.estado} onChange={handleChange('estado')} className={selectCls}>
-                <option value="activa">Activa</option>
-                <option value="inactiva">Inactiva</option>
-                <option value="pausada">Pausada</option>
-                <option value="completada">Completada</option>
-              </select>
-            </div>
             <div>
               <label className={labelCls}>Prioridad (1-10)</label>
               <input type="number" min="1" max="10" value={form.prioridad} onChange={handleChange('prioridad')} className={inputCls} />
@@ -195,6 +177,10 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
             <div>
               <label className={labelCls}>Bonus (€)</label>
               <input type="number" min="0" step="0.01" value={form.bonus_por_venta} onChange={handleChange('bonus_por_venta')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Fecha Inicio</label>
+              <input type="date" value={form.fecha_inicio} onChange={handleChange('fecha_inicio')} className={inputCls} />
             </div>
           </div>
 
@@ -209,24 +195,20 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
               <input type="number" min="0" value={form.objetivo_llamadas} onChange={handleChange('objetivo_llamadas')} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Fecha Inicio</label>
-              <input type="date" value={form.fecha_inicio} onChange={handleChange('fecha_inicio')} className={inputCls} />
+              <label className={labelCls}>Fecha Fin</label>
+              <input type="date" value={form.fecha_fin} onChange={handleChange('fecha_fin')} className={inputCls} />
             </div>
           </div>
 
           {/* Freeze */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls}>Freeze No Contesta</label>
+              <label className={labelCls}>Freeze No Contesta (días)</label>
               <input type="number" min="0" value={form.freeze_dias_no_contesta} onChange={handleChange('freeze_dias_no_contesta')} className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Freeze No Interesa</label>
+              <label className={labelCls}>Freeze No Interesa (días)</label>
               <input type="number" min="0" value={form.freeze_dias_no_interesa} onChange={handleChange('freeze_dias_no_interesa')} className={inputCls} />
-            </div>
-            <div>
-              <label className={labelCls}>Fecha Fin</label>
-              <input type="date" value={form.fecha_fin} onChange={handleChange('fecha_fin')} className={inputCls} />
             </div>
           </div>
 
