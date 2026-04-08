@@ -16,7 +16,8 @@ import {
   UserPlus,
   BarChart3,
   GraduationCap,
-  Trash2
+  Trash2,
+  Zap
 } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
@@ -24,6 +25,7 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import { useAuth } from '../../auth/AuthContext';
 import CampanaDrawer from './CampanaDrawer';
 import AsignarOperadoresModal from './AsignarOperadoresModal';
+import GeneradorCampanasPanel from './GeneradorCampanasPanel';
 
 const PAGE_SIZE = 10;
 const N8N = import.meta.env.VITE_N8N_URL;
@@ -55,6 +57,7 @@ const CampañasPanel = () => {
   const [mostrarEliminar, setMostrarEliminar] = useState(false);
   const [modoCreacion, setModoCreacion] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [mostrarGenerador, setMostrarGenerador] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -336,6 +339,13 @@ const CampañasPanel = () => {
           </select>
 
           <button
+            onClick={() => setMostrarGenerador(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-sm bg-emerald-900/30 border border-emerald-800 text-emerald-400 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-900/50 transition-colors"
+          >
+            <Zap size={12} /> Generador
+          </button>
+
+          <button
             onClick={onCrearCampana}
             className="flex items-center gap-2 px-4 py-2 bg-[#D00000] hover:bg-[#D00000]/80 text-white rounded-sm text-xs font-medium uppercase tracking-wider transition-colors"
           >
@@ -551,6 +561,18 @@ const CampañasPanel = () => {
           onClose={() => setMostrarAsignacion(false)}
           onAsignar={cargarDatos}
         />
+      )}
+
+      {/* Modal del Generador de Campañas */}
+      {mostrarGenerador && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
+            <GeneradorCampanasPanel 
+              modoInicial="reales" 
+              onCerrar={() => { setMostrarGenerador(false); cargarDatos(); }} 
+            />
+          </div>
+        </div>
       )}
 
       {/* Modal de confirmación de eliminación */}
