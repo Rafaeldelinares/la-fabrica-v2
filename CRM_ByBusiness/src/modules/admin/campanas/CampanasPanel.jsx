@@ -58,6 +58,7 @@ const CampanasPanel = () => {
   const [modoCreacion, setModoCreacion] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [mostrarGenerador, setMostrarGenerador] = useState(false);
+  const [mensaje, setMensaje] = useState('');
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -202,6 +203,8 @@ const CampanasPanel = () => {
         await cargarDatos();
         setMostrarEliminar(false);
         setCampanaSeleccionada(null);
+        setMensaje(data.message || 'Campana eliminada correctamente');
+        setTimeout(() => setMensaje(''), 3000);
       } else {
         setError(data.message || 'Error al eliminar campaña');
       }
@@ -249,6 +252,13 @@ const CampanasPanel = () => {
       {error && (
         <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
           {error}
+        </div>
+      )}
+
+      {/* Mensaje de exito */}
+      {mensaje && (
+        <div className="px-3 py-2 bg-emerald-900/20 border border-emerald-900/30 rounded-sm text-[10px] text-emerald-400 font-mono">
+          {mensaje}
         </div>
       )}
 
