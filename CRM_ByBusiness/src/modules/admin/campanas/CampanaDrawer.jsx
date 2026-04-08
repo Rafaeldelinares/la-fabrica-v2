@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { X, Target, DollarSign, Users, Calendar, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
-import Card from '../../../shared/ui/Card';
+import { X, Target, DollarSign, Calendar, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
 /**
- * CampanaDrawer — Modal centrado para crear o editar una campaña.
+ * CampanaDrawer — Modal compacto para crear o editar una campaña.
  */
 const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
   const [form, setForm] = useState({
@@ -29,7 +28,6 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
 
-  // Cargar datos si es edición
   useEffect(() => {
     if (campana && !modoCreacion) {
       setForm({
@@ -66,320 +64,168 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
     setError('');
     setMensaje('');
 
-    // Validaciones
     if (!form.nombre.trim()) {
-      setError('El nombre de la campaña es obligatorio');
-      setLoading(false);
-      return;
-    }
-
-    if (form.objetivo_ventas < 0 || form.objetivo_llamadas < 0) {
-      setError('Los objetivos no pueden ser negativos');
+      setError('El nombre es obligatorio');
       setLoading(false);
       return;
     }
 
     try {
       await onSave(form);
-      setMensaje(modoCreacion ? 'Campaña creada exitosamente' : 'Campaña actualizada exitosamente');
+      setMensaje(modoCreacion ? 'Campaña creada' : 'Campaña actualizada');
       setTimeout(() => {
         setMensaje('');
         onClose();
       }, 1500);
     } catch (err) {
-      setError('Error al guardar la campaña');
+      setError('Error al guardar');
     } finally {
       setLoading(false);
     }
   };
 
-  const inputCls = "w-full bg-slate-900 border border-slate-800 rounded-sm px-3 py-2 text-sm text-slate-200 outline-none focus:border-[#D00000] transition-colors";
-  const labelCls = "block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1";
-  const selectCls = "w-full bg-slate-900 border border-slate-800 rounded-sm px-3 py-2 text-sm text-slate-200 outline-none focus:border-[#D00000] transition-colors";
+  const inputCls = "w-full bg-slate-900 border border-slate-800 rounded-sm px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D00000]";
+  const labelCls = "block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5";
+  const selectCls = "w-full bg-slate-900 border border-slate-800 rounded-sm px-2 py-1.5 text-xs text-slate-200 outline-none focus:border-[#D00000]";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Overlay */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2">
       <div 
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={!loading ? onClose : undefined}
       />
       
-      {/* Modal Centrado */}
-      <div className="relative w-full max-w-2xl max-h-[90vh] bg-slate-950 border border-slate-800 rounded-sm shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative w-full max-w-4xl bg-slate-950 border border-slate-800 rounded-sm shadow-2xl flex flex-col max-h-[95vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <Target className="text-[#D00000]" size={20} />
-            <h2 className="text-sm font-black text-white uppercase tracking-widest">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800 bg-slate-950 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Target className="text-[#D00000]" size={16} />
+            <h2 className="text-xs font-black text-white uppercase tracking-wider">
               {modoCreacion ? 'Nueva Campaña' : 'Editar Campaña'}
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="p-2 rounded-sm hover:bg-slate-900 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
-          >
-            <X size={20} />
+          <button onClick={onClose} disabled={loading} className="p-1.5 hover:bg-slate-900 text-slate-400 hover:text-white rounded-sm">
+            <X size={16} />
           </button>
         </div>
 
         {/* Mensajes */}
         {mensaje && (
-          <div className="mx-6 mt-4 px-3 py-2 bg-emerald-900/20 border border-emerald-900/30 rounded-sm text-[11px] text-emerald-400 font-mono flex items-center gap-2">
-            <CheckCircle size={14} />
-            {mensaje}
+          <div className="mx-4 mt-2 px-2 py-1 bg-emerald-900/20 border border-emerald-900/30 rounded-sm text-[10px] text-emerald-400 font-mono flex items-center gap-1.5">
+            <CheckCircle size={12} /> {mensaje}
           </div>
         )}
-
         {error && (
-          <div className="mx-6 mt-4 px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[11px] text-red-400 font-mono">
+          <div className="mx-4 mt-2 px-2 py-1 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
             {error}
           </div>
         )}
 
-        {/* Formulario */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
-          {/* Tipo de campaña */}
-          <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-sm border border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-sm ${form.es_simulacion ? 'bg-amber-500/10' : 'bg-blue-500/10'}`}>
-                {form.es_simulacion ? (
-                  <DollarSign className="text-amber-500" size={18} />
-                ) : (
-                  <Target className="text-blue-500" size={18} />
-                )}
+        {/* Formulario Compacto */}
+        <form onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto">
+          {/* Tipo y Activo */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex items-center justify-between p-2 bg-slate-900/50 rounded-sm border border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-sm ${form.es_simulacion ? 'bg-amber-500/10' : 'bg-blue-500/10'}`}>
+                  <DollarSign className={form.es_simulacion ? "text-amber-500" : "text-blue-500"} size={14} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-white">{form.es_simulacion ? 'Entrenamiento' : 'Real'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">
-                  {form.es_simulacion ? 'Campaña de Entrenamiento' : 'Campaña Real'}
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  {form.es_simulacion 
-                    ? 'Para práctica de operadores en formación' 
-                    : 'Campaña activa para operadores reales'}
-                </p>
-              </div>
+              <button type="button" onClick={() => setForm(prev => ({ ...prev, es_simulacion: !prev.es_simulacion }))} disabled={!modoCreacion}>
+                {form.es_simulacion ? <ToggleRight size={24} className="text-amber-500" /> : <ToggleLeft size={24} className="text-slate-600" />}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setForm(prev => ({ ...prev, es_simulacion: !prev.es_simulacion }))}
-              className="text-slate-400 hover:text-white transition-colors"
-              disabled={!modoCreacion} // No se puede cambiar el tipo después de crear
-            >
-              {form.es_simulacion ? (
-                <ToggleRight size={28} className="text-amber-500" />
-              ) : (
-                <ToggleLeft size={28} className="text-slate-600" />
-              )}
-            </button>
-          </div>
-
-          {/* Información básica */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Target size={14} />
-              Información Básica
-            </h3>
             
+            <div className="flex items-center justify-between p-2 bg-slate-900/50 rounded-sm border border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-sm ${form.activo ? 'bg-emerald-500/10' : 'bg-slate-700/30'}`}>
+                  <Target className={form.activo ? "text-emerald-500" : "text-slate-500"} size={14} />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-white">{form.activo ? 'Activa' : 'Inactiva'}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => setForm(prev => ({ ...prev, activo: !prev.activo }))}>
+                {form.activo ? <ToggleRight size={24} className="text-emerald-500" /> : <ToggleLeft size={24} className="text-slate-600" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Nombre */}
+          <div>
+            <label className={labelCls}>Nombre *</label>
+            <input type="text" value={form.nombre} onChange={handleChange('nombre')} placeholder="Ej: Campaña Verano" className={inputCls} required />
+          </div>
+
+          {/* Descripción */}
+          <div>
+            <label className={labelCls}>Descripción</label>
+            <textarea value={form.descripcion} onChange={handleChange('descripcion')} rows={2} className={`${inputCls} resize-none`} />
+          </div>
+
+          {/* Grid 3 columnas */}
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className={labelCls}>Nombre de la Campaña *</label>
-              <input
-                type="text"
-                value={form.nombre}
-                onChange={handleChange('nombre')}
-                placeholder="Ej: Campaña Verano 2026"
-                className={inputCls}
-                required
-              />
+              <label className={labelCls}>Estado</label>
+              <select value={form.estado} onChange={handleChange('estado')} className={selectCls}>
+                <option value="activa">Activa</option>
+                <option value="inactiva">Inactiva</option>
+                <option value="pausada">Pausada</option>
+                <option value="completada">Completada</option>
+              </select>
             </div>
-
             <div>
-              <label className={labelCls}>Descripción</label>
-              <textarea
-                value={form.descripcion}
-                onChange={handleChange('descripcion')}
-                placeholder="Descripción de la campaña..."
-                rows={3}
-                className={`${inputCls} resize-none`}
-              />
+              <label className={labelCls}>Prioridad (1-10)</label>
+              <input type="number" min="1" max="10" value={form.prioridad} onChange={handleChange('prioridad')} className={inputCls} />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Estado</label>
-                <select value={form.estado} onChange={handleChange('estado')} className={selectCls}>
-                  <option value="activa">Activa</option>
-                  <option value="inactiva">Inactiva</option>
-                  <option value="pausada">Pausada</option>
-                  <option value="completada">Completada</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className={labelCls}>Prioridad (1-10)</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={form.prioridad}
-                  onChange={handleChange('prioridad')}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Fecha Inicio</label>
-                <input
-                  type="date"
-                  value={form.fecha_inicio}
-                  onChange={handleChange('fecha_inicio')}
-                  className={inputCls}
-                />
-              </div>
-              
-              <div>
-                <label className={labelCls}>Fecha Fin</label>
-                <input
-                  type="date"
-                  value={form.fecha_fin}
-                  onChange={handleChange('fecha_fin')}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Objetivos y Bonus */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <DollarSign size={14} />
-              Objetivos y Recompensas
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Bonus por Venta (€)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={form.bonus_por_venta}
-                  onChange={handleChange('bonus_por_venta')}
-                  className={inputCls}
-                />
-              </div>
-              
-              <div>
-                <label className={labelCls}>Objetivo de Ventas</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.objetivo_ventas}
-                  onChange={handleChange('objetivo_ventas')}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-
             <div>
-              <label className={labelCls}>Objetivo de Llamadas</label>
-              <input
-                type="number"
-                min="0"
-                value={form.objetivo_llamadas}
-                onChange={handleChange('objetivo_llamadas')}
-                className={inputCls}
-              />
+              <label className={labelCls}>Bonus (€)</label>
+              <input type="number" min="0" step="0.01" value={form.bonus_por_venta} onChange={handleChange('bonus_por_venta')} className={inputCls} />
             </div>
           </div>
 
-          {/* Configuración de freeze */}
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-              <Calendar size={14} />
-              Configuración de Reintentos
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Días Freeze (No Contesta)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.freeze_dias_no_contesta}
-                  onChange={handleChange('freeze_dias_no_contesta')}
-                  className={inputCls}
-                />
-                <p className="text-[10px] text-slate-600 mt-1">Días de espera tras no contesta</p>
-              </div>
-              
-              <div>
-                <label className={labelCls}>Días Freeze (No Interesa)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={form.freeze_dias_no_interesa}
-                  onChange={handleChange('freeze_dias_no_interesa')}
-                  className={inputCls}
-                />
-                <p className="text-[10px] text-slate-600 mt-1">Días de espera tras no interesa</p>
-              </div>
+          {/* Objetivos */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Obj. Ventas</label>
+              <input type="number" min="0" value={form.objetivo_ventas} onChange={handleChange('objetivo_ventas')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Obj. Llamadas</label>
+              <input type="number" min="0" value={form.objetivo_llamadas} onChange={handleChange('objetivo_llamadas')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Fecha Inicio</label>
+              <input type="date" value={form.fecha_inicio} onChange={handleChange('fecha_inicio')} className={inputCls} />
             </div>
           </div>
 
-          {/* Activo/Inactivo */}
-          <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-sm border border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-sm ${form.activo ? 'bg-emerald-500/10' : 'bg-slate-700/30'}`}>
-                {form.activo ? (
-                  <Target className="text-emerald-500" size={18} />
-                ) : (
-                  <Target className="text-slate-500" size={18} />
-                )}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">
-                  {form.activo ? 'Campaña Activa' : 'Campaña Inactiva'}
-                </p>
-                <p className="text-[10px] text-slate-500">
-                  {form.activo 
-                    ? 'Visible y operativa para los operadores' 
-                    : 'No visible para los operadores'}
-                </p>
-              </div>
+          {/* Freeze */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls}>Freeze No Contesta</label>
+              <input type="number" min="0" value={form.freeze_dias_no_contesta} onChange={handleChange('freeze_dias_no_contesta')} className={inputCls} />
             </div>
-            <button
-              type="button"
-              onClick={() => setForm(prev => ({ ...prev, activo: !prev.activo }))}
-              className="text-slate-400 hover:text-white transition-colors"
-            >
-              {form.activo ? (
-                <ToggleRight size={28} className="text-emerald-500" />
-              ) : (
-                <ToggleLeft size={28} className="text-slate-600" />
-              )}
-            </button>
+            <div>
+              <label className={labelCls}>Freeze No Interesa</label>
+              <input type="number" min="0" value={form.freeze_dias_no_interesa} onChange={handleChange('freeze_dias_no_interesa')} className={inputCls} />
+            </div>
+            <div>
+              <label className={labelCls}>Fecha Fin</label>
+              <input type="date" value={form.fecha_fin} onChange={handleChange('fecha_fin')} className={inputCls} />
+            </div>
           </div>
 
-          {/* Botones de acción */}
-          <div className="flex gap-3 pt-4 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-sm text-xs font-medium uppercase tracking-wider transition-colors disabled:opacity-50"
-            >
+          {/* Botones */}
+          <div className="flex gap-2 pt-2 border-t border-slate-800">
+            <button type="button" onClick={onClose} disabled={loading} className="flex-1 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-sm text-[10px] font-medium uppercase tracking-wider">
               Cancelar
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-3 bg-[#D00000] hover:bg-[#D00000]/80 text-white rounded-sm text-xs font-medium uppercase tracking-wider transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Guardando...' : (modoCreacion ? 'Crear Campaña' : 'Guardar Cambios')}
+            <button type="submit" disabled={loading} className="flex-1 px-3 py-2 bg-[#D00000] hover:bg-[#D00000]/80 text-white rounded-sm text-[10px] font-medium uppercase tracking-wider">
+              {loading ? 'Guardando...' : (modoCreacion ? 'Crear' : 'Guardar')}
             </button>
           </div>
         </form>
