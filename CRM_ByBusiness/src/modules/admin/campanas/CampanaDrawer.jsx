@@ -58,6 +58,17 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleActivoChange = () => {
+    setForm(prev => {
+      const newActivo = !prev.activo;
+      return { 
+        ...prev, 
+        activo: newActivo,
+        estado: newActivo ? 'activa' : 'inactiva'
+      };
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -148,7 +159,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
                   <p className="text-xs font-medium text-white">{form.activo ? 'Activa' : 'Inactiva'}</p>
                 </div>
               </div>
-              <button type="button" onClick={() => setForm(prev => ({ ...prev, activo: !prev.activo }))}>
+              <button type="button" onClick={handleActivoChange}>
                 {form.activo ? <ToggleRight size={24} className="text-emerald-500" /> : <ToggleLeft size={24} className="text-slate-600" />}
               </button>
             </div>
