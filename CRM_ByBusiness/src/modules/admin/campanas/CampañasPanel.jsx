@@ -15,7 +15,8 @@ import {
   Edit2,
   UserPlus,
   BarChart3,
-  GraduationCap
+  GraduationCap,
+  Trash2
 } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
@@ -51,7 +52,9 @@ const CampañasPanel = () => {
   const [campanaSeleccionada, setCampanaSeleccionada] = useState(null);
   const [mostrarDrawer, setMostrarDrawer] = useState(false);
   const [mostrarAsignacion, setMostrarAsignacion] = useState(false);
+  const [mostrarEliminar, setMostrarEliminar] = useState(false);
   const [modoCreacion, setModoCreacion] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -172,6 +175,38 @@ const CampañasPanel = () => {
   const onAsignarOperadores = (campana) => {
     setCampanaSeleccionada(campana);
     setMostrarAsignacion(true);
+  };
+
+  const onEliminarCampana = (campana) => {
+    setCampanaSeleccionada(campana);
+    setMostrarEliminar(true);
+  };
+
+  const confirmarEliminar = async () => {
+    if (!campanaSeleccionada) return;
+    
+    setEliminando(true);
+    try {
+      const res = await fetch(`${N8N}/crm-campanas-eliminar`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: campanaSeleccionada.id })
+      });
+      
+      const data = await res.json();
+      
+      if (data.ok) {
+        await cargarDatos();
+        setMostrarEliminar(false);
+        setCampanaSeleccionada(null);
+      } else {
+        setError(data.message || 'Error al eliminar campaña');
+      }
+    } catch (err) {
+      setError('Error al eliminar — comprueba la conexión');
+    } finally {
+      setEliminando(false);
+    }
   };
 
   const onGuardarCampana = async (datos) => {
@@ -452,6 +487,13 @@ const CampañasPanel = () => {
                           >
                             <BarChart3 size={16} />
                           </button>
+                          <button
+                            onClick={() => onEliminarCampana(campana)}
+                            className="p-2 rounded-sm hover:bg-slate-800 text-slate-400 hover:text-red-400 transition-colors"
+                            title="Eliminar campaña"
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -509,6 +551,58 @@ const CampañasPanel = () => {
           onClose={() => setMostrarAsignacion(false)}
           onAsignar={cargarDatos}
         />
+      )}
+
+      {/* Modal de confirmación de eliminación */}
+      {mostrarEliminar && campanaSeleccionada && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-800 rounded-sm p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-red-500/10 rounded-sm">
+                <Trash2 className="text-red-500" size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Eliminar Campaña</h3>
+                <p className="text-xs text-slate-500">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-slate-300 mb-6">
+              ¿Estás seguro de que quieres eliminar la campaña <strong className="text-white">"{campanaSeleccionada.nombre}"</strong>?
+              <br /><br />
+              <span className="text-xs text-slate-500">
+                Los leads asignados a esta campaña quedarán libres y podrán ser reasignados.
+              </span>
+            </p>
+            
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setMostrarEliminar(false)}
+                disabled={eliminando}
+                className="px-4 py-2 rounded-sm bg-slate-800 text-slate-300 text-xs font-medium uppercase tracking-wider hover:bg-slate-700 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarEliminar}
+                disabled={eliminando}
+                className="px-4 py-2 rounded-sm bg-red-600 text-white text-xs font-medium uppercase tracking-wider hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {eliminando ? (
+                  <>
+                    <div className="animate-spin w-3 h-3 border-2 border-white/30 border-t-white rounded-full" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={12} />
+                    Eliminar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
