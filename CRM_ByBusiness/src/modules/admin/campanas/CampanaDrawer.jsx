@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { X, Target, DollarSign, Users, Calendar, ToggleLeft, ToggleRight } from 'lucide-react';
+import { X, Target, DollarSign, Users, Calendar, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
 /**
- * CampanaDrawer — Drawer lateral para crear o editar una campaña.
+ * CampanaDrawer — Modal centrado para crear o editar una campaña.
  */
 const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
   const [form, setForm] = useState({
@@ -27,6 +27,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [mensaje, setMensaje] = useState('');
 
   // Cargar datos si es edición
   useEffect(() => {
@@ -63,6 +64,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setMensaje('');
 
     // Validaciones
     if (!form.nombre.trim()) {
@@ -79,6 +81,11 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
 
     try {
       await onSave(form);
+      setMensaje(modoCreacion ? 'Campaña creada exitosamente' : 'Campaña actualizada exitosamente');
+      setTimeout(() => {
+        setMensaje('');
+        onClose();
+      }, 1500);
     } catch (err) {
       setError('Error al guardar la campaña');
     } finally {
@@ -91,17 +98,17 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
   const selectCls = "w-full bg-slate-900 border border-slate-800 rounded-sm px-3 py-2 text-sm text-slate-200 outline-none focus:border-[#D00000] transition-colors";
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={!loading ? onClose : undefined}
       />
       
-      {/* Drawer */}
-      <div className="relative w-full max-w-lg h-full bg-slate-950 border-l border-slate-800 shadow-2xl overflow-y-auto">
+      {/* Modal Centrado */}
+      <div className="relative w-full max-w-2xl max-h-[90vh] bg-slate-950 border border-slate-800 rounded-sm shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950 flex-shrink-0">
           <div className="flex items-center gap-3">
             <Target className="text-[#D00000]" size={20} />
             <h2 className="text-sm font-black text-white uppercase tracking-widest">
@@ -110,20 +117,29 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-sm hover:bg-slate-900 text-slate-400 hover:text-white transition-colors"
+            disabled={loading}
+            className="p-2 rounded-sm hover:bg-slate-900 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
           >
             <X size={20} />
           </button>
         </div>
 
-        {/* Formulario */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {error && (
-            <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[11px] text-red-400 font-mono">
-              {error}
-            </div>
-          )}
+        {/* Mensajes */}
+        {mensaje && (
+          <div className="mx-6 mt-4 px-3 py-2 bg-emerald-900/20 border border-emerald-900/30 rounded-sm text-[11px] text-emerald-400 font-mono flex items-center gap-2">
+            <CheckCircle size={14} />
+            {mensaje}
+          </div>
+        )}
 
+        {error && (
+          <div className="mx-6 mt-4 px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[11px] text-red-400 font-mono">
+            {error}
+          </div>
+        )}
+
+        {/* Formulario */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           {/* Tipo de campaña */}
           <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-sm border border-slate-800">
             <div className="flex items-center gap-3">
@@ -353,7 +369,8 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-sm text-xs font-medium uppercase tracking-wider transition-colors"
+              disabled={loading}
+              className="flex-1 px-4 py-3 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-sm text-xs font-medium uppercase tracking-wider transition-colors disabled:opacity-50"
             >
               Cancelar
             </button>
