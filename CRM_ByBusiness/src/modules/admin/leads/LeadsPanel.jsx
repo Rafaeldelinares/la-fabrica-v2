@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
-import { Users, RefreshCw } from 'lucide-react';
+import { Users, RefreshCw, Zap } from 'lucide-react';
 import LeadRow from './LeadRow';
+import GeneradorCampanasPanel from '../campanas/GeneradorCampanasPanel';
 
 const PAGE_SIZE = 15;
 
@@ -13,41 +14,45 @@ const LeadsPanel = () => {
 
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
+    const [filtroCampana, setFiltroCampana]     = useState('');
+    const [modo, setModo]                       = useState('reales');
     const [leads, setLeads]                     = useState(null);
     const [total, setTotal]                     = useState(0);
     const [gestores, setGestores]               = useState([]);
     const [error, setError]                     = useState('');
     const [pagina, setPagina]                   = useState(1);
+    const [mostrarGenerador, setMostrarGenerador] = useState(false);
 
     const cargarOperadores = useCallback(() => {
         fetch(`${N8N}/crm-operadores-activos`)
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
             })
-            .then(d => { if (d.ok) setGestores(d.operadores); })
-            .catch(() => setGestores([]));
+            .then(data => { if (data.ok) setGestores(data.operadores); })
+            .catch(() => { setGestores([]); setError('Error al cargar gestores — comprueba la conexión'); });
     }, [N8N]);
 
     const cargarLeads = useCallback(() => {
         setLeads(null);
-        fetch(`${N8N}/crm-leads-admin`)
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
+        fetch(`${N8N}/crm-leads-admin?es_simulacion=${modo === 'entrenamiento'}&limit=1000`)
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
             })
             .then(data => {
                 if (data.ok) { setLeads(data.leads); setTotal(data.total); setError(''); }
                 else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
             })
             .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexión'); });
-    }, [N8N]);
+    }, [N8N, modo]);
 
-    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]);
+    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores, modo]);
 
     const leadsFiltrados = (leads ?? []).filter(lead =>
         (!filtroEstado    || lead.estado    === filtroEstado) &&
-        (!filtroPrioridad || lead.prioridad === filtroPrioridad)
+        (!filtroPrioridad || lead.prioridad === filtroPrioridad) &&
+        (!filtroCampana   || (filtroCampana === 'con' ? lead.campana_id : !lead.campana_id))
     );
 
     const totalPaginas = Math.max(1, Math.ceil(leadsFiltrados.length / PAGE_SIZE));
@@ -73,13 +78,24 @@ const LeadsPanel = () => {
                     <Badge className="bg-slate-800 text-slate-300 border-slate-700">
                         {leads ? total : '—'} LEADS
                     </Badge>
+                    <button
+                        onClick={() => setModo(m => m === 'reales' ? 'entrenamiento' : 'reales')}
+                        className={`px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider border ${modo === 'reales' ? 'bg-[#D00000] border-[#D00000] text-white' : 'bg-amber-600 border-amber-600 text-white'}`}
+                    >
+                        {modo === 'reales' ? '🌍 REALES' : '🎓 ENTRENAMIENTO'}
+                    </button>
                 </div>
 
                 <div className="flex gap-3 items-center">
                     <button
+                        onClick={() => setMostrarGenerador(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-sm bg-emerald-900/30 border border-emerald-800 text-emerald-400 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-900/50 transition-colors"
+                    >
+                        <Zap size={12} /> GENERADOR
+                    </button>
+                    <button
                         onClick={cargarLeads}
-                        className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400
-                            hover:text-slate-200 hover:border-slate-700 transition-colors"
+                        className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-colors"
                         title="Recargar"
                     >
                         <RefreshCw size={13} />
@@ -102,8 +118,21 @@ const LeadsPanel = () => {
                         <option value="normal">Normal</option>
                         <option value="baja">Baja</option>
                     </select>
+                    <select value={filtroCampana} onChange={onFiltroChange(setFiltroCampana)} className={selectCls}>
+                        <option value="">Campaña: Todas</option>
+                        <option value="con">Con campaña</option>
+                        <option value="sin">Sin campaña</option>
+                    </select>
                 </div>
             </div>
+
+            {mostrarGenerador && (
+                <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                    <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
+                        <GeneradorCampanasPanel modoInicial={modo} onCerrar={() => { setMostrarGenerador(false); cargarLeads(); }} />
+                    </div>
+                </div>
+            )}
 
             <Card className="flex flex-col flex-1 bg-slate-900 border-slate-800 !p-0 overflow-hidden">
                 {leads === null ? (
@@ -129,6 +158,7 @@ const LeadsPanel = () => {
                                         <th className="px-4 py-3">LOCALIDAD</th>
                                         <th className="px-4 py-3">PRIORIDAD</th>
                                         <th className="px-4 py-3">ESTADO</th>
+                                        <th className="px-4 py-3">CAMPAÑA</th>
                                         <th className="px-4 py-3">OPERADOR</th>
                                         <th className="px-4 py-3 font-mono">SCORING</th>
                                         <th className="px-4 py-3 font-mono">FECHA</th>

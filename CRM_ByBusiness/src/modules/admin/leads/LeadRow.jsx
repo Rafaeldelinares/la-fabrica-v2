@@ -6,8 +6,8 @@ import { fmtFecha } from '../../../utils/dates';
 
 const ESTADOS = ['pendiente','asignado','en_llamada','vendido','no_interesa','callback','no_contesta','error','lista_negra'];
 
-const getPrioridadClasses = (p) => {
-    switch (p) {
+const getPrioridadClasses = (prioridad) => {
+    switch (prioridad) {
         case 'alta':   return 'bg-red-500/10 text-red-500 border-red-500/20';
         case 'normal': return 'bg-slate-600/10 text-slate-300 border-slate-600/50';
         case 'baja':   return 'bg-slate-800 text-slate-500 border-slate-700';
@@ -50,6 +50,7 @@ const LeadRow = ({ lead, gestores }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             if (!data.ok) mostrarError('Error al guardar — intenta de nuevo');
         } catch {
@@ -79,6 +80,7 @@ const LeadRow = ({ lead, gestores }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ lead_id: lead.id, nota: nota.trim() }),
             });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             if (data.ok) { setNota(''); setNotaAbierta(false); }
             else mostrarError('Error al guardar nota');
@@ -106,13 +108,22 @@ const LeadRow = ({ lead, gestores }) => {
                 </td>
                 <td className="px-4 py-3">
                     <select value={estado} onChange={onEstadoChange} disabled={guardando} className={selectCls}>
-                        {ESTADOS.map(e => <option key={e} value={e}>{e.replace('_', ' ')}</option>)}
+                        {ESTADOS.map(estadoOpt => <option key={estadoOpt} value={estadoOpt}>{estadoOpt.replace('_', ' ')}</option>)}
                     </select>
+                </td>
+                <td className="px-4 py-3">
+                    {lead.campana_nombre ? (
+                        <span className="text-[10px] text-emerald-400 font-mono truncate max-w-[100px] block" title={lead.campana_nombre}>
+                            {lead.campana_nombre}
+                        </span>
+                    ) : (
+                        <span className="text-[10px] text-slate-600 font-mono">— sin campaña</span>
+                    )}
                 </td>
                 <td className="px-4 py-3">
                     <select value={gestorId} onChange={onGestorChange} disabled={guardando} className={selectCls}>
                         <option value="">— sin asignar</option>
-                        {gestores.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+                        {gestores.map(gestor => <option key={gestor.id} value={gestor.id}>{gestor.nombre}</option>)}
                     </select>
                 </td>
                 <td className="px-4 py-3 font-mono">
