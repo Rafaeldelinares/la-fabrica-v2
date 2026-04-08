@@ -219,7 +219,7 @@ const CampanasPanel = () => {
     try {
       const url = modoCreacion 
         ? `${N8N}/crm-campanas-crear`
-        : `${N8N}/crm-campana-update`;
+        : `${N8N}/crm-campana-update-fix`;
       
       const method = modoCreacion ? 'POST' : 'PUT';
       
