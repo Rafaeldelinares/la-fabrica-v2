@@ -64,12 +64,15 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
       const res = await fetch(
         `${N8N}/crm-resultados-operador?operador_id=${userId}&es_simulacion=${esSimulacion}`
       )
-      if (!res.ok) throw new Error('Error cargando estadísticas')
-      const rows = await res.json()
-      setStats(Array.isArray(rows) && rows.length > 0 ? rows[0] : null)
+      if (!res.ok) throw new Error(`Error HTTP ${res.status}: ${res.statusText}`)
+      const data = await res.json()
+      // El endpoint devuelve {ok: true, stats: {...}} o directamente el objeto stats
+      const statsData = data?.stats || (data?.ok === undefined ? data : null)
+      setStats(statsData)
     } catch (err) {
       console.error('Error cargando stats:', err)
       setError('Error cargando estadísticas del operador')
+      setStats(null)
     }
   }, [userId, esSimulacion])
 

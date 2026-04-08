@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
-import { RefreshCw, Plus, AlertTriangle, CheckCircle } from 'lucide-react';
+import { RefreshCw, Plus, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
 
 /**
  * GeneradorCampanasPanel — Panel de generación automática de campañas desde leads huérfanos.
@@ -16,6 +16,8 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState('');
   const [creando, setCreando] = useState({});
+  const [descartadas, setDescartadas] = useState(new Set());
+  const [maxLeads, setMaxLeads] = useState(10000);
   const [mensaje, setMensaje] = useState('');
   const msgTimerRef = useRef(null);
 
@@ -34,7 +36,7 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
       const res = await fetch(`${N8N}/crm-analisis-campanas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ es_simulacion: modo === 'entrenamiento' })
+        body: JSON.stringify({ es_simulacion: modo === 'entrenamiento', max_leads: maxLeads })
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -45,7 +47,7 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
     } finally {
       setAnalizando(false);
     }
-  }, [N8N, modo]);
+  }, [N8N, modo, maxLeads]);
 
   const crearCampana = async (propuesta) => {
     setCreando(prev => ({ ...prev, [propuesta.id]: true }));
@@ -97,9 +99,23 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
 
       <Card className="bg-slate-900 border-slate-800 p-4">
         <div className="flex items-center justify-between mb-4">
-          <p className="text-xs text-slate-400 font-mono">
-            Modo: <span className="text-white font-bold">{modo === 'reales' ? 'REALES' : 'ENTRENAMIENTO'}</span>
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-xs text-slate-400 font-mono">
+              Modo: <span className="text-white font-bold">{modo === 'reales' ? 'REALES' : 'ENTRENAMIENTO'}</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] text-slate-500 uppercase">Máx. leads:</label>
+              <input
+                type="number"
+                value={maxLeads}
+                onChange={(e) => setMaxLeads(Math.max(100, Math.min(50000, parseInt(e.target.value) || 10000)))}
+                min="100"
+                max="50000"
+                step="100"
+                className="w-20 bg-slate-950 border border-slate-700 rounded-sm text-xs text-slate-200 px-2 py-1 font-mono text-center focus:border-[#D00000] outline-none"
+              />
+            </div>
+          </div>
           <button onClick={analizar} disabled={analizando} className={`${btnCls} flex items-center gap-2`}>
             {analizando ? <RefreshCw size={12} className="animate-spin" /> : <RefreshCw size={12} />}
             {analizando ? 'ANALIZANDO...' : 'ANALIZAR LEADS'}
@@ -141,11 +157,21 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
               </div>
             )}
 
-            {resultado.propuestas?.length > 0 ? (
+            {resultado.propuestas?.filter(prop => !descartadas.has(prop.id)).length > 0 ? (
               <div>
-                <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">💡 PROPUESTAS DE CAMPAÑAS</h3>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">💡 PROPUESTAS DE CAMPAÑAS</h3>
+                  {descartadas.size > 0 && (
+                    <button 
+                      onClick={() => setDescartadas(new Set())}
+                      className="text-[9px] text-slate-500 hover:text-slate-300 underline"
+                    >
+                      Restaurar descartadas ({descartadas.size})
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-2">
-                  {resultado.propuestas.map(prop => (
+                  {resultado.propuestas.filter(prop => !descartadas.has(prop.id)).map(prop => (
                     <div key={prop.id} className={`border rounded-sm p-3 ${prop.valida ? 'bg-emerald-950/10 border-emerald-900/30' : prop.conflictos.length > 0 ? 'bg-amber-950/10 border-amber-900/30' : 'bg-slate-950 border-slate-800'}`}>
                       <div className="flex items-start justify-between mb-2">
                         <div>
@@ -170,16 +196,34 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
                         </div>
                       )}
 
-                      {prop.valida && (
+                      {!prop.valida && prop.recomendacion && (
+                        <div className="text-[9px] text-slate-500 mb-2 italic">
+                          Recomendación: {prop.recomendacion === 'acumular' ? 'Acumular más leads (mínimo recomendado: 300)' : 'Revisar conflictos'}
+                        </div>
+                      )}
+
+                      <div className="flex gap-2">
                         <button
                           onClick={() => crearCampana(prop)}
-                          disabled={creando[prop.id]}
-                          className="w-full py-2 rounded-sm bg-emerald-900/30 border border-emerald-800 text-emerald-400 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-900/50 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          disabled={creando[prop.id] || prop.conflictos.length > 0}
+                          className={`flex-1 py-2 rounded-sm text-[10px] font-bold uppercase tracking-wider transition-colors disabled:opacity-50 flex items-center justify-center gap-2 ${
+                            prop.valida 
+                              ? 'bg-emerald-900/30 border border-emerald-800 text-emerald-400 hover:bg-emerald-900/50' 
+                              : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'
+                          }`}
                         >
                           {creando[prop.id] ? <RefreshCw size={10} className="animate-spin" /> : <Plus size={10} />}
-                          {creando[prop.id] ? 'CREANDO...' : 'CREAR CAMPAÑA'}
+                          {creando[prop.id] ? 'CREANDO...' : (prop.valida ? 'CREAR CAMPAÑA' : 'CREAR IGUAL')}
                         </button>
-                      )}
+                        
+                        <button
+                          onClick={() => setDescartadas(prev => new Set([...prev, prop.id]))}
+                          className="px-3 py-2 rounded-sm bg-slate-800 border border-slate-700 text-slate-400 hover:text-red-400 hover:border-red-900/30 transition-colors"
+                          title="Descartar propuesta"
+                        >
+                          <Trash2 size={10} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -72,61 +72,55 @@ const OperatorDashboard = ({
 
     const cargarDatosZone1 = async () => {
       setLoadingCampanas(true);
+      setErrorRed(''); // Limpiar errores previos
+      
       try {
-        // Cargar campañas activas (endpoint LOCAL) - con es_simulacion según modo
-        const campanasRes = await fetch(`${N8N}/crm-campanas-activas-local?operador_id=${user.id}&es_simulacion=${isTraining}`);
-        if (campanasRes.ok) {
-          const campanasData = await campanasRes.json();
-          if (campanasData.ok) {
-            setCampanasActivas(campanasData.campanas || []);
-            // Auto-seleccionar primera campaña si hay
-            if (campanasData.campanas?.length > 0 && !campanaSeleccionada) {
-              setCampanaSeleccionada(campanasData.campanas[0].id);
-            }
+        // Cargar campañas activas
+        const campanasRes = await fetch(`${N8N}/crm-campanas-activas?operador_id=${user.id}&es_simulacion=${isTraining}`);
+        if (!campanasRes.ok) {
+          throw new Error(`Error cargando campañas: HTTP ${campanasRes.status}`);
+        }
+        const campanasData = await campanasRes.json();
+        if (campanasData.ok) {
+          setCampanasActivas(campanasData.campanas || []);
+          if (campanasData.campanas?.length > 0 && !campanaSeleccionada) {
+            setCampanaSeleccionada(campanasData.campanas[0].id);
           }
         }
 
-        // Cargar callbacks HOY (endpoint crm-callbacks-operador ya filtra por fecha)
+        // Cargar callbacks HOY
         const callbacksRes = await fetch(`${N8N}/crm-callbacks-operador?operador_id=${user.id}&es_simulacion=${isTraining}`);
-        if (callbacksRes.ok) {
-          const callbacksData = await callbacksRes.json();
-          if (callbacksData.ok) {
-            // El endpoint ya devuelve callbacks_hoy filtrados
-            setCallbacksHoy(callbacksData.callbacks_hoy || []);
-          }
+        if (!callbacksRes.ok) {
+          throw new Error(`Error cargando callbacks: HTTP ${callbacksRes.status}`);
+        }
+        const callbacksData = await callbacksRes.json();
+        if (callbacksData.ok) {
+          setCallbacksHoy(callbacksData.callbacks_hoy || []);
         }
 
-        // Cargar leads disponibles (estimado) - endpoint simple
-        try {
-          const leadsRes = await fetch(`${N8N}/crm-leads-disponibles-simple`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              es_simulacion: isTraining,
-              campana_id: campanaSeleccionada // Filtrar por campaña si está seleccionada
-            })
-          });
-          
-          if (leadsRes.ok) {
-            const leadsData = await leadsRes.json();
-            if (leadsData.ok) {
-              setLeadsDisponibles(leadsData.total_disponibles || 0);
-            } else {
-              // Fallback: estimar basado en campañas activas
-              setLeadsDisponibles(campanasActivas.length * 10);
-            }
-          } else {
-            // Fallback: estimar basado en campañas activas
-            setLeadsDisponibles(campanasActivas.length * 10);
-          }
-        } catch (error) {
-          console.error('Error cargando leads disponibles:', error);
-          // Fallback: estimar basado en campañas activas
+        // Cargar leads disponibles
+        const leadsRes = await fetch(`${N8N}/crm-leads-disponibles`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            es_simulacion: isTraining,
+            campana_id: campanaSeleccionada
+          })
+        });
+        
+        if (!leadsRes.ok) {
+          throw new Error(`Error cargando leads: HTTP ${leadsRes.status}`);
+        }
+        
+        const leadsData = await leadsRes.json();
+        if (leadsData.ok) {
+          setLeadsDisponibles(leadsData.total_disponibles || 0);
+        } else {
           setLeadsDisponibles(campanasActivas.length * 10);
         }
       } catch (error) {
         console.error('Error cargando datos Zone1:', error);
-        // Fallback básico
+        setErrorRed(`Error de red: ${error.message}`);
         setLeadsDisponibles(campanasActivas.length * 10);
       } finally {
         setLoadingCampanas(false);
@@ -281,45 +275,56 @@ const OperatorDashboard = ({
       if (callback.lead_id) {
         // Obtener detalles del lead
         const leadRes = await fetch(`${N8N}/crm-lead-detail?lead_id=${callback.lead_id}`);
-        if (leadRes.ok) {
-          const leadData = await leadRes.json();
-          if (leadData.ok && leadData.lead) {
-            // Crear llamada activa para este lead
-            const llamadaRes = await fetch(`${N8N}/crm-llamada-activa`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                operador_id: user?.id,
-                lead_id: callback.lead_id,
-                es_callback: true,
-                llamada_programada_id: callback.id
-              })
-            });
-
-            if (llamadaRes.ok) {
-              const llamadaData = await llamadaRes.json();
-              if (llamadaData.lead) {
-                setLead(llamadaData.lead);
-                setLlamadaId(llamadaData.llamada_id);
-                setStartTime(Date.now());
-                setNotas('');
-                // Remover callback de la lista
-                setCallbacksHoy(prev => prev.filter(cb => cb.id !== callback.id));
-                return;
-              }
-            }
-          }
+        if (!leadRes.ok) {
+          throw new Error(`Error obteniendo detalle del lead: HTTP ${leadRes.status}`);
         }
+        
+        const leadData = await leadRes.json();
+        if (!leadData.ok || !leadData.lead) {
+          throw new Error('Lead no encontrado o respuesta inválida');
+        }
+        
+        // Crear llamada activa para este lead
+        const llamadaRes = await fetch(`${N8N}/crm-llamada-activa`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operador_id: user?.id,
+            lead_id: callback.lead_id,
+            es_callback: true,
+            llamada_programada_id: callback.id
+          })
+        });
+
+        if (!llamadaRes.ok) {
+          throw new Error(`Error creando llamada activa: HTTP ${llamadaRes.status}`);
+        }
+        
+        const llamadaData = await llamadaRes.json();
+        if (!llamadaData.lead) {
+          throw new Error('No se pudo cargar el lead para la llamada');
+        }
+        
+        setLead(llamadaData.lead);
+        setLlamadaId(llamadaData.llamada_id);
+        setStartTime(Date.now());
+        setNotas('');
+        setCallbacksHoy(prev => prev.filter(cb => cb.id !== callback.id));
+        return;
       }
       
       // Fallback: usar el endpoint normal de asignación
-      setErrorRed('Tomando callback...');
+      setErrorRed('Tomando callback (fallback)...');
       handleAsignarLead();
+      
       // Remover callback de la lista después de un breve delay
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setCallbacksHoy(prev => prev.filter(cb => cb.id !== callback.id));
         setErrorRed('');
       }, 1000);
+      
+      // Cleanup del timeout si el componente se desmonta
+      return () => clearTimeout(timeoutId);
     } catch (error) {
       console.error('Error tomando callback:', error);
       setErrorRed('Error al tomar callback. Usando asignación normal.');
