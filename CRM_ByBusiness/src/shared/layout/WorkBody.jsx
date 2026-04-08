@@ -22,7 +22,7 @@ const EntrenamientoPanel = lazy(() => import('../../modules/entrenamiento/Entren
 const SupervisorPanel   = lazy(() => import('../../modules/entrenamiento/SupervisorPanel'));
 const GbpPanel          = lazy(() => import('../../modules/admin/gbp/GbpPanel'));
 const CarteraPanel      = lazy(() => import('../../modules/admin/cartera/CarteraPanel'));
-const CampañasPanel     = lazy(() => import('../../modules/admin/campanas/CampañasPanel'));
+const CampanasPanel     = lazy(() => import('../../modules/admin/campanas/CampanasPanel'));
 const GestoriaPanel     = lazy(() => import('../../modules/admin/facturacion/GestoriaPanel'));
 
 /** Skeleton Navy Industrial mostrado mientras un panel lazy está cargando. */
@@ -107,7 +107,7 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
 
             {activeTab === 'GBP_MGMT' && <GbpPanel />}
             {activeTab === 'CARTERA' && <CarteraPanel />}
-            {activeTab === 'CAMPAÑAS' && <CampañasPanel />}
+            {activeTab === 'CAMPAÑAS' && <CampanasPanel />}
 
             {/* Common Views */}
             {activeTab === 'WHATSAPP_PANEL' && <WhatsAppPanel />}
