@@ -194,6 +194,8 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
         })
       });
 
+      if (!analisisRes.ok) throw new Error(`HTTP ${analisisRes.status}`);
+
       const analisisData = await analisisRes.json();
 
       if (analisisData.ok && analisisData.modo === 'analisis') {
@@ -286,10 +288,16 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
     }
   };
 
-  const badgeColor = (count) => {
-    if (count >= 300) return 'emerald';
-    if (count >= 100) return 'amber';
-    return 'red';
+  /**
+   * Obtiene las clases de badge según el conteo.
+   * Usa clases completas estáticas para evitar problemas con Tailwind JIT.
+   * @param {number} count - Cantidad para determinar el color
+   * @returns {string} - Clases CSS completas para el Badge
+   */
+  const getBadgeClasses = (count) => {
+    if (count >= 300) return 'bg-emerald-900/30 text-emerald-400 border-emerald-800';
+    if (count >= 100) return 'bg-amber-900/30 text-amber-400 border-amber-800';
+    return 'bg-red-900/30 text-red-400 border-red-800';
   };
 
   const getComunidadForProvincia = (provinciaNombre) => {
@@ -426,6 +434,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                             <div className="text-[9px] text-slate-300 truncate flex-1">{cat.categoria || 'Sin categoría'}</div>
                             <div className="text-[8px] text-slate-500 font-mono">{cat.total}</div>
                           </div>
+                          {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
                           <div className="h-1 bg-slate-800 rounded-sm overflow-hidden">
                             <div style={{ '--pct': `${pct}%` }} className="h-full bg-emerald-500/60 [width:var(--pct)]" />
                           </div>
@@ -505,6 +514,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                     </div>
                   </div>
                   <div className="px-3 py-3">
+                    {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
                     <div className="h-2 bg-slate-800 rounded-sm overflow-hidden mb-2">
                       <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-emerald-500/60 [width:var(--w)]" />
                     </div>
@@ -552,7 +562,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                     >
                       {grupo.nombre}
                     </h3>
-                    <Badge className={`bg-${badgeColor(grupo.total)}-900/30 text-${badgeColor(grupo.total)}-400 border-${badgeColor(grupo.total)}-800`}>
+                    <Badge className={getBadgeClasses(grupo.total)}>
                       {grupo.total.toLocaleString('es-ES')}
                     </Badge>
                   </div>
@@ -573,6 +583,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                           <div className="text-[10px] text-slate-300 truncate flex-1">{prov.provincia}</div>
                           <div className="text-[9px] text-slate-500 font-mono">{prov.total_leads?.toLocaleString('es-ES') || 0}</div>
                         </div>
+                        {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
                         <div className="h-1.5 bg-slate-800 rounded-sm overflow-hidden">
                           <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-emerald-500/60 [width:var(--w)]" />
                         </div>
@@ -642,6 +653,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                     </div>
                   </div>
                   <div className="px-3 py-3">
+                    {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
                     <div className="h-2 bg-slate-800 rounded-sm overflow-hidden">
                       <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-amber-500/60 [width:var(--w)]" />
                     </div>
@@ -706,6 +718,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                     </div>
                   </div>
                   <div className="px-3 py-3">
+                    {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
                     <div className="h-2 bg-slate-800 rounded-sm overflow-hidden mb-2">
                       <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-amber-500/60 [width:var(--w)]" />
                     </div>
@@ -753,7 +766,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                     >
                       {grupo.nombre}
                     </h3>
-                    <Badge className={`bg-${badgeColor(grupo.total)}-900/30 text-${badgeColor(grupo.total)}-400 border-${badgeColor(grupo.total)}-800`}>
+                    <Badge className={getBadgeClasses(grupo.total)}>
                       {grupo.total.toLocaleString('es-ES')}
                     </Badge>
                   </div>
@@ -774,6 +787,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                           <div className="text-[10px] text-slate-300 truncate flex-1">{cat.categoria || 'Sin categoría'}</div>
                           <div className="text-[9px] text-slate-500 font-mono">{cat.total_leads?.toLocaleString('es-ES') || 0}</div>
                         </div>
+                        {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
                         <div className="h-1.5 bg-slate-800 rounded-sm overflow-hidden">
                           <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-amber-500/60 [width:var(--w)]" />
                         </div>

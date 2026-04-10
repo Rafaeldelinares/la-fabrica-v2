@@ -81,9 +81,11 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
           filtros: propuesta.filtros
         })
       });
-      
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
-      
+
       if (data.ok) {
         setPropuestasAprobadas([...propuestasAprobadas, propuesta.id]);
         if (onAprobarPropuesta) onAprobarPropuesta(data);
