@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { 
-  Target, 
-  Users, 
-  Plus, 
-  Search, 
-  TrendingUp, 
-  Phone, 
+import {
+  Target,
+  Users,
+  Plus,
+  Search,
+  TrendingUp,
+  Phone,
   DollarSign,
   Calendar,
   ChevronLeft,
@@ -14,10 +14,10 @@ import {
   MoreHorizontal,
   Edit2,
   UserPlus,
-  BarChart3,
-  GraduationCap,
+  Zap,
   Trash2,
-  Zap
+  GraduationCap,
+  BarChart3
 } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
@@ -33,6 +33,7 @@ const N8N = import.meta.env.VITE_N8N_URL;
 /**
  * CampanasPanel — Panel de gestión de campañas de llamadas.
  * Permite crear campañas, asignar operadores, y ver métricas de cumplimiento.
+ * v2026.04.09 - Fix pantalla blanca
  */
 const CampanasPanel = () => {
   const { user } = useAuth();
@@ -41,6 +42,7 @@ const CampanasPanel = () => {
   const [estadisticas, setEstadisticas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [version] = useState('2026.04.09');
   
   // Filtros
   const [filtroTipo, setFiltroTipo] = useState(''); // '' | 'real' | 'simulacion'
@@ -68,12 +70,13 @@ const CampanasPanel = () => {
   const cargarDatos = async () => {
     setLoading(true);
     setError('');
-    
+
     try {
       // Cargar campanas
       const campanasRes = await fetch(`${N8N}/crm-campanas`);
+      if (!campanasRes.ok) throw new Error(`crm-campanas HTTP ${campanasRes.status}`);
       const campanasData = await campanasRes.json();
-      
+
       if (Array.isArray(campanasData)) {
         setCampanas(campanasData);
       } else if (campanasData.ok && Array.isArray(campanasData.campanas)) {
@@ -84,10 +87,11 @@ const CampanasPanel = () => {
 
       // Cargar operadores
       const operadoresRes = await fetch(`${N8N}/crm-usuarios-get`);
+      if (!operadoresRes.ok) throw new Error(`crm-usuarios-get HTTP ${operadoresRes.status}`);
       const operadoresData = await operadoresRes.json();
-      
+
       if (operadoresData.ok) {
-        setOperadores(operadoresData.usuarios.filter(u => 
+        setOperadores(operadoresData.usuarios.filter(u =>
           ['operador', 'en_practicas'].includes(u.rol)
         ));
       }
@@ -95,8 +99,7 @@ const CampanasPanel = () => {
       // Cargar estadísticas por campaña
       await cargarEstadisticas();
     } catch (err) {
-      console.error('Error cargando datos:', err);
-      setError('Error al cargar datos — comprueba la conexión');
+      setError(`Error al cargar datos — ${err.message}`);
       setCampanas([]);
     } finally {
       setLoading(false);
@@ -115,8 +118,8 @@ const CampanasPanel = () => {
         });
         setEstadisticas(statsMap);
       }
-    } catch (err) {
-      console.error('Error cargando estadísticas:', err);
+    } catch {
+      // estadísticas no críticas — el panel sigue funcionando sin ellas
     }
   };
 
@@ -129,8 +132,9 @@ const CampanasPanel = () => {
       if (filtroTipo === 'real' && c.es_simulacion) return false;
       if (filtroTipo === 'simulacion' && !c.es_simulacion) return false;
       
-      // Filtro por estado
-      if (filtroEstado && c.estado !== filtroEstado) return false;
+      // Filtro por estado (solo campo activo, estado fue eliminado en 9f3580d)
+      if (filtroEstado === 'activa' && !c.activo) return false;
+      if (filtroEstado === 'inactiva' && c.activo) return false;
       
       // Búsqueda
       if (busqueda) {
@@ -157,7 +161,7 @@ const CampanasPanel = () => {
     
     return {
       total: campanas.length,
-      activas: campanas.filter(c => c.estado === 'activa' && c.activo).length,
+      activas: campanas.filter(c => c.activo).length,
       simulacion: campanas.filter(c => c.es_simulacion).length,
       reales: campanas.filter(c => !c.es_simulacion).length,
     };
@@ -336,16 +340,14 @@ const CampanasPanel = () => {
             <option value="simulacion">Entrenamiento</option>
           </select>
           
-          <select 
-            value={filtroEstado} 
-            onChange={(e) => setFiltroEstado(e.target.value)} 
+          <select
+            value={filtroEstado}
+            onChange={(e) => setFiltroEstado(e.target.value)}
             className={selectCls}
           >
             <option value="">Estado: Todos</option>
             <option value="activa">Activa</option>
             <option value="inactiva">Inactiva</option>
-            <option value="pausada">Pausada</option>
-            <option value="completada">Completada</option>
           </select>
 
           <button
@@ -387,6 +389,7 @@ const CampanasPanel = () => {
                 <tr className="border-b border-slate-800">
                   <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Campaña</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
+                  <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Leads</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Estado</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Objetivos</th>
                   <th className="px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Progreso</th>
@@ -435,7 +438,11 @@ const CampanasPanel = () => {
                           </Badge>
                         )}
                       </td>
-                      
+
+                      <td className="px-4 py-3">
+                        <LeadsCell stats={stats} campanaId={campana.id} />
+                      </td>
+
                       <td className="px-4 py-3">
                         <CampanaEstadoBadge activo={campana.activo} />
                       </td>
@@ -577,9 +584,9 @@ const CampanasPanel = () => {
       {mostrarGenerador && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <GeneradorCampanasPanel 
-              modoInicial="reales" 
-              onCerrar={() => { setMostrarGenerador(false); cargarDatos(); }} 
+            <GeneradorCampanasPanel
+              modoInicial="reales"
+              onCerrar={() => { setMostrarGenerador(false); cargarDatos(); }}
             />
           </div>
         </div>
@@ -638,6 +645,55 @@ const CampanasPanel = () => {
       )}
     </div>
   );
+};
+
+/**
+ * Celda de leads - muestra leads asignados y tasa de contacto
+ */
+const LeadsCell = ({ stats }) => {
+  const leadsAsignados = stats?.leads_asignados || 0;
+  const leadsContactados = stats?.leads_contactados || 0;
+  const tasaContacto = leadsAsignados > 0 
+    ? Math.round((leadsContactados / leadsAsignados) * 100) 
+    : 0;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <Users size={12} className="text-slate-500" />
+        <span className="text-sm font-medium text-slate-300">
+          {leadsAsignados.toLocaleString('es-ES')}
+        </span>
+      </div>
+      {leadsAsignados > 0 && (
+        <div className="flex flex-col gap-0.5">
+          <div className="flex justify-between text-[9px] text-slate-500">
+            <span>Contactados</span>
+            <span>{tasaContacto}%</span>
+          </div>
+          <div className="h-1 w-20 bg-slate-800 rounded-full overflow-hidden">
+            <div 
+              className={`h-full transition-all duration-500 ${
+                tasaContacto >= 70 ? 'bg-emerald-500' : 
+                tasaContacto >= 40 ? 'bg-amber-500' : 'bg-[#D00000]'
+              }`}
+              style={{ width: `${Math.min(100, tasaContacto)}%` }}
+            />
+          </div>
+          <span className="text-[9px] text-slate-600">
+            {leadsContactados}/{leadsAsignados}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
+LeadsCell.propTypes = {
+  stats: PropTypes.shape({
+    leads_asignados: PropTypes.number,
+    leads_contactados: PropTypes.number,
+  }),
 };
 
 /**

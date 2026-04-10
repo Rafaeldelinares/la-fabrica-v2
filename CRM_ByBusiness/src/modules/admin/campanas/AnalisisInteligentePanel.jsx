@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Brain, CheckCircle, XCircle, Users, Globe, Target, RefreshCw, AlertCircle, Sparkles, ChevronLeft, ChevronRight, MapPin, Layers, Filter } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
@@ -20,12 +20,14 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
   const [propuestas, setPropuestas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [errorCrear, setErrorCrear] = useState('');
   const [resumen, setResumen] = useState(null);
   const [incluirWeb, setIncluirWeb] = useState(true);
   const [filtroTipo, setFiltroTipo] = useState('todos');
   const [paginaActual, setPaginaActual] = useState(1);
   const [propuestasAprobadas, setPropuestasAprobadas] = useState([]);
-  const [creando, setCreando] = useState(false);
+  const [creandoIds, setCreandoIds] = useState(new Set());
+  const abortRef = useRef(null);
 
   useEffect(() => {
     cargarAnalisis();
@@ -36,24 +38,28 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
   }, [filtroTipo]);
 
   const cargarAnalisis = async () => {
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError('');
-    
+
     try {
       const res = await fetch(`${N8N}/crm-analisis-inteligente`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
-          min_leads: 50,
           incluir_web: incluirWeb,
           tipo: filtroTipo
         })
       });
-      
+
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      
+
       const data = await res.json();
-      
+
       if (data.success && Array.isArray(data.propuestas)) {
         setPropuestas(data.propuestas);
         setResumen(data.resumen);
@@ -61,6 +67,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
         setError('Respuesta inválida del servidor');
       }
     } catch (err) {
+      if (err.name === 'AbortError') return;
       setError(`Error: ${err.message}`);
     } finally {
       setLoading(false);
@@ -68,7 +75,8 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
   };
 
   const aprobarPropuesta = async (propuesta) => {
-    setCreando(true);
+    setErrorCrear('');
+    setCreandoIds(prev => new Set(prev).add(propuesta.id));
     try {
       const res = await fetch(`${N8N}/crm-crear-campana-con-leads`, {
         method: 'POST',
@@ -90,12 +98,16 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
         setPropuestasAprobadas([...propuestasAprobadas, propuesta.id]);
         if (onAprobarPropuesta) onAprobarPropuesta(data);
       } else {
-        alert(`Error: ${data.error || 'No se pudo crear'}`);
+        setErrorCrear(data.error || 'No se pudo crear la campaña');
       }
     } catch (err) {
-      alert(`Error al crear campaña: ${err.message}`);
+      setErrorCrear(`Error al crear campaña: ${err.message}`);
     } finally {
-      setCreando(false);
+      setCreandoIds(prev => {
+        const s = new Set(prev);
+        s.delete(propuesta.id);
+        return s;
+      });
     }
   };
 
@@ -312,18 +324,21 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
                       )}
                     </div>
                     
-                    {!propuestasAprobadas.includes(propuesta.id) && (
-                      <div className="flex items-center gap-2 ml-4">
-                        <button
-                          onClick={() => aprobarPropuesta(propuesta)}
-                          disabled={creando}
-                          className="flex items-center gap-2 px-4 py-2 rounded-sm bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium transition-colors disabled:opacity-50"
-                        >
-                          {creando ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                          Crear
-                        </button>
-                      </div>
-                    )}
+                     {!propuestasAprobadas.includes(propuesta.id) && (
+                       <div className="flex flex-col items-end gap-2 ml-4">
+                         {errorCrear && creandoIds.has(propuesta.id) && (
+                           <span className="text-[10px] text-red-400 max-w-[200px] text-right">{errorCrear}</span>
+                         )}
+                         <button
+                           onClick={() => aprobarPropuesta(propuesta)}
+                           disabled={creandoIds.has(propuesta.id)}
+                           className="flex items-center gap-2 px-4 py-2 rounded-sm bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium transition-colors disabled:opacity-50"
+                         >
+                           {creandoIds.has(propuesta.id) ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                           Crear
+                         </button>
+                       </div>
+                     )}
                   </div>
                 </div>
               ))}
