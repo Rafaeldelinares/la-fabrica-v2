@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
-import { Users, RefreshCw, Zap } from 'lucide-react';
+import { Users, RefreshCw, Zap, BarChart3, Brain } from 'lucide-react';
 import LeadRow from './LeadRow';
 import GeneradorCampanasPanel from '../campanas/GeneradorCampanasPanel';
+import CampanasAnalisisPanel from '../campanas/CampanasAnalisisPanel';
+import AnalisisInteligentePanel from '../campanas/AnalisisInteligentePanel';
 
 const PAGE_SIZE = 15;
 
@@ -22,6 +24,10 @@ const LeadsPanel = () => {
     const [error, setError]                     = useState('');
     const [pagina, setPagina]                   = useState(1);
     const [mostrarGenerador, setMostrarGenerador] = useState(false);
+    const [mostrarAnalisis, setMostrarAnalisis]   = useState(false);
+    const [mostrarAnalisisInteligente, setMostrarAnalisisInteligente] = useState(false);
+    const [filtrosGenerador, setFiltrosGenerador] = useState([]);
+    const [datosAnalisis, setDatosAnalisis]       = useState(null);
 
     const cargarOperadores = useCallback(() => {
         fetch(`${N8N}/crm-operadores-activos`)
@@ -88,6 +94,18 @@ const LeadsPanel = () => {
 
                 <div className="flex gap-3 items-center">
                     <button
+                        onClick={() => setMostrarAnalisis(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-sm bg-blue-900/30 border border-blue-800 text-blue-400 text-[10px] font-bold uppercase tracking-wider hover:bg-blue-900/50 transition-colors"
+                    >
+                        <BarChart3 size={12} /> ANÁLISIS
+                    </button>
+                    <button
+                        onClick={() => setMostrarAnalisisInteligente(true)}
+                        className="flex items-center gap-2 px-3 py-2 rounded-sm bg-violet-900/30 border border-violet-800 text-violet-400 text-[10px] font-bold uppercase tracking-wider hover:bg-violet-900/50 transition-colors"
+                    >
+                        <Brain size={12} /> ANÁLISIS-IA
+                    </button>
+                    <button
                         onClick={() => setMostrarGenerador(true)}
                         className="flex items-center gap-2 px-3 py-2 rounded-sm bg-emerald-900/30 border border-emerald-800 text-emerald-400 text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-900/50 transition-colors"
                     >
@@ -126,12 +144,50 @@ const LeadsPanel = () => {
                 </div>
             </div>
 
-            {mostrarGenerador && (
+            {mostrarAnalisis && !mostrarGenerador && (
                 <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
-                    <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
-                        <GeneradorCampanasPanel modoInicial={modo} onCerrar={() => { setMostrarGenerador(false); cargarLeads(); }} />
+                    <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden bg-slate-950 border border-slate-800 rounded-sm">
+                        <CampanasAnalisisPanel
+                            onCrearCampana={(datos) => {
+                                // datos: { items, totales, campanasConflicto, filtros }
+                                setDatosAnalisis(datos);
+                                setFiltrosGenerador(datos.items || []);
+                                setMostrarGenerador(true);
+                            }}
+                        />
+                        <div className="absolute top-4 right-4">
+                            <button
+                                onClick={() => setMostrarAnalisis(false)}
+                                className="px-3 py-1.5 rounded-sm bg-slate-800 text-slate-300 text-xs font-medium uppercase tracking-wider hover:bg-slate-700 transition-colors"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
                     </div>
                 </div>
+            )}
+
+            {mostrarGenerador && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+                    <div className="w-full max-w-5xl max-h-[90vh] overflow-hidden">
+                        <GeneradorCampanasPanel
+                            modoInicial="reales"
+                            filtrosIniciales={filtrosGenerador}
+                            onCerrar={() => {
+                                setMostrarGenerador(false);
+                                setFiltrosGenerador([]);
+                                cargarLeads();
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {mostrarAnalisisInteligente && (
+                <AnalisisInteligentePanel
+                    onCerrar={() => { setMostrarAnalisisInteligente(false); cargarLeads(); }}
+                    onAprobarPropuesta={() => cargarLeads()}
+                />
             )}
 
             <Card className="flex flex-col flex-1 bg-slate-900 border-slate-800 !p-0 overflow-hidden">
