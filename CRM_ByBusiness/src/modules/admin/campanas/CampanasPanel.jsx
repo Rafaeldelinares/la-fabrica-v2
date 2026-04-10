@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 import {
   Target,
@@ -17,7 +17,8 @@ import {
   Zap,
   Trash2,
   GraduationCap,
-  BarChart3
+  BarChart3,
+  RefreshCw
 } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
@@ -61,6 +62,16 @@ const CampanasPanel = () => {
   const [eliminando, setEliminando] = useState(false);
   const [mostrarGenerador, setMostrarGenerador] = useState(false);
   const [mensaje, setMensaje] = useState('');
+  const mensajeTimeoutRef = useRef(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (mensajeTimeoutRef.current) {
+        clearTimeout(mensajeTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -208,7 +219,8 @@ const CampanasPanel = () => {
         setMostrarEliminar(false);
         setCampanaSeleccionada(null);
         setMensaje(data.message || 'Campana eliminada correctamente');
-        setTimeout(() => setMensaje(''), 3000);
+        if (mensajeTimeoutRef.current) clearTimeout(mensajeTimeoutRef.current);
+        mensajeTimeoutRef.current = setTimeout(() => setMensaje(''), 3000);
       } else {
         setError(data.message || 'Error al eliminar campaña');
       }
@@ -629,7 +641,7 @@ const CampanasPanel = () => {
               >
                 {eliminando ? (
                   <>
-                    <div className="animate-spin w-3 h-3 border-2 border-white/30 border-t-white rounded-full" />
+                    <RefreshCw size={12} className="animate-spin" />
                     Eliminando...
                   </>
                 ) : (
@@ -671,13 +683,14 @@ const LeadsCell = ({ stats }) => {
             <span>Contactados</span>
             <span>{tasaContacto}%</span>
           </div>
+          {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
           <div className="h-1 w-20 bg-slate-800 rounded-full overflow-hidden">
             <div 
-              className={`h-full transition-all duration-500 ${
+              style={{ '--w': `${Math.min(100, tasaContacto)}%` }}
+              className={`h-full transition-all duration-500 [width:var(--w)] ${
                 tasaContacto >= 70 ? 'bg-emerald-500' : 
                 tasaContacto >= 40 ? 'bg-amber-500' : 'bg-[#D00000]'
               }`}
-              style={{ width: `${Math.min(100, tasaContacto)}%` }}
             />
           </div>
           <span className="text-[9px] text-slate-600">
@@ -736,10 +749,11 @@ const ProgresoBar = ({ label, actual, objetivo, porcentaje, color }) => {
         <span>{label}</span>
         <span>{porcentaje}%</span>
       </div>
+      {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
       <div className="h-1.5 w-32 bg-slate-800 rounded-full overflow-hidden">
         <div 
-          className={`h-full ${colorClasses[color]} transition-all duration-500`}
-          style={{ width: `${Math.min(100, porcentaje)}%` }}
+          style={{ '--w': `${Math.min(100, porcentaje)}%` }}
+          className={`h-full ${colorClasses[color]} transition-all duration-500 [width:var(--w)]`}
         />
       </div>
     </div>

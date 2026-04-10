@@ -332,7 +332,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
                          <button
                            onClick={() => aprobarPropuesta(propuesta)}
                            disabled={creandoIds.has(propuesta.id)}
-                           className="flex items-center gap-2 px-4 py-2 rounded-sm bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium transition-colors disabled:opacity-50"
+                           className="flex items-center gap-2 px-4 py-2 rounded-sm bg-[#D00000] hover:bg-[#D00000]/80 text-white text-xs font-medium transition-colors disabled:opacity-50"
                          >
                            {creandoIds.has(propuesta.id) ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                            Crear
