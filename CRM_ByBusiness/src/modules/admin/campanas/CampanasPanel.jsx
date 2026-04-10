@@ -380,7 +380,7 @@ const CampanasPanel = () => {
       </div>
 
       {/* Tabla de campanas */}
-      <Card className="flex-1 overflow-hidden">
+      <Card className="flex-1 flex flex-col overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-pulse text-slate-500 font-mono text-xs">Cargando campanas...</div>
@@ -389,13 +389,13 @@ const CampanasPanel = () => {
           <EmptyState
             icon={Target}
             title="Sin campanas"
-            description={busqueda || filtroTipo || filtroEstado 
+            description={busqueda || filtroTipo || filtroEstado
               ? "No hay campanas que coincidan con los filtros aplicados"
               : "Crea tu primera campana para comenzar"
             }
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="flex-1 overflow-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-800">
@@ -542,31 +542,38 @@ const CampanasPanel = () => {
             </table>
           </div>
         )}
-        
-        {/* Paginacion */}
-        {!loading && campanasFiltradas.length > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800">
-            <span className="text-[10px] text-slate-500 font-mono">
-              Mostrando {((paginaReal - 1) * PAGE_SIZE) + 1} - {Math.min(paginaReal * PAGE_SIZE, campanasFiltradas.length)} de {campanasFiltradas.length}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPagina(p => Math.max(1, p - 1))}
-                disabled={paginaReal === 1}
-                className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft size={14} />
-              </button>
-              <span className="px-3 py-2 text-xs text-slate-300 font-mono">
-                {paginaReal} / {totalPaginas}
+
+        {/* Paginacion - Siempre visible fuera del scroll */}
+        {!loading && campanasFiltradas.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800 bg-slate-900/30 shrink-0">
+            <div className="flex items-center gap-4">
+              <span className="text-[10px] text-slate-500 font-mono">
+                {campanasFiltradas.length} campaña{campanasFiltradas.length !== 1 ? 's' : ''}
+                {totalPaginas > 1 && ` • Página ${paginaReal} de ${totalPaginas}`}
               </span>
-              <button
-                onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
-                disabled={paginaReal === totalPaginas}
-                className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight size={14} />
-              </button>
+            </div>
+            <div className="flex gap-2">
+              {totalPaginas > 1 && (
+                <>
+                  <button
+                    onClick={() => setPagina(p => Math.max(1, p - 1))}
+                    disabled={paginaReal === 1}
+                    className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="px-3 py-2 text-xs text-slate-300 font-mono">
+                    {paginaReal} / {totalPaginas}
+                  </span>
+                  <button
+                    onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                    disabled={paginaReal === totalPaginas}
+                    className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}

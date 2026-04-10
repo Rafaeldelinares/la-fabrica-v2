@@ -74,9 +74,13 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
     }
   };
 
+  // Generar clave única estable para cada propuesta
+  const getPropuestaKey = (propuesta) => `${propuesta.tipo}-${propuesta.nombre}-${propuesta.target}`;
+
   const aprobarPropuesta = async (propuesta) => {
+    const propuestaKey = getPropuestaKey(propuesta);
     setErrorCrear('');
-    setCreandoIds(prev => new Set(prev).add(propuesta.id));
+    setCreandoIds(prev => new Set(prev).add(propuestaKey));
     try {
       const res = await fetch(`${N8N}/crm-crear-campana-con-leads`, {
         method: 'POST',
@@ -95,7 +99,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
       const data = await res.json();
 
       if (data.ok) {
-        setPropuestasAprobadas([...propuestasAprobadas, propuesta.id]);
+        setPropuestasAprobadas([...propuestasAprobadas, propuestaKey]);
         if (onAprobarPropuesta) onAprobarPropuesta(data);
       } else {
         setErrorCrear(data.error || 'No se pudo crear la campaña');
@@ -105,7 +109,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
     } finally {
       setCreandoIds(prev => {
         const s = new Set(prev);
-        s.delete(propuesta.id);
+        s.delete(propuestaKey);
         return s;
       });
     }
@@ -259,11 +263,14 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
             </div>
           ) : (
             <>
-              {propuestasPagina.map((propuesta, index) => (
+              {propuestasPagina.map((propuesta, index) => {
+                const propuestaKey = getPropuestaKey(propuesta);
+                const yaAprobada = propuestasAprobadas.includes(propuestaKey);
+                return (
                 <div
                   key={propuesta.id || `propuesta-${index}`}
                   className={`p-4 rounded-sm border transition-all ${
-                    propuestasAprobadas.includes(propuesta.id)
+                    yaAprobada
                       ? 'bg-emerald-900/10 border-emerald-800/30 opacity-60'
                       : 'bg-slate-900 border-slate-800 hover:border-slate-700'
                   }`}
@@ -279,7 +286,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
                           {getTipoIcon(propuesta.tipo)}
                           {getTipoLabel(propuesta.categoria_tipo || propuesta.tipo)}
                         </Badge>
-                        {propuestasAprobadas.includes(propuesta.id) && (
+                        {yaAprobada && (
                           <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
                             <CheckCircle size={10} className="mr-1" />
                             Creada
@@ -324,24 +331,24 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
                       )}
                     </div>
                     
-                     {!propuestasAprobadas.includes(propuesta.id) && (
+                     {!yaAprobada && (
                        <div className="flex flex-col items-end gap-2 ml-4">
-                         {errorCrear && creandoIds.has(propuesta.id) && (
+                         {errorCrear && creandoIds.has(propuestaKey) && (
                            <span className="text-[10px] text-red-400 max-w-[200px] text-right">{errorCrear}</span>
                          )}
                          <button
                            onClick={() => aprobarPropuesta(propuesta)}
-                           disabled={creandoIds.has(propuesta.id)}
+                           disabled={creandoIds.has(propuestaKey)}
                            className="flex items-center gap-2 px-4 py-2 rounded-sm bg-[#D00000] hover:bg-[#D00000]/80 text-white text-xs font-medium transition-colors disabled:opacity-50"
                          >
-                           {creandoIds.has(propuesta.id) ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                           {creandoIds.has(propuestaKey) ? <RefreshCw size={14} className="animate-spin" /> : <CheckCircle size={14} />}
                            Crear
                          </button>
                        </div>
                      )}
                   </div>
                 </div>
-              ))}
+              );})}
             </>
           )}
         </div>
