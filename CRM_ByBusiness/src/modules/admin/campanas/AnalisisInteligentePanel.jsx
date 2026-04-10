@@ -8,6 +8,14 @@ const N8N = import.meta.env.VITE_N8N_URL;
 
 const ITEMS_PER_PAGE = 10;
 
+/**
+ * Panel de Análisis Inteligente - Genera propuestas de campañas basadas en análisis de leads.
+ * Soporta 3 tipos de propuestas: provincia, categoría (sector) y combo (nicho).
+ * @param {Object} props
+ * @param {Function} props.onCerrar - Callback al cerrar el panel
+ * @param {Function} props.onAprobarPropuesta - Callback al aprobar una propuesta
+ * @param {number} props.userId - ID del usuario actual
+ */
 const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
   const [propuestas, setPropuestas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +61,6 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
         setError('Respuesta inválida del servidor');
       }
     } catch (err) {
-      console.error('Error cargando análisis:', err);
       setError(`Error: ${err.message}`);
     } finally {
       setLoading(false);
@@ -84,8 +91,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
         alert(`Error: ${data.error || 'No se pudo crear'}`);
       }
     } catch (err) {
-      console.error('Error creando campaña:', err);
-      alert('Error al crear campaña');
+      alert(`Error al crear campaña: ${err.message}`);
     } finally {
       setCreando(false);
     }
@@ -239,9 +245,9 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
             </div>
           ) : (
             <>
-              {propuestasPagina.map((propuesta) => (
+              {propuestasPagina.map((propuesta, index) => (
                 <div
-                  key={propuesta.id || Math.random()}
+                  key={propuesta.id || `propuesta-${index}`}
                   className={`p-4 rounded-sm border transition-all ${
                     propuestasAprobadas.includes(propuesta.id)
                       ? 'bg-emerald-900/10 border-emerald-800/30 opacity-60'

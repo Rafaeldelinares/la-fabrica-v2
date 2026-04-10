@@ -6,6 +6,13 @@ import Badge from '../../../shared/ui/Badge';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
+/**
+ * Panel de Análisis de Campañas - Análisis detallado por localidad, categoría y dashboard.
+ * @param {Object} props
+ * @param {Function} props.onCerrar - Callback al cerrar el panel
+ * @param {Function} props.onCrearCampana - Callback al crear una campaña
+ */
+
 const TABS = [
   { id: 'localidad', label: 'Por Localidad', icon: MapPin },
   { id: 'categoria', label: 'Por Categoría', icon: Tag },
@@ -273,8 +280,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
         setError('Error al cargar datos de análisis');
       }
     } catch (err) {
-      console.error('Error cargando datos:', err);
-      setError('Error de conexión');
+      setError(`Error de conexión: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -421,7 +427,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                             <div className="text-[8px] text-slate-500 font-mono">{cat.total}</div>
                           </div>
                           <div className="h-1 bg-slate-800 rounded-sm overflow-hidden">
-                            <div className="h-full bg-emerald-500/60" style={{ width: `${pct}%` }} />
+                            <div style={{ '--pct': `${pct}%` }} className="h-full bg-emerald-500/60 [width:var(--pct)]" />
                           </div>
                         </div>
                       );
@@ -500,7 +506,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                   </div>
                   <div className="px-3 py-3">
                     <div className="h-2 bg-slate-800 rounded-sm overflow-hidden mb-2">
-                      <div className="h-full bg-emerald-500/60" style={{ width: `${porcentaje}%` }} />
+                      <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-emerald-500/60 [width:var(--w)]" />
                     </div>
                     <div className="text-[8px] text-slate-500 cursor-pointer hover:text-emerald-400" onClick={() => setNivelLocalidad({ provincia: prov.provincia })}>
                       Click para ver localidades →
@@ -568,7 +574,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                           <div className="text-[9px] text-slate-500 font-mono">{prov.total_leads?.toLocaleString('es-ES') || 0}</div>
                         </div>
                         <div className="h-1.5 bg-slate-800 rounded-sm overflow-hidden">
-                          <div className="h-full bg-emerald-500/60" style={{ width: `${porcentaje}%` }} />
+                          <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-emerald-500/60 [width:var(--w)]" />
                         </div>
                       </div>
                     );
@@ -637,7 +643,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                   </div>
                   <div className="px-3 py-3">
                     <div className="h-2 bg-slate-800 rounded-sm overflow-hidden">
-                      <div className="h-full bg-amber-500/60" style={{ width: `${porcentaje}%` }} />
+                      <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-amber-500/60 [width:var(--w)]" />
                     </div>
                   </div>
                 </Card>
@@ -701,7 +707,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                   </div>
                   <div className="px-3 py-3">
                     <div className="h-2 bg-slate-800 rounded-sm overflow-hidden mb-2">
-                      <div className="h-full bg-amber-500/60" style={{ width: `${porcentaje}%` }} />
+                      <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-amber-500/60 [width:var(--w)]" />
                     </div>
                     <div className="text-[8px] text-slate-500 cursor-pointer hover:text-amber-400" onClick={() => setNivelCategoria({ categoria: cat.categoria })}>
                       Click para ver provincias →
@@ -769,7 +775,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                           <div className="text-[9px] text-slate-500 font-mono">{cat.total_leads?.toLocaleString('es-ES') || 0}</div>
                         </div>
                         <div className="h-1.5 bg-slate-800 rounded-sm overflow-hidden">
-                          <div className="h-full bg-amber-500/60" style={{ width: `${porcentaje}%` }} />
+                          <div style={{ '--w': `${porcentaje}%` }} className="h-full bg-amber-500/60 [width:var(--w)]" />
                         </div>
                       </div>
                     );
