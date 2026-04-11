@@ -212,6 +212,12 @@ const CampanasPanel = () => {
         body: JSON.stringify({ id: campanaSeleccionada.id })
       });
       
+      // Verificar que la respuesta sea OK antes de parsear JSON
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
+      
       const data = await res.json();
       
       if (data.ok) {
@@ -244,6 +250,11 @@ const CampanasPanel = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datos)
       });
+      
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
       
       const data = await res.json();
       
