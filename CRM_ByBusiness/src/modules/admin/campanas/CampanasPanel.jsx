@@ -34,7 +34,7 @@ const N8N = import.meta.env.VITE_N8N_URL;
 /**
  * CampanasPanel — Panel de gestión de campañas de llamadas.
  * Permite crear campañas, asignar operadores, y ver métricas de cumplimiento.
- * v2026.04.09 - Fix pantalla blanca
+ * v2026.04.11 - Fix manejo de respuesta vacía cuando no hay campañas
  */
 const CampanasPanel = () => {
   const { user } = useAuth();
@@ -43,7 +43,7 @@ const CampanasPanel = () => {
   const [estadisticas, setEstadisticas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [version] = useState('2026.04.09');
+  const [version] = useState('2026.04.11');
   
   // Filtros
   const [filtroTipo, setFiltroTipo] = useState(''); // '' | 'real' | 'simulacion'
@@ -86,11 +86,27 @@ const CampanasPanel = () => {
       // Cargar campanas
       const campanasRes = await fetch(`${N8N}/crm-campanas`);
       if (!campanasRes.ok) throw new Error(`crm-campanas HTTP ${campanasRes.status}`);
-      const campanasData = await campanasRes.json();
+      
+      // Verificar si la respuesta tiene contenido antes de parsear JSON
+      const contentLength = campanasRes.headers.get('content-length');
+      const text = await campanasRes.text();
+      
+      let campanasData;
+      if (!text || text.trim() === '') {
+        // Respuesta vacía - no hay campañas
+        campanasData = [];
+      } else {
+        try {
+          campanasData = JSON.parse(text);
+        } catch (parseErr) {
+          console.error('Error parseando respuesta JSON:', parseErr);
+          campanasData = [];
+        }
+      }
 
       if (Array.isArray(campanasData)) {
         setCampanas(campanasData);
-      } else if (campanasData.ok && Array.isArray(campanasData.campanas)) {
+      } else if (campanasData?.ok && Array.isArray(campanasData.campanas)) {
         setCampanas(campanasData.campanas);
       } else {
         setCampanas([]);
