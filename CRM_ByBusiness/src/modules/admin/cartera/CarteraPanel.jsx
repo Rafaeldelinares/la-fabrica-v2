@@ -76,7 +76,11 @@ const CarteraPanel = () => {
 
   const aniosDisponibles = useMemo(() => {
     if (!clientes) return [];
-    const set = new Set(clientes.map(c => c.año_alta).filter(Boolean));
+    const set = new Set(clientes.map(c => {
+      if (c.año_alta) return c.año_alta;
+      if (c.created_at) return new Date(c.created_at).getFullYear();
+      return null;
+    }).filter(Boolean));
     return [...set].sort((a, b) => b - a);
   }, [clientes]);
 
@@ -84,7 +88,8 @@ const CarteraPanel = () => {
     if (!clientes) return [];
     return clientes.filter(c => {
       if (filtroSemaforo && c.semaforo !== filtroSemaforo) return false;
-      if (filtroAnio && !busqueda && String(c.año_alta) !== String(filtroAnio)) return false;
+      const añoCliente = c.año_alta || (c.created_at ? new Date(c.created_at).getFullYear() : null);
+      if (filtroAnio && !busqueda && String(añoCliente) !== String(filtroAnio)) return false;
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (c.nombre_comercial || '').toLowerCase().includes(q)
@@ -101,7 +106,8 @@ const CarteraPanel = () => {
   const stats = useMemo(() => {
     if (!clientes) return { total: 0, verde: 0, ambar: 0, rojo: 0 };
     const base = clientes.filter(c => {
-      if (filtroAnio && !busqueda && String(c.año_alta) !== String(filtroAnio)) return false;
+      const añoCliente = c.año_alta || (c.created_at ? new Date(c.created_at).getFullYear() : null);
+      if (filtroAnio && !busqueda && String(añoCliente) !== String(filtroAnio)) return false;
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (c.nombre_comercial || '').toLowerCase().includes(q)

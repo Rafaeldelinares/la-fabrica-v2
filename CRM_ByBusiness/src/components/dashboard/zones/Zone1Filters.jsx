@@ -26,13 +26,11 @@ const Zone1Filters = ({
   trainingLeads = [],
   sessionLeads = [],
   trainingLeadsDisponibles = 0,
-  // Nuevos props para modo real
-  callbacksHoy = [],
+  // Props para modo real
   campanasActivas = [],
   leadsDisponibles = 0,
   onSeleccionarCampana,
   campanaSeleccionada = null,
-  onTomarCallback,
   loading = false
 }) => {
   return (
@@ -66,44 +64,6 @@ const Zone1Filters = ({
                     {campana.nombre}
                     {campana.prioridad > 3 && (
                       <span className="ml-1 text-[8px] text-amber-400">★</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Callbacks HOY - prioridad máxima */}
-          {callbacksHoy.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-[9px] text-emerald-500 font-mono uppercase tracking-wider flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                Callbacks HOY ({callbacksHoy.length})
-              </label>
-              <div className="max-h-32 overflow-y-auto space-y-1">
-                {callbacksHoy.map(callback => (
-                  <button
-                    key={callback.id}
-                    onClick={() => onTomarCallback && onTomarCallback(callback)}
-                    className="w-full text-left px-3 py-2 bg-emerald-900/20 border border-emerald-800/30 rounded-sm hover:bg-emerald-900/30 transition-colors group"
-                  >
-                    <div className="flex justify-between items-start">
-                      <span className="text-xs text-emerald-300 font-bold truncate pr-2">
-                        {callback.nombre_comercial || callback.lead_nombre}
-                      </span>
-                      <span className="text-[9px] text-emerald-400/70 font-mono shrink-0">
-                        {new Date(callback.fecha_programada).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    {callback.nombre_responsable && (
-                      <p className="text-[9px] text-emerald-400/80 mt-0.5 truncate">
-                        Contacto: {callback.nombre_responsable}
-                      </p>
-                    )}
-                    {callback.notas && (
-                      <p className="text-[8px] text-emerald-400/60 mt-0.5 truncate">
-                        {callback.notas}
-                      </p>
                     )}
                   </button>
                 ))}
@@ -146,7 +106,7 @@ const Zone1Filters = ({
       >
         {loading ? (
           <span className="flex items-center justify-center gap-2">
-            <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+            <span className="text-[10px] font-mono">Cargando...</span>
             CARGANDO...
           </span>
         ) : isTraining ? (

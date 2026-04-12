@@ -119,7 +119,6 @@ const OperatorDashboard = ({
           setLeadsDisponibles(campanasActivas.length * 10);
         }
       } catch (error) {
-        console.error('Error cargando datos Zone1:', error);
         setErrorRed(`Error de red: ${error.message}`);
         setLeadsDisponibles(campanasActivas.length * 10);
       } finally {
@@ -318,15 +317,11 @@ const OperatorDashboard = ({
       handleAsignarLead();
       
       // Remover callback de la lista después de un breve delay
-      const timeoutId = setTimeout(() => {
+      setTimeout(() => {
         setCallbacksHoy(prev => prev.filter(cb => cb.id !== callback.id));
         setErrorRed('');
       }, 1000);
-      
-      // Cleanup del timeout si el componente se desmonta
-      return () => clearTimeout(timeoutId);
     } catch (error) {
-      console.error('Error tomando callback:', error);
       setErrorRed('Error al tomar callback. Usando asignación normal.');
       // Intentar asignación normal como fallback
       handleAsignarLead();
@@ -362,7 +357,7 @@ const OperatorDashboard = ({
   const dashboardContent = (
     <div className="flex flex-row h-full gap-4 p-4 bg-slate-950 font-sans">
       
-      {/* Zona 1 - Filtros y gestión de sesión */}
+      {/* Zona 1 - Filtros y gestión de sesión (PRESENTE) */}
       <Zone1Filters
         isTraining={isTraining}
         localidad={localidad}
@@ -375,13 +370,11 @@ const OperatorDashboard = ({
         trainingLeads={trainingLeads}
         sessionLeads={sessionLeads}
         trainingLeadsDisponibles={trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length}
-        // Nuevos props para modo real
-        callbacksHoy={callbacksHoy}
+        // Props para modo real (solo presente)
         campanasActivas={campanasActivas}
         leadsDisponibles={leadsDisponibles}
         onSeleccionarCampana={handleSeleccionarCampana}
         campanaSeleccionada={campanaSeleccionada}
-        onTomarCallback={handleTomarCallback}
         loading={loadingCampanas}
       />
 
@@ -398,13 +391,15 @@ const OperatorDashboard = ({
         onEnviarInfo={handleEnviarInfo}
       />
 
-      {/* Zona 3 - Sidebar (programadas + stats sesión) */}
+      {/* Zona 3 - Sidebar (FUTURO: callbacks hoy + programadas + stats) */}
       <Zone3Sidebar
         programadas={programadas}
         sessionLeads={sessionLeads}
         isTraining={isTraining}
         trainingStats={trainingStats}
         refreshData={refreshData}
+        callbacksHoy={callbacksHoy}
+        onTomarCallback={handleTomarCallback}
       />
     </div>
   );

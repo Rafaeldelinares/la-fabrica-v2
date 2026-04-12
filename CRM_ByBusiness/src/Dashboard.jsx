@@ -3,6 +3,11 @@ import { useAuth } from './modules/auth/AuthContext';
 import Layout from './shared/layout/Layout';
 import WorkBody from './shared/layout/WorkBody';
 
+/**
+ * Dashboard principal del CRM.
+ * Renderiza el layout con sidebar y el cuerpo de trabajo según el rol del usuario.
+ * @returns {JSX.Element}
+ */
 const Dashboard = () => {
   const { registerActivity, user } = useAuth();
   const role = user?.role;
@@ -16,8 +21,6 @@ const Dashboard = () => {
     'TEAM_AGENDA': 'AGENDA DE EQUIPO',
     'LEADS_MGMT': 'GESTIÓN DE LEADS',
     'AUDIT': 'AUDITORÍA DE SISTEMA',
-    'RESULTS': 'MIS RESULTADOS',
-    'PERSONAL_AGENDA': 'MI AGENDA',
     'WHATSAPP_PANEL': 'PANEL DE COMUNICACIONES',
     'GESTORIA': 'GESTIÓN DE GESTORÍA Y LIQUIDACIÓN'
   };
@@ -35,5 +38,4 @@ const Dashboard = () => {
   );
 };
 
-// Helper Components removed (SidebarItem)
 export default Dashboard;

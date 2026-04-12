@@ -11,18 +11,16 @@ const UsuariosList      = lazy(() => import('../../modules/admin/usuarios/Usuari
 const WhatsAppPanel     = lazy(() => import('../../components/dashboard/WhatsAppPanel'));
 const LeadsPanel        = lazy(() => import('../../modules/admin/leads/LeadsPanel'));
 const LeadsLandingPanel = lazy(() => import('../../modules/admin/leads/LeadsLandingPanel'));
-const MisResultados     = lazy(() => import('../../components/dashboard/MisResultados'));
-const AgendaPersonal    = lazy(() => import('../../components/dashboard/AgendaPersonal'));
 const CandidatosPanel   = lazy(() => import('../../modules/admin/candidatos/CandidatosPanel'));
 const VentasPanel       = lazy(() => import('../../modules/admin/ventas/VentasPanel'));
 const FacturacionPanel  = lazy(() => import('../../modules/admin/facturacion/FacturacionPanel'));
-const AgendaGlobalPanel = lazy(() => import('../../modules/admin/agenda/AgendaGlobalPanel'));
+import AgendaGlobalPanel from '../../modules/admin/agenda/AgendaGlobalPanel';
 const AuditoriaPanel    = lazy(() => import('../../modules/admin/auditoria/AuditoriaPanel'));
 const EntrenamientoPanel = lazy(() => import('../../modules/entrenamiento/EntrenamientoPanel'));
 const SupervisorPanel   = lazy(() => import('../../modules/entrenamiento/SupervisorPanel'));
 const GbpPanel          = lazy(() => import('../../modules/admin/gbp/GbpPanel'));
-const CarteraPanel      = lazy(() => import('../../modules/admin/cartera/CarteraPanel'));
-const CampanasPanel     = lazy(() => import('../../modules/admin/campanas/CampanasPanel'));
+import CarteraPanel from '../../modules/admin/cartera/CarteraPanel';
+import CampanasPanel from '../../modules/admin/campanas/CampanasPanel';
 const GestoriaPanel     = lazy(() => import('../../modules/admin/facturacion/GestoriaPanel'));
 
 /** Skeleton Navy Industrial mostrado mientras un panel lazy está cargando. */
@@ -67,7 +65,7 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
             {activeTab === 'MONITOR' && (
   <div className="flex flex-col items-center justify-center h-full text-center">
     <div className="p-8 bg-slate-900/50 border border-slate-800 rounded-sm">
-      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center">
+      <div className="w-16 h-16 mx-auto mb-4 rounded-sm bg-slate-800 flex items-center justify-center">
         <svg className="w-8 h-8 text-slate-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
         </svg>
@@ -90,13 +88,8 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
             {activeTab === 'FACTURACION' && <FacturacionPanel />}
             {activeTab === 'GESTORIA' && <GestoriaPanel />}
 
-            {/* Operator Views */}
+            {/* Operator Views — Modo Túnel: Solo NEXT_CALL con las 3 zonas */}
             {activeTab === 'NEXT_CALL' && <OperatorDashboard />}
-            {activeTab === 'RESULTS' && <MisResultados />}
-            {activeTab === 'PERSONAL_AGENDA' && <AgendaPersonal />}
-            {activeTab === 'MY_QUEUE' && <div className="text-white">MI COLA DIARIA (Modo Túnel)</div>}
-            {activeTab === 'MY_ACTIONS' && <div className="text-white">MIS GESTIONES (Modo Túnel)</div>}
-            {activeTab === 'MY_SALES' && <div className="text-white">MIS VENTAS (Modo Túnel)</div>}
 
             {/* Training Views */}
             {activeTab === 'ENTRENAMIENTO' && (

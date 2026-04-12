@@ -22,6 +22,16 @@ import {
   Target
 } from 'lucide-react';
 
+/**
+ * Sidebar principal de navegación del CRM.
+ * Muestra menú diferente según el rol del usuario (admin u operador).
+ * @param {Object} props
+ * @param {boolean} props.isOpen - Si el sidebar está abierto (mobile)
+ * @param {Function} props.onClose - Handler para cerrar el sidebar
+ * @param {string} props.activeTab - Tab actualmente seleccionado
+ * @param {Function} props.setActiveTab - Handler para cambiar de tab
+ * @returns {JSX.Element}
+ */
 const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
   const { user } = useAuth();
   const role = user?.role || 'operador';
@@ -72,8 +82,6 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
 
   const operatorMenu = [
     { name: 'Mi Próxima Llamada', icon: <PhoneCall size={20} />, id: 'NEXT_CALL' },
-    { name: 'Mis Resultados', icon: <BarChart2 size={20} />, id: 'RESULTS' },
-    { name: 'Agenda Personal', icon: <Calendar size={20} />, id: 'PERSONAL_AGENDA' },
   ];
 
   const toggle = (id) => setExpanded(expanded === id ? null : id);

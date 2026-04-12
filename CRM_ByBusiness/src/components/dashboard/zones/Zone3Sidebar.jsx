@@ -4,15 +4,33 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import Stat from '../../../shared/ui/Stat';
 
+/**
+ * Zona 3 del dashboard de operador - Panel lateral derecho (FUTURO).
+ * Muestra callbacks de hoy, compromisos futuros y estadísticas de sesión.
+ * @param {Object} props
+ * @param {Array} props.programadas - Llamadas programadas para futuro
+ * @param {Array} props.sessionLeads - Leads gestionados en la sesión actual
+ * @param {boolean} props.isTraining - Si está en modo entrenamiento
+ * @param {Object} props.trainingStats - Estadísticas del modo entrenamiento
+ * @param {Function} props.refreshData - Función para recargar datos
+ * @param {Array} props.callbacksHoy - Callbacks programados para hoy
+ * @param {Function} props.onTomarCallback - Handler al seleccionar un callback
+ * @returns {JSX.Element}
+ */
 const Zone3Sidebar = ({
   programadas = [],
   sessionLeads = [],
   isTraining = false,
   trainingStats = null,
-  refreshData
+  refreshData,
+  callbacksHoy = [],
+  onTomarCallback
 }) => {
-  // Compromisos futuros: cualquier tipo, fecha > hoy
+  // Separar callbacks: HOY vs FUTURO
   const hoy = new Date().toISOString().split('T')[0];
+  const callbacksDeHoy = callbacksHoy.filter(
+    item => new Date(item.fecha_programada).toISOString().split('T')[0] === hoy
+  );
   const compromisosFuturos = programadas.filter(
     item => new Date(item.fecha_programada).toISOString().split('T')[0] > hoy
   );
@@ -105,6 +123,51 @@ const Zone3Sidebar = ({
 
       {/* Estadísticas */}
       {renderStats()}
+
+      {/* Callbacks HOY - Futuro inmediato */}
+      {callbacksDeHoy.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={14} className="text-emerald-400" />
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              Callbacks HOY
+            </h4>
+            <span className="text-[10px] text-slate-600 font-mono ml-auto">
+              {callbacksDeHoy.length}
+            </span>
+          </div>
+          <div className="space-y-2">
+            {callbacksDeHoy.slice(0, 5).map((callback, index) => (
+              <Card key={index} className="!p-3 rounded-sm border-emerald-800/30 bg-emerald-900/10 cursor-pointer hover:bg-emerald-900/20 transition-colors"
+                onClick={() => onTomarCallback && onTomarCallback(callback)}>
+                <div className="flex justify-between items-start mb-1">
+                  <span className="text-xs font-bold text-emerald-300 truncate pr-2">
+                    {callback.nombre_comercial || callback.lead_nombre || 'Cliente'}
+                  </span>
+                  <Badge variant="outline" size="xs" className="bg-emerald-900/30 text-emerald-400 border-emerald-800/30">
+                    {new Date(callback.fecha_programada).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                  </Badge>
+                </div>
+                {callback.nombre_responsable && (
+                  <p className="text-[10px] text-emerald-400/70 truncate">
+                    Contacto: {callback.nombre_responsable}
+                  </p>
+                )}
+                {callback.notas && (
+                  <p className="text-[10px] text-emerald-400/60 mt-1 line-clamp-2">
+                    {callback.notas}
+                  </p>
+                )}
+              </Card>
+            ))}
+            {callbacksDeHoy.length > 5 && (
+              <p className="text-[10px] text-slate-600 text-center">
+                +{callbacksDeHoy.length - 5} callbacks más
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Compromisos futuros */}
       <div>
