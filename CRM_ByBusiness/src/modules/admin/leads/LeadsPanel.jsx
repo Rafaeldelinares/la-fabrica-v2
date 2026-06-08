@@ -4,6 +4,7 @@ import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { Users, RefreshCw, Zap, BarChart3, Brain } from 'lucide-react';
 import LeadRow from './LeadRow';
+import AsignameUnLead from './AsignameUnLead';
 import GeneradorCampanasPanel from '../campanas/GeneradorCampanasPanel';
 import CampanasAnalisisPanel from '../campanas/CampanasAnalisisPanel';
 import AnalisisInteligentePanel from '../campanas/AnalisisInteligentePanel';
@@ -140,6 +141,8 @@ const LeadsPanel = () => {
                     </select>
                 </div>
             </div>
+
+            <AsignameUnLead onAssigned={cargarLeads} />
 
             {mostrarAnalisis && !mostrarGenerador && (
                 <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
