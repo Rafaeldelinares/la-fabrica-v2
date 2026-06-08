@@ -13,7 +13,7 @@ import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 
 const PAGE_SIZE = 15;
 
-/** Panel de gestión de leads: tabla filtrable, paginada, con acciones inline. */
+/** Panel de gestion de leads: tabla filtrable, paginada, con acciones inline. */
 const LeadsPanel = () => {
     const { user } = useAuth();
     const scope = useTrainingScope();
@@ -40,7 +40,7 @@ const LeadsPanel = () => {
                 return res.json();
             })
             .then(data => { if (data.ok) setGestores(data.operadores); })
-            .catch(() => { setGestores([]); setError('Error al cargar gestores — comprueba la conexión'); });
+            .catch(() => { setGestores([]); setError('Error al cargar gestores — comprueba la conexion'); });
     }, [N8N]);
 
     const cargarLeads = useCallback(() => {
@@ -54,7 +54,7 @@ const LeadsPanel = () => {
                 if (data.ok) { setLeads(data.leads); setTotal(data.total); setError(''); }
                 else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
             })
-            .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexión'); });
+            .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexion'); });
     }, [N8N, scope]);
 
     useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]);
@@ -84,7 +84,7 @@ const LeadsPanel = () => {
 
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-sm font-black text-white uppercase tracking-widest">GESTIÓN DE LEADS</h2>
+                    <h2 className="text-sm font-black text-white uppercase tracking-widest">GESTION DE LEADS</h2>
                     <Badge className="bg-slate-800 text-slate-300 border-slate-700">
                         {leads ? total : '—'} LEADS
                     </Badge>
@@ -95,13 +95,13 @@ const LeadsPanel = () => {
                         onClick={() => setMostrarAnalisis(true)}
                         className="flex items-center gap-2 px-3 py-2 rounded-sm bg-blue-900/30 border border-blue-800 text-blue-400 text-[10px] font-bold uppercase tracking-wider hover:bg-blue-900/50 transition-colors"
                     >
-                        <BarChart3 size={12} /> ANÁLISIS
+                        <BarChart3 size={12} /> ANALISIS
                     </button>
                     <button
                         onClick={() => setMostrarAnalisisInteligente(true)}
                         className="flex items-center gap-2 px-3 py-2 rounded-sm bg-violet-900/30 border border-violet-800 text-violet-400 text-[10px] font-bold uppercase tracking-wider hover:bg-violet-900/50 transition-colors"
                     >
-                        <Brain size={12} /> ANÁLISIS-IA
+                        <Brain size={12} /> ANALISIS-IA
                     </button>
                     <button
                         onClick={() => setMostrarGenerador(true)}
@@ -135,9 +135,9 @@ const LeadsPanel = () => {
                         <option value="baja">Baja</option>
                     </select>
                     <select value={filtroCampana} onChange={onFiltroChange(setFiltroCampana)} className={selectCls}>
-                        <option value="">Campaña: Todas</option>
-                        <option value="con">Con campaña</option>
-                        <option value="sin">Sin campaña</option>
+                        <option value="">Campana: Todas</option>
+                        <option value="con">Con campana</option>
+                        <option value="sin">Sin campana</option>
                     </select>
                 </div>
             </div>
@@ -149,7 +149,6 @@ const LeadsPanel = () => {
                     <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden bg-slate-950 border border-slate-800 rounded-sm">
                         <CampanasAnalisisPanel
                             onCrearCampana={(datos) => {
-                                // datos: { items, totales, campanasConflicto, filtros }
                                 setDatosAnalisis(datos);
                                 setFiltrosGenerador(datos.items || []);
                                 setMostrarGenerador(true);
@@ -210,11 +209,11 @@ const LeadsPanel = () => {
                                     <tr>
                                         <th className="px-4 py-3 font-mono">ID</th>
                                         <th className="px-4 py-3">NEGOCIO</th>
-                                        <th className="px-4 py-3 font-mono">TELÉFONO</th>
+                                        <th className="px-4 py-3 font-mono">TELEFONO</th>
                                         <th className="px-4 py-3">LOCALIDAD</th>
                                         <th className="px-4 py-3">PRIORIDAD</th>
                                         <th className="px-4 py-3">ESTADO</th>
-                                        <th className="px-4 py-3">CAMPAÑA</th>
+                                        <th className="px-4 py-3">CAMPANA</th>
                                         <th className="px-4 py-3">OPERADOR</th>
                                         <th className="px-4 py-3 font-mono">SCORING</th>
                                         <th className="px-4 py-3 font-mono">FECHA</th>
@@ -223,7 +222,7 @@ const LeadsPanel = () => {
                                 </thead>
                                 <tbody>
                                     {leadsPagina.map(lead => (
-                                        <LeadRow key={lead.id} lead={lead} gestores={gestores} />
+                                        <LeadRow key={lead.id} lead={lead} gestores={gestores} isAdmin={user?.role === 'admin'} />
                                     ))}
                                 </tbody>
                             </table>
@@ -232,7 +231,7 @@ const LeadsPanel = () => {
                         {totalPaginas > 1 && (
                             <div className="flex items-center justify-between px-4 py-3 border-t border-slate-800">
                                 <span className="text-[10px] text-slate-500 font-mono">
-                                    Página {paginaReal} de {totalPaginas} — {leadsFiltrados.length} leads
+                                    Pagina {paginaReal} de {totalPaginas} — {leadsFiltrados.length} leads
                                 </span>
                                 <div className="flex gap-2">
                                     <button
