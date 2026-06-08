@@ -6,12 +6,13 @@ import Setup2FAScreen from './Setup2FAScreen';
 import Verify2FAScreen from './Verify2FAScreen';
 
 const N8N_WEBHOOK = import.meta.env.VITE_N8N_URL;
+const API_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 /**
  * Login — Pantalla de autenticación con soporte 2FA TOTP completo.
  *
  * Fases:
- *  CREDENTIALS → email + contraseña validados via n8n
+ *  CREDENTIALS → email + contraseña validados via API o n8n
  *  SETUP_2FA   → totp_habilitado=true && totp_configurado=false → QR + primer código
  *  VERIFY_2FA  → totp_habilitado=true && totp_configurado=true  → código 6 dígitos
  */
@@ -22,20 +23,55 @@ const Login = () => {
   const [phase, setPhase] = useState('CREDENTIALS');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetResult, setResetResult] = useState('');
   const pendingUser = useRef(null);
 
-  /** Envía credenciales a n8n y decide la fase siguiente. */
+  const doLogin = async (emailToLogin, passwordToUse) => {
+    const res = await fetch(`${N8N_WEBHOOK}/crm-login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailToLogin.toLowerCase().trim(), password: passwordToUse }),
+    });
+    return res.json();
+  };
+
+  const doLoginApi = async (emailToLogin, passwordToUse) => {
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailToLogin.toLowerCase().trim(), password: passwordToUse }),
+    });
+    const data = await res.json();
+    if (data.ok && data.user) {
+      return {
+        ok: true,
+        usuario: {
+          id: data.user.id,
+          nombre: data.user.nombre,
+          email: data.user.email,
+          rol: data.user.rol || 'operador',
+          totp_habilitado: data.user.totp_habilitado || false,
+          totp_configurado: data.user.totp_configurado || false,
+          es_simulacion: data.user.es_simulacion ?? false,
+        },
+      };
+    }
+    return data;
+  };
+
+  /** Envía credenciales y decide la fase siguiente. */
   const handleCredentials = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     setLoading(true);
     try {
-      const res = await fetch(`${N8N_WEBHOOK}/crm-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
-      });
-      const data = await res.json();
+      let data;
+      if (API_URL) {
+        data = await doLoginApi(email, password);
+      } else {
+        data = await doLogin(email, password);
+      }
       if (data.ok && data.usuario) {
         pendingUser.current = data.usuario;
         if (!data.usuario.totp_habilitado) {
@@ -58,6 +94,29 @@ const Login = () => {
 
   /** Callback cuando Setup2FA o Verify2FA verifican correctamente el TOTP. */
   const handle2FASuccess = () => login(pendingUser.current);
+
+  /** Envía request de reset de contraseña desde el modal. */
+  const handleSubmitResetPassword = async (resetEmail) => {
+    setResetLoading(true);
+    setResetResult('');
+    try {
+      const res = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail.toLowerCase().trim() }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResetResult(`Tu nueva contraseña fue enviada a ${resetEmail}. Revisa tu bandeja de entrada.`);
+      } else {
+        setResetResult(data.message || 'No se pudo completar la solicitud.');
+      }
+    } catch {
+      setResetResult('Error de conexión con el servidor.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const phaseTitle = {
     CREDENTIALS: 'ACCESO RESTRINGIDO',
@@ -98,6 +157,10 @@ const Login = () => {
               onEmailChange={(e) => setEmail(e.target.value)}
               onPasswordChange={(e) => setPassword(e.target.value)}
               onSubmit={handleCredentials}
+              onForgotPassword={() => {}}
+              onSubmitResetPassword={handleSubmitResetPassword}
+              resetLoading={resetLoading}
+              resetResult={resetResult}
             />
           )}
 

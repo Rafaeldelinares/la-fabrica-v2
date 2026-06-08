@@ -50,6 +50,7 @@ export const AuthProvider = ({ children }) => {
       nombre: userData.nombre || userData.email.split('@')[0],
       totp_secret: userData.totp_secret,
       totp_habilitado: userData.totp_habilitado,
+      es_simulacion: userData.es_simulacion ?? false,
     };
     setUser(userObj);
     setIsAuthenticated(true);
