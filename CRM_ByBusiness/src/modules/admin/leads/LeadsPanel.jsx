@@ -7,17 +7,20 @@ import LeadRow from './LeadRow';
 import GeneradorCampanasPanel from '../campanas/GeneradorCampanasPanel';
 import CampanasAnalisisPanel from '../campanas/CampanasAnalisisPanel';
 import AnalisisInteligentePanel from '../campanas/AnalisisInteligentePanel';
+import { useAuth } from '../../auth/AuthContext';
+import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 
 const PAGE_SIZE = 15;
 
 /** Panel de gestión de leads: tabla filtrable, paginada, con acciones inline. */
 const LeadsPanel = () => {
+    const { user } = useAuth();
+    const scope = useTrainingScope();
     const N8N = import.meta.env.VITE_N8N_URL;
 
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
     const [filtroCampana, setFiltroCampana]     = useState('');
-    const [modo, setModo]                       = useState('reales');
     const [leads, setLeads]                     = useState(null);
     const [total, setTotal]                     = useState(0);
     const [gestores, setGestores]               = useState([]);
@@ -41,7 +44,7 @@ const LeadsPanel = () => {
 
     const cargarLeads = useCallback(() => {
         setLeads(null);
-        fetch(`${N8N}/crm-leads-admin?es_simulacion=${modo === 'entrenamiento'}&limit=20000`)
+        fetch(`${N8N}/crm-leads-admin?es_simulacion=${scope.getFilterValue()}&limit=20000`)
             .then(res => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.json();
@@ -51,9 +54,9 @@ const LeadsPanel = () => {
                 else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
             })
             .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexión'); });
-    }, [N8N, modo]);
+    }, [N8N, scope]);
 
-    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores, modo]);
+    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]);
 
     const leadsFiltrados = (leads ?? []).filter(lead =>
         (!filtroEstado    || lead.estado    === filtroEstado) &&
@@ -84,12 +87,6 @@ const LeadsPanel = () => {
                     <Badge className="bg-slate-800 text-slate-300 border-slate-700">
                         {leads ? total : '—'} LEADS
                     </Badge>
-                    <button
-                        onClick={() => setModo(m => m === 'reales' ? 'entrenamiento' : 'reales')}
-                        className={`px-3 py-1 rounded-sm text-[10px] font-bold uppercase tracking-wider border ${modo === 'reales' ? 'bg-[#D00000] border-[#D00000] text-white' : 'bg-amber-600 border-amber-600 text-white'}`}
-                    >
-                        {modo === 'reales' ? '🌍 REALES' : '🎓 ENTRENAMIENTO'}
-                    </button>
                 </div>
 
                 <div className="flex gap-3 items-center">

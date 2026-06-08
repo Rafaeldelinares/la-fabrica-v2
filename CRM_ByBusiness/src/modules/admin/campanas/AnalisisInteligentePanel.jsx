@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Brain, CheckCircle, XCircle, Users, Globe, Target, RefreshCw, AlertCircle, Sparkles, ChevronLeft, ChevronRight, MapPin, Layers, Filter } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
+import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
@@ -17,6 +18,7 @@ const ITEMS_PER_PAGE = 10;
  * @param {number} props.userId - ID del usuario actual
  */
 const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
+  const scope = useTrainingScope();
   const [propuestas, setPropuestas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -88,7 +90,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
         body: JSON.stringify({
           nombre: propuesta.nombre,
           descripcion: propuesta.descripcion,
-          es_simulacion: false,
+          es_simulacion: scope.getFilterValue(),
           user_id: userId || 1,
           filtros: propuesta.filtros
         })
