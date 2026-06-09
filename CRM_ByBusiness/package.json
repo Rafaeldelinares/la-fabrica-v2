@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
+    "lint:scope": "if grep -rn 'es_simulacion: *\\(true\\|false\\)' src/ --exclude='useTrainingScope.js' --exclude='*.test.js'; then echo 'ERROR: hardcoded es_simulacion literals found outside useTrainingScope hook'; exit 1; fi",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.59.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

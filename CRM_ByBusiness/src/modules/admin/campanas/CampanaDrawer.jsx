@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { X, Target, DollarSign, Calendar, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
+import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
@@ -9,6 +10,7 @@ const N8N = import.meta.env.VITE_N8N_URL;
  * SIMPLIFICADO: Solo usa campo 'activo' (true/false)
  */
 const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
+  const scope = useTrainingScope();
   const [form, setForm] = useState({
     nombre: '',
     descripcion: '',
@@ -18,7 +20,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
     objetivo_llamadas: 0,
     freeze_dias_no_contesta: 3,
     freeze_dias_no_interesa: 30,
-    es_simulacion: false,
+    es_simulacion: scope.getFilterValue(),
     fecha_inicio: '',
     fecha_fin: '',
     activo: true,
@@ -40,7 +42,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
         objetivo_llamadas: campana.objetivo_llamadas || 0,
         freeze_dias_no_contesta: campana.freeze_dias_no_contesta || 3,
         freeze_dias_no_interesa: campana.freeze_dias_no_interesa || 30,
-        es_simulacion: campana.es_simulacion || false,
+        es_simulacion: campana.es_simulacion ?? scope.getFilterValue(),
         fecha_inicio: campana.fecha_inicio ? campana.fecha_inicio.split('T')[0] : '',
         fecha_fin: campana.fecha_fin ? campana.fecha_fin.split('T')[0] : '',
         activo: campana.activo !== false,
