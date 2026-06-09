@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { MapPin, Tag, BarChart3, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
+import { useTrainingScope } from '../../../shared/hooks/useTrainingScope';
 
 const N8N = import.meta.env.VITE_N8N_URL;
 
@@ -96,6 +97,7 @@ const FAMILIAS_CATEGORIAS = {
 };
 
 const CampanasAnalisisPanel = ({ onCrearCampana }) => {
+  const { getFilterValue } = useTrainingScope();
   const [tab, setTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -190,7 +192,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           modo: 'analisis',
-          es_simulacion: false
+          es_simulacion: getFilterValue()
         })
       });
 
