@@ -60,3 +60,4 @@ const useTrainingScope = () => {
 };
 
 export default useTrainingScope;
+export { useTrainingScope };
