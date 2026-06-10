@@ -7,7 +7,7 @@ import { RefreshCw } from 'lucide-react';
 
 const PRIORIDAD_CLASSES = {
     alta:   'bg-red-500/10 text-red-500 border-red-500/20',
-    normal: 'bg-slate-600/10 text-slate-300 border-slate-600/50',
+    normal: 'bg-slate-600/10 text-slate-300 border-slate-700/50',
     baja:   'bg-slate-800 text-slate-500 border-slate-700',
 };
 
@@ -18,13 +18,18 @@ const TICK_MS          = 60_000;  // 1 minuto
  * DashboardPanel — Panel principal con KPIs, últimos leads, actividad de operadores
  * y auto-refresh cada 5 minutos. Consume crm-kpi-dashboard, crm-leads-admin y
  * crm-actividad-operadores vía n8n.
+ *
+ * Respuesta de los endpoints (n8n 2.12.2 con Respond to Webhook):
+ *   GET crm-kpi-dashboard      → { ok: true, data: [ { total_leads, leads_hoy, leads_pendientes, leads_en_gestion, leads_convertidos, leads_descartados, prioridad_alta, prioridad_normal, prioridad_baja } ] }
+ *   GET crm-leads-admin        → { ok: true, data: [ { id, nombre_comercial, telefono, email, localidad, estado, prioridad, ... } ] }
+ *   GET crm-actividad-operadores → { ok: true, data: [ { nombre, id, llamadas_hoy, ventas_hoy, callbacks_hoy, tasa_hoy } ] }
  */
 const DashboardPanel = () => {
     const N8N = import.meta.env.VITE_N8N_URL;
 
     const [kpis, setKpis]           = useState(null);
     const [leads, setLeads]         = useState([]);
-    const [actividad, setActividad] = useState(null);
+    const [operadores, setOperadores] = useState([]);
     const [errorKpis, setErrorKpis]             = useState('');
     const [errorActividad, setErrorActividad]   = useState('');
     const [errorLeads, setErrorLeads]           = useState('');
@@ -41,17 +46,40 @@ const DashboardPanel = () => {
 
         fetch(`${N8N}/crm-kpi-dashboard`)
             .then(r => r.json())
-            .then(d => { if (d.ok) setKpis(d.kpis); else setErrorKpis('Error al cargar KPIs del dashboard'); })
+            .then(d => {
+                if (d.ok && Array.isArray(d.data) && d.data.length > 0) {
+                    setKpis(d.data[0]);
+                } else if (d.ok && d.data && !Array.isArray(d.data)) {
+                    // Fallback: in case the data is a single object (e.g. future workflows)
+                    setKpis(d.data);
+                } else {
+                    setErrorKpis('Error al cargar KPIs del dashboard');
+                }
+            })
             .catch(() => setErrorKpis('Error al cargar KPIs — comprueba la conexión'));
 
         fetch(`${N8N}/crm-leads-admin?limit=5`)
             .then(r => r.json())
-            .then(d => { if (d.ok) setLeads(d.leads || []); else setErrorLeads('Error al cargar leads recientes'); })
+            .then(d => {
+                if (d.ok && Array.isArray(d.data)) {
+                    setLeads(d.data);
+                } else if (d.ok) {
+                    setLeads([]);
+                } else {
+                    setErrorLeads('Error al cargar leads recientes');
+                }
+            })
             .catch(() => setErrorLeads('Error al cargar leads recientes'));
 
         fetch(`${N8N}/crm-actividad-operadores`)
             .then(r => r.json())
-            .then(d => { if (d.ok) setActividad(d); else setErrorActividad('Error al cargar actividad de operadores'); })
+            .then(d => {
+                if (d.ok && Array.isArray(d.data)) {
+                    setOperadores(d.data);
+                } else {
+                    setErrorActividad('Error al cargar actividad de operadores');
+                }
+            })
             .catch(() => setErrorActividad('Error al cargar actividad — comprueba la conexión'));
 
         setUltimaActualizacion(new Date());
@@ -71,8 +99,19 @@ const DashboardPanel = () => {
         };
     }, [cargarDatos]);
 
-    const tasa = actividad && actividad.total_llamadas_hoy > 0
-        ? Math.round(100 * actividad.total_ventas_hoy / actividad.total_llamadas_hoy)
+    // Derivar totales de la lista de operadores (los contadores agregados
+    // ya no vienen precomputados, hay que sumarlos en el cliente).
+    const totalLlamadasHoy = operadores.reduce(
+        (acc, op) => acc + (Number(op.llamadas_hoy) || 0), 0
+    );
+    const totalVentasHoy = operadores.reduce(
+        (acc, op) => acc + (Number(op.ventas_hoy) || 0), 0
+    );
+    const totalCallbacksHoy = operadores.reduce(
+        (acc, op) => acc + (Number(op.callbacks_hoy) || 0), 0
+    );
+    const tasa = totalLlamadasHoy > 0
+        ? Math.round(100 * totalVentasHoy / totalLlamadasHoy)
         : 0;
 
     const horaActualizacion = ultimaActualizacion
@@ -122,10 +161,26 @@ const DashboardPanel = () => {
 
             {/* KPIs */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <Stat label="LEADS HOY"    value={kpis?.leads?.hoy ?? '—'}               trend={kpis ? `${kpis.leads.total} total` : ''} />
-                <Stat label="LLAMADAS HOY" value={actividad?.total_llamadas_hoy ?? '—'}  trend={actividad ? `${actividad.operadores?.length} ops activos` : ''} />
-                <Stat label="VENTAS HOY"   value={actividad?.total_ventas_hoy ?? '—'}    trend={kpis ? `${kpis.leads.por_estado?.convertido ?? 0} convertidos` : ''} />
-                <Stat label="CONVERSIÓN"   value={actividad ? `${tasa}%` : '—'}          trend="llamadas → venta" />
+                <Stat
+                    label="LEADS HOY"
+                    value={kpis ? Number(kpis.leads_hoy ?? 0) : '—'}
+                    trend={kpis ? `${Number(kpis.total_leads ?? 0)} total` : ''}
+                />
+                <Stat
+                    label="LLAMADAS HOY"
+                    value={totalLlamadasHoy}
+                    trend={operadores.length > 0 ? `${operadores.length} ops` : ''}
+                />
+                <Stat
+                    label="VENTAS HOY"
+                    value={totalVentasHoy}
+                    trend={kpis ? `${Number(kpis.leads_convertidos ?? 0)} convertidos` : ''}
+                />
+                <Stat
+                    label="CONVERSIÓN"
+                    value={`${tasa}%`}
+                    trend="llamadas → venta"
+                />
             </div>
 
             {/* Últimos leads + Actividad operadores */}
@@ -142,11 +197,15 @@ const DashboardPanel = () => {
                             </div>
                         ) : leads.map(lead => (
                             <div key={lead.id} className="flex justify-between items-center text-xs text-slate-200 border-b border-slate-800/50 py-2.5">
-                                <span className="font-bold uppercase tracking-wide truncate pr-3">{lead.nombre_comercial}</span>
+                                <span className="font-bold uppercase tracking-wide truncate pr-3">
+                                    {lead.nombre_comercial || `Lead #${lead.id}`}
+                                </span>
                                 <div className="flex gap-2 items-center shrink-0">
-                                    <span className="text-[10px] text-slate-500 font-mono">{lead.localidad}</span>
+                                    {lead.localidad && (
+                                        <span className="text-[10px] text-slate-500 font-mono">{lead.localidad}</span>
+                                    )}
                                     <Badge className={PRIORIDAD_CLASSES[lead.prioridad] || PRIORIDAD_CLASSES.normal}>
-                                        {lead.prioridad?.toUpperCase() || '—'}
+                                        {(lead.prioridad || '—').toUpperCase()}
                                     </Badge>
                                 </div>
                             </div>
@@ -157,17 +216,13 @@ const DashboardPanel = () => {
                 <Card className="flex flex-col bg-slate-900 border-slate-800 !p-5">
                     <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">ACTIVIDAD OPERADORES HOY</h3>
                     <div className="flex flex-col gap-0 flex-1">
-                        {!actividad ? (
+                        {operadores.length === 0 ? (
                             <div className="flex-1 flex items-center justify-center py-6">
                                 <p className="text-[10px] text-slate-700 font-mono uppercase tracking-widest italic">
-                                    {errorActividad ? 'Error al cargar' : 'Cargando...'}
+                                    {errorActividad ? 'Error al cargar' : 'Sin actividad hoy'}
                                 </p>
                             </div>
-                        ) : actividad.operadores?.length === 0 ? (
-                            <div className="flex-1 flex items-center justify-center py-6">
-                                <p className="text-[10px] text-slate-700 font-mono uppercase tracking-widest italic">Sin actividad hoy</p>
-                            </div>
-                        ) : actividad.operadores?.map(op => (
+                        ) : operadores.slice(0, 6).map(op => (
                             <div key={op.id} className="flex justify-between items-center py-2.5 border-b border-slate-800/50">
                                 <span className="text-xs font-bold text-slate-200">{op.nombre}</span>
                                 <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
@@ -182,32 +237,44 @@ const DashboardPanel = () => {
 
             </div>
 
-            {/* Captación Web */}
-            <Card className="bg-slate-900 border-slate-800 !p-5">
-                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">CAPTACIÓN WEB</h3>
-                <div className="flex items-center gap-8 flex-wrap">
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Contactos totales</span>
-                        <span className="text-2xl font-black font-mono text-white">{kpis?.captacion?.total_contactos ?? '—'}</span>
+            {/* Resumen rápido (captación + pendientes) — ahora con datos del KPI */}
+            {kpis && (
+                <Card className="bg-slate-900 border-slate-800 !p-5">
+                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">RESUMEN DE PIPELINE</h3>
+                    <div className="flex items-center gap-8 flex-wrap">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-widest">Pendientes</span>
+                            <span className="text-2xl font-black font-mono text-[#D00000]">
+                                {Number(kpis.leads_pendientes ?? 0)}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-widest">En gestión</span>
+                            <span className="text-2xl font-black font-mono text-white">
+                                {Number(kpis.leads_en_gestion ?? 0)}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-widest">Convertidos</span>
+                            <span className="text-2xl font-black font-mono text-emerald-400">
+                                {Number(kpis.leads_convertidos ?? 0)}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-widest">Descartados</span>
+                            <span className="text-2xl font-black font-mono text-slate-500">
+                                {Number(kpis.leads_descartados ?? 0)}
+                            </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-slate-500 uppercase tracking-widest">Prioridad alta</span>
+                            <span className="text-2xl font-black font-mono text-amber-400">
+                                {Number(kpis.prioridad_alta ?? 0)}
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Auditorías</span>
-                        <span className="text-2xl font-black font-mono text-white">{kpis?.captacion?.auditoria ?? '—'}</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Empleo</span>
-                        <span className="text-2xl font-black font-mono text-white">{kpis?.captacion?.empleo ?? '—'}</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Candidatos RRHH</span>
-                        <span className="text-2xl font-black font-mono text-white">{kpis?.rrhh?.total_candidatos ?? '—'}</span>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-widest">Leads pendientes</span>
-                        <span className="text-2xl font-black font-mono text-[#D00000]">{kpis?.leads?.por_estado?.pendiente ?? '—'}</span>
-                    </div>
-                </div>
-            </Card>
+                </Card>
+            )}
 
         </div>
     );
