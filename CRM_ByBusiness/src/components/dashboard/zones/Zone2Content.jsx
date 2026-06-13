@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Copy, Phone, Star, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown } from 'lucide-react';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { fmtFechaHora } from '../../../utils/dates';
+import Teleprompter from '../Teleprompter';
+import { useAuth } from '../../../modules/auth/AuthContext';
 
 const RESULTADO_CONFIG = {
   venta:        { label: 'VENTA',        color: 'bg-emerald-900/30 text-emerald-400 border-emerald-700/40' },
@@ -77,13 +79,15 @@ const PopupVenta = ({ lead, onConfirm, onCancel }) => {
 const PopupCallback = ({ onConfirm, onCancel }) => {
   const [fecha, setFecha] = useState('');
   const [nombreContacto, setNombreContacto] = useState('');
+  const [motivo, setMotivo] = useState('');
   const [notas, setNotas] = useState('');
   return (
-    <PopupBase titulo="Programar callback" onConfirm={() => onConfirm({ fecha_programada: fecha, nombre_contacto: nombreContacto, notas })} onCancel={onCancel}>
+    <PopupBase titulo="Programar callback" onConfirm={() => onConfirm({ fecha_callback: fecha, nombre_contacto: nombreContacto, motivo, notas })} onCancel={onCancel}>
       <div className="flex flex-col gap-3">
         <div><p className={labelCls}>Fecha y hora</p><input type="datetime-local" className={inputCls} value={fecha} onChange={e => setFecha(e.target.value)} /></div>
         <div><p className={labelCls}>Nombre contacto</p><input className={inputCls} value={nombreContacto} onChange={e => setNombreContacto(e.target.value)} placeholder="¿Con quién llamamos?" /></div>
-        <div><p className={labelCls}>Notas</p><textarea className={inputCls + ' resize-none'} rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Motivo del callback..." /></div>
+        <div><p className={labelCls}>Motivo</p><input className={inputCls} value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Motivo de la próxima llamada" /></div>
+        <div><p className={labelCls}>Notas</p><textarea className={inputCls + ' resize-none'} rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Detalles adicionales..." /></div>
       </div>
     </PopupBase>
   );
@@ -233,6 +237,7 @@ const Zone2Content = ({
   onEnviarInfo,
 }) => {
   const lead = leadActivo;
+  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState('GUION');
   const [popupActivo, setPopupActivo] = useState(null);
@@ -415,28 +420,7 @@ const Zone2Content = ({
           {/* Contenido tab */}
           <div className="flex-1 overflow-y-auto">
             {activeTab === 'GUION' && (
-              <div className="flex flex-col gap-3">
-                <div className="bg-slate-900 border border-slate-800 rounded-sm p-4 flex flex-col gap-3">
-                  <div>
-                    <p className="text-[10px] text-emerald-400 uppercase tracking-widest font-black mb-1">Apertura</p>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      "Hola, ¿hablo con el responsable de <strong className="text-white">{lead.nombre_comercial}</strong>? Soy [NOMBRE] de ByBusiness. Le llamo porque analizamos negocios del sector <strong className="text-white">{lead.sector || lead.categoria || 'su sector'}</strong> en <strong className="text-white">{lead.localidad || 'su zona'}</strong>. ¿Tiene un momento?"
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-amber-400 uppercase tracking-widest font-black mb-1">Propuesta de valor</p>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      "Detectamos oportunidades de mejora en su presencia digital — Google Maps, reseñas, visibilidad local. ¿Le interesaría una evaluación gratuita sin compromiso?"
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-[#D00000] uppercase tracking-widest font-black mb-1">Cierre</p>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      "Perfecto. ¿Podemos agendar 15 minutos para revisar los resultados juntos? ¿Qué día le viene mejor esta semana?"
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <Teleprompter lead={lead} user={user} />
             )}
 
             {activeTab === 'REPUTACION' && (
