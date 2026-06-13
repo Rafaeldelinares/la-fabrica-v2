@@ -33,7 +33,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
 
   useEffect(() => {
     fetch(`${n8nUrl}/crm-productos`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => setProductos(d.productos || []))
       .catch(() => {});
   }, [n8nUrl]);
@@ -64,6 +64,10 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
             iva_pct:        aplicarIva ? ivaPct : null,
           }),
         });
+        if (!resE.ok) {
+          const text = await resE.text();
+          throw new Error(`HTTP ${resE.status}: ${text || 'Error del servidor'}`);
+        }
         const dataE = await resE.json();
         if (!dataE.ok) throw new Error(dataE.error || 'Error al editar proforma');
         proformaId = proformaEditar.id;
@@ -80,6 +84,10 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
             iva_pct:        aplicarIva ? ivaPct : null,
           }),
         });
+        if (!resP.ok) {
+          const text = await resP.text();
+          throw new Error(`HTTP ${resP.status}: ${text || 'Error del servidor'}`);
+        }
         const dataP = await resP.json();
         if (!dataP.ok) throw new Error(dataP.error || 'Error al crear proforma');
         proformaId = dataP.proforma?.id;
@@ -96,6 +104,10 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
             dto_pct:         l.dto_pct,
           }),
         });
+        if (!r.ok) {
+          const text = await r.text();
+          throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
+        }
         const dL = await r.json();
         if (!dL.ok) throw new Error(`Error en línea: ${l.descripcion}`);
       }

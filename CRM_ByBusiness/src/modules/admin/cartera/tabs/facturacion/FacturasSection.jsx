@@ -23,7 +23,7 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
     fetch(`${n8nUrl}/crm-facturas-get?cliente_id=${cliente.id}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { setFacturas(d.facturas || []); setLoading(false); })
       .catch(() => { setError('Error al cargar facturas'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
@@ -38,11 +38,15 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pago_id: pagoId, metodo: metodo || 'transferencia' }),
       });
+      if (!r.ok) {
+        const text = await r.text();
+        throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
+      }
       const d = await r.json();
       if (d.ok) cargar();
-      else setError('Error al registrar el cobro');
-    } catch {
-      setError('Error de conexión');
+      else setError(d.message || 'Error al registrar el cobro');
+    } catch (err) {
+      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al cobrar el pago' : 'Error al cobrar el pago');
     } finally {
       setBusy(null);
     }

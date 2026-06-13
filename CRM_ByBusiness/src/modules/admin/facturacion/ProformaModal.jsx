@@ -102,7 +102,7 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
 
   useEffect(() => {
     fetch(`${N8N}/crm-productos`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { if (d.ok) setProductos(d.productos); })
       .catch(() => {});
   }, []);

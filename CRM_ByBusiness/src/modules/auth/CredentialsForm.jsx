@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { Lock, Loader, Eye, EyeOff } from 'lucide-react';
+import { Lock, Loader, Eye, EyeOff, KeyRound, X } from 'lucide-react';
 
 /**
  * CredentialsForm — Formulario de email + contraseña del Login.
@@ -13,11 +13,23 @@ import { Lock, Loader, Eye, EyeOff } from 'lucide-react';
  * @param {Function} props.onEmailChange
  * @param {Function} props.onPasswordChange
  * @param {Function} props.onSubmit
+ * @param {Function} props.onSubmitResetPassword
+ * @param {boolean} props.resetLoading
+ * @param {string} props.resetResult
  */
-const CredentialsForm = ({ email, password, loading, errorMsg, onEmailChange, onPasswordChange, onSubmit }) => {
+const CredentialsForm = ({ email, password, loading, errorMsg, onEmailChange, onPasswordChange, onSubmit, onSubmitResetPassword, resetLoading, resetResult }) => {
   const [showPassword, setShowPassword] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmailInput, setResetEmailInput] = useState('');
+
+  const handleResetSubmit = (e) => {
+    e.preventDefault();
+    if (!resetEmailInput.trim()) return;
+    onSubmitResetPassword(resetEmailInput);
+  };
 
   return (
+  <>
   <form className="flex flex-col gap-6" onSubmit={onSubmit}>
     {errorMsg && (
       <p className="text-[10px] text-[#D00000] font-bold uppercase tracking-wider text-center bg-red-950/40 border border-red-900/50 rounded-sm p-2">
@@ -67,9 +79,80 @@ const CredentialsForm = ({ email, password, loading, errorMsg, onEmailChange, on
             <Lock className="w-3 h-3 mr-2" />
           VALIDAR USUARIO
         </>
-      )}
+        )}
+    </button>
+
+    <button
+      type="button"
+      onClick={() => { setShowResetModal(true); setResetEmailInput(email); }}
+      className="text-[10px] text-slate-500 hover:text-[#D00000] font-mono uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5"
+    >
+      <KeyRound className="w-3 h-3" />
+      ¿Olvidaste tu contraseña?
     </button>
   </form>
+
+  {showResetModal && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-full max-w-md shadow-2xl relative">
+        <button
+          type="button"
+          onClick={() => { setShowResetModal(false); }}
+          aria-label="Cerrar"
+          className="absolute top-3 right-3 text-slate-500 hover:text-white transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+        <div className="flex items-center gap-2 mb-4">
+          <KeyRound className="w-4 h-4 text-[#D00000]" />
+          <h2 className="text-sm font-black text-white uppercase tracking-widest">Recuperar contraseña</h2>
+        </div>
+        <p className="text-[10px] text-slate-400 font-mono mb-4 leading-relaxed">
+          Te enviaremos una nueva contraseña al email registrado. Revisá tu bandeja de entrada (y spam).
+        </p>
+        <form onSubmit={handleResetSubmit} className="flex flex-col gap-4">
+          <input
+            type="email"
+            value={resetEmailInput}
+            onChange={(e) => setResetEmailInput(e.target.value)}
+            placeholder="tu@email.com"
+            required
+            autoFocus
+            className="bg-slate-950 border border-slate-700 text-white text-sm rounded-sm focus:ring-[#D00000] focus:border-[#D00000] block w-full p-3 placeholder-slate-600 font-mono tracking-wide"
+          />
+          {resetResult && (
+            <p className={`text-[10px] font-mono p-2 rounded-sm border ${
+              resetResult.toLowerCase().includes('enviada')
+                ? 'text-emerald-400 bg-emerald-950/40 border-emerald-900/50'
+                : 'text-[#D00000] bg-red-950/40 border-red-900/50'
+            }`}>
+              {resetResult}
+            </p>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setShowResetModal(false); }}
+              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold tracking-widest rounded-sm border border-slate-700 transition-all uppercase py-2.5 text-[10px]"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={resetLoading || !resetEmailInput.trim()}
+              className="flex-1 bg-[#D00000] hover:bg-red-800 disabled:bg-slate-700 text-white font-bold tracking-widest rounded-sm border border-red-900 transition-all uppercase flex items-center justify-center py-2.5 text-[10px] gap-1.5"
+            >
+              {resetLoading
+                ? <Loader className="w-3 h-3 animate-spin" />
+                : <KeyRound className="w-3 h-3" />}
+              Enviar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
+  </>
   );
 };
 
@@ -81,6 +164,9 @@ CredentialsForm.propTypes = {
   onEmailChange: PropTypes.func.isRequired,
   onPasswordChange: PropTypes.func.isRequired,
   onSubmit: PropTypes.func.isRequired,
+  onSubmitResetPassword: PropTypes.func.isRequired,
+  resetLoading: PropTypes.bool.isRequired,
+  resetResult: PropTypes.string.isRequired,
 };
 
 export default CredentialsForm;

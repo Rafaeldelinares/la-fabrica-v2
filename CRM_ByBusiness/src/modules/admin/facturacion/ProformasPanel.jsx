@@ -265,8 +265,8 @@ const ProformasPanel = ({ onAbrirCliente, reloadKey }) => {
 
   const loadData = useCallback(() => {
     Promise.all([
-      fetch(`${N8N}/crm-proformas`).then(r => r.json()),
-      fetch(`${N8N}/crm-contratos-digitales-all`).then(r => r.json()).catch(() => ({ contratos: [] })),
+      fetch(`${N8N}/crm-proformas`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+      fetch(`${N8N}/crm-contratos-digitales-all`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(() => ({ contratos: [] })),
     ])
       .then(([dp, dc]) => {
         const lista = dp.proformas || [];

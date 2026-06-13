@@ -398,7 +398,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setConfirmando(true);
     setErrorAction(null);
     try {
-      await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
+      const res = await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -409,22 +409,40 @@ const TabGbp = ({ cliente, n8nUrl }) => {
           address: candidato.address,
         }),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : { ok: true };
+      if (!data.ok) { setErrorAction(data.message || 'No se pudo confirmar la ficha'); return; }
       setCandidatos(null);
       fetchFichas();
-    } catch { setErrorAction('Error al confirmar ficha'); } finally { setConfirmando(false); }
+    } catch (err) {
+      setErrorAction(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al confirmar ficha — comprueba la conexión' : 'Error al confirmar ficha');
+    } finally { setConfirmando(false); }
   };
 
   /** Valida (confirma/rechaza) una ficha encontrada automáticamente. */
   const handleValidar = async (fichaId, accion) => {
     setErrorAction(null);
     try {
-      await fetch(`${n8nUrl}/crm-gbp-validar`, {
+      const res = await fetch(`${n8nUrl}/crm-gbp-validar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: cliente.id, ficha_id: fichaId, accion }),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : { ok: true };
+      if (!data.ok) { setErrorAction(data.message || `No se pudo ${accion} la ficha`); return; }
       fetchFichas();
-    } catch { setErrorAction('Error al validar ficha'); }
+    } catch (err) {
+      setErrorAction(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al validar ficha — comprueba la conexión' : 'Error al validar ficha');
+    }
   };
 
   /** Resetea el estado del flujo de añadir ficha manual. */
@@ -472,7 +490,7 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setVerificando(true);
     setErrorAction(null);
     try {
-      await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
+      const res = await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -486,9 +504,18 @@ const TabGbp = ({ cliente, n8nUrl }) => {
           gestionada_por_bybusiness: gestionada,
         }),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : { ok: true };
+      if (!data.ok) { setErrorAction(data.message || 'No se pudo guardar la ficha'); return; }
       resetAdd();
       fetchFichas();
-    } catch { setErrorAction('Error al guardar ficha'); } finally { setVerificando(false); }
+    } catch (err) {
+      setErrorAction(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al guardar ficha — comprueba la conexión' : 'Error al guardar ficha');
+    } finally { setVerificando(false); }
   };
 
   if (fichas === null) return (

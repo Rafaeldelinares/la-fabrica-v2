@@ -72,11 +72,15 @@ const DiscrepanciaFila = ({ campo, valorTarjeta, valorCrm, clienteId, onSynced }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cliente_id: clienteId, campo, valor: valorTarjeta }),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
       const data = await res.json();
       if (data.ok) { setSynced(true); onSynced?.(campo); }
-      else { setErrorMsg('Error al sincronizar'); }
-    } catch {
-      setErrorMsg('Error de conexión');
+      else { setErrorMsg(data.message || 'Error al sincronizar'); }
+    } catch (err) {
+      setErrorMsg(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al sincronizar' : 'Error de conexión al sincronizar');
     } finally {
       setSyncing(false);
     }
@@ -131,7 +135,7 @@ const TabTarjetaDigital = ({ cliente }) => {
     setEstado('loading');
     setErrorMsg('');
     fetch(`${N8N}/crm-tarjeta-get?cliente_id=${cliente.id}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { setTarjeta(d); setEstado('ok'); })
       .catch(() => { setErrorMsg('Error al cargar la tarjeta — comprueba la conexión'); setEstado('error'); });
   }, [cliente.id]);

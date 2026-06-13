@@ -45,6 +45,9 @@ const LeadRow = ({ lead, gestores, isAdmin }) => {
     };
 
     const actualizarLead = async (campo, valor) => {
+        // Guardar valores previos para rollback si la API falla
+        const estadoPrevio = estado;
+        const gestorPrevio = gestorId;
         setGuardando(true);
         try {
             const body = { id: lead.id, [campo]: valor };
@@ -55,8 +58,16 @@ const LeadRow = ({ lead, gestores, isAdmin }) => {
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            if (!data.ok) mostrarError('Error al guardar — intenta de nuevo');
+            if (!data.ok) {
+                // Rollback: el backend rechazo el cambio, no mentimos al usuario
+                setEstado(estadoPrevio);
+                setGestorId(gestorPrevio);
+                mostrarError(data.message || 'Error al guardar — intenta de nuevo');
+            }
         } catch {
+            // Error de red o HTTP no-2xx: rollback
+            setEstado(estadoPrevio);
+            setGestorId(gestorPrevio);
             mostrarError('Error de conexion al guardar');
         } finally {
             setGuardando(false);

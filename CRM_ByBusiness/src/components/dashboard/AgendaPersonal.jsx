@@ -100,8 +100,15 @@ const AgendaPersonal = () => {
     if (!user?.id) return;
     setLoading(true);
     fetch(`${import.meta.env.VITE_N8N_URL}/crm-callbacks-operador?operador_id=${user.id}&es_simulacion=${isTraining}`)
-      .then(res => { if (!res.ok) throw new Error('HTTP error'); return res.json(); })
-      .then(data => { if (Array.isArray(data)) setProgramadas(data); })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        // Aceptar tanto array directo (shape actual) como {ok, llamadas:[]} (shape estandar crm-)
+        const lista = Array.isArray(data) ? data : (data?.ok && Array.isArray(data.llamadas) ? data.llamadas : []);
+        setProgramadas(lista);
+      })
       .catch(() => setProgramadas([]))
       .finally(() => setLoading(false));
   };

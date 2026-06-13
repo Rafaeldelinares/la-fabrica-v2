@@ -57,7 +57,7 @@ const DashboardPanel = () => {
 
         // KPIs: el admin recibe ambos universos (real+training), los demás solo el suyo
         fetch(`${N8N}/crm-kpi-dashboard?es_simulacion=${scopeValue}&mode=${mode}`)
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(d => {
                 if (d.ok) {
                     // d.data es array de filas: para admin [{real:..., training:...}, {real:..., training:...}]
@@ -71,26 +71,26 @@ const DashboardPanel = () => {
 
         // Leads recientes — siempre filtrados por scope
         fetch(`${N8N}/crm-leads-admin?es_simulacion=${scopeValue}&limit=5`)
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(d => {
                 if (d.ok && Array.isArray(d.data)) {
                     setLeads(d.data);
                 } else if (d.ok) {
                     setLeads([]);
                 } else {
-                    setErrorLeads('Error al cargar leads recientes');
+                    setErrorLeads(d.message || 'Error al cargar leads recientes');
                 }
             })
             .catch(() => setErrorLeads('Error al cargar leads recientes'));
 
         // Actividad de operadores — filtrada por scope
         fetch(`${N8N}/crm-actividad-operadores?es_simulacion=${scopeValue}`)
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(d => {
                 if (d.ok && Array.isArray(d.data)) {
                     setOperadores(d.data);
                 } else {
-                    setErrorActividad('Error al cargar actividad de operadores');
+                    setErrorActividad(d.message || 'Error al cargar actividad de operadores');
                 }
             })
             .catch(() => setErrorActividad('Error al cargar actividad — comprueba la conexión'));
@@ -156,7 +156,7 @@ const DashboardPanel = () => {
     const labelScope = isAdmin ? 'GLOBAL' : isTraining ? 'ENTRENAMIENTO' : 'REAL';
 
     return (
-        <div className="flex flex-col gap-6 h-full overflow-y-auto bg-slate-950 font-sans">
+        <div className="flex flex-col gap-6 min-h-full overflow-y-auto bg-slate-950 font-sans">
 
             {/* Cabecera con refresh */}
             <div className="flex items-center justify-between">
@@ -213,7 +213,9 @@ const DashboardPanel = () => {
                             key={suffix || 'main'}
                             label={`LEADS HOY${suffix ? ` (${suffix})` : ''}`}
                             value={Number(row.leads_hoy ?? 0)}
-                            trend={row ? `${Number(row.total_leads ?? 0)} total` : ''}
+                            trend={row
+                                ? `${Number(row.leads_hoy_contactables ?? 0)} contactables / ${Number(row.total_leads ?? 0)} total`
+                                : ''}
                         />
                     );
                 };
@@ -349,6 +351,15 @@ const DashboardPanel = () => {
                                             <span className="text-slate-600 text-[9px]">Pendientes</span>
                                             <span className="text-base font-bold text-white">
                                                 {Number(row.leads_pendientes ?? 0)}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-slate-600 text-[9px]">Contactables</span>
+                                            <span className="text-base font-bold text-emerald-400">
+                                                {Number(row.leads_pendientes_contactables ?? 0)}
+                                                <span className="text-slate-600 font-normal text-[9px]">
+                                                    {' '}/{' '}{Number(row.leads_pendientes ?? 0)}
+                                                </span>
                                             </span>
                                         </div>
                                         <div className="flex flex-col">

@@ -43,12 +43,18 @@ const CandidatosPanel = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, estado: nuevoEstado }),
       });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text || 'Error del servidor'}`);
+      }
       const data = await response.json();
       if (data.ok) {
         setCandidatos(prev => prev.map(c => c.id === id ? { ...c, estado: nuevoEstado } : c));
+      } else {
+        setError(data.message || 'No se pudo actualizar el candidato');
       }
-    } catch {
-      setError('Error al actualizar estado del candidato — comprueba la conexión');
+    } catch (err) {
+      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al actualizar el candidato' : 'Error al actualizar el candidato');
     }
   };
 
@@ -58,7 +64,7 @@ const CandidatosPanel = () => {
     if (filtroOrigen) params.set('origen', filtroOrigen);
     const N8N = import.meta.env.VITE_N8N_URL;
     fetch(`${N8N}/crm-candidatos-admin?${params}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data => {
         if (data.ok) { setCandidatos(data.candidatos); setTotal(data.total); setError(''); }
         else { setCandidatos([]); setError('Error al cargar candidatos — respuesta inesperada del servidor'); }

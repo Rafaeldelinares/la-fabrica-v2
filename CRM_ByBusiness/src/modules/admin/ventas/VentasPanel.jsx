@@ -30,7 +30,7 @@ const VentasPanel = () => {
 
     useEffect(() => {
         fetch(`${N8N}/crm-operadores-lista`)
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(d => { if (d.ok) setOperadores(d.operadores); })
             .catch(() => setOperadores([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -44,10 +44,10 @@ const VentasPanel = () => {
         if (fechaDesde)      params.set('fecha_desde', fechaDesde);
         if (fechaHasta)      params.set('fecha_hasta', fechaHasta);
         fetch(`${N8N}/crm-ventas?${params}`)
-            .then(r => r.json())
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(d => {
                 if (d.ok) { setVentas(d.ventas); setTotal(d.total); setError(''); }
-                else { setVentas([]); setError('Error al cargar ventas — respuesta inesperada del servidor'); }
+                else { setVentas([]); setError(d.message || 'Error al cargar ventas — respuesta inesperada del servidor'); }
             })
             .catch(() => { setVentas([]); setError('Error al cargar ventas — comprueba la conexión'); });
     }, [N8N, filtroEstado, filtroOperador, fechaDesde, fechaHasta]);

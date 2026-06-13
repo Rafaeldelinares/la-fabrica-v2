@@ -23,7 +23,7 @@ const MisResultados = () => {
     if (!user?.id) return;
     setLoading(true);
     fetch(`${import.meta.env.VITE_N8N_URL}/crm-resultados-operador?operador_id=${user.id}`)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => { if (data?.ok) setStats(data.stats); })
       .catch(() => {})
       .finally(() => setLoading(false));

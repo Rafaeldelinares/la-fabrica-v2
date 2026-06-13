@@ -7,12 +7,15 @@ import EmptyState from '../../../shared/ui/EmptyState'
 /**
  * Zona 1: Filtros y lista de gestiones (sidebar izquierdo)
  * Narrativa: PASADO → PRESENTE → FUTURO (el operador lee de izquierda a derecha)
- * 
+ *
  * ZONA 1 — PASADO (¿A quién llamo?)
  * - Callbacks de HOY con prioridad visual (van ANTES que leads nuevos)
- * - Campañas activas diferenciadas visualmente (el operador elige adscribirse)
- * - Cola de leads normales por prioridad
+ * - Cola de leads normales por prioridad (pool general — sin selección por campaña)
  * - Lista de gestiones de la sesión actual
+ *
+ * Nota: las campañas NO se asignan a operadores en este modelo de negocio,
+ * por eso el selector de campañas se removió. Los operadores toman del pool
+ * general de leads disponibles (filtrable por ciudad y tipo de negocio).
  */
 const Zone1Filters = ({
   isTraining,
@@ -27,10 +30,7 @@ const Zone1Filters = ({
   sessionLeads = [],
   trainingLeadsDisponibles = 0,
   // Props para modo real
-  campanasActivas = [],
   leadsDisponibles = 0,
-  onSeleccionarCampana,
-  campanaSeleccionada = null,
   loading = false
 }) => {
   return (
@@ -44,33 +44,6 @@ const Zone1Filters = ({
         </div>
       ) : (
         <>
-          {/* Campañas activas - selector visual */}
-          {campanasActivas.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-[9px] text-slate-500 font-mono uppercase tracking-wider">
-                Campañas activas
-              </label>
-              <div className="flex flex-wrap gap-1">
-                {campanasActivas.map(campana => (
-                  <button
-                    key={campana.id}
-                    onClick={() => onSeleccionarCampana && onSeleccionarCampana(campana.id)}
-                    className={`px-2 py-1 text-[9px] font-mono rounded-sm border transition-colors ${
-                      campanaSeleccionada === campana.id
-                        ? 'bg-[#D00000] text-white border-[#D00000]'
-                        : 'bg-slate-900 text-slate-300 border-slate-700 hover:border-slate-600'
-                    }`}
-                  >
-                    {campana.nombre}
-                    {campana.prioridad > 3 && (
-                      <span className="ml-1 text-[8px] text-amber-400">★</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Filtros tradicionales */}
           <input
             type="text"
@@ -115,12 +88,6 @@ const Zone1Filters = ({
           `ASIGNAR SIGUIENTE LEAD (${leadsDisponibles})`
         )}
       </Button>
-
-      {!isTraining && campanaSeleccionada && (
-        <p className="text-[9px] text-slate-500 font-mono text-center">
-          Campaña seleccionada
-        </p>
-      )}
 
       <div className="flex-1 overflow-y-auto mt-2 flex flex-col gap-2 relative">
         {sessionLeads.length === 0 ? (

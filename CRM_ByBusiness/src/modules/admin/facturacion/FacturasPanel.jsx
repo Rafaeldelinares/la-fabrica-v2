@@ -198,7 +198,7 @@ const FacturasPanel = ({ onAbrirCliente, reloadKey }) => {
 
   const loadData = useCallback(() => {
     fetch(`${N8N}/crm-facturas`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => {
         const lista = d.facturas || [];
         const mapa = {};

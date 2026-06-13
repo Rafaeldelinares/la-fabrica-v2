@@ -219,7 +219,7 @@ const GestionLeads = ({ onRefresh }) => {
 
   const cargar = () => {
     fetch(`${base}/crm-leads-entrenamiento`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { if (d.ok) setLeads(d.leads); })
       .catch(() => setLeads([]));
   };
@@ -308,7 +308,7 @@ const SupervisorPanel = ({ user }) => {
   const cargar = () => {
     setOperadores(null);
     fetch(`${base}/crm-panel-supervisor`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { if (d.ok) setOperadores(d.operadores); })
       .catch(() => setOperadores([]));
   };

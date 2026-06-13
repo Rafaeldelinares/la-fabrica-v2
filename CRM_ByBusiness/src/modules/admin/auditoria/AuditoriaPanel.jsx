@@ -74,7 +74,7 @@ const AuditoriaPanel = () => {
     setLlamadas(null);
     const base = import.meta.env.VITE_N8N_URL;
     fetch(`${base}/crm-auditoria-llamadas`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { if (d.ok) setLlamadas(d.llamadas || []); })
       .catch(() => setLlamadas([]));
   };

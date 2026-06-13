@@ -86,6 +86,10 @@ const OperatorDashboard = ({
           if (campanasData.campanas?.length > 0 && !campanaSeleccionada) {
             setCampanaSeleccionada(campanasData.campanas[0].id);
           }
+        } else {
+          // Security-hardened webhook: no assignments or forbidden → clear state, show error
+          setCampanasActivas([]);
+          setErrorRed('No tienes campañas asignadas. Contacta al administrador.');
         }
 
         // Cargar callbacks HOY
@@ -114,13 +118,14 @@ const OperatorDashboard = ({
         
         const leadsData = await leadsRes.json();
         if (leadsData.ok) {
-          setLeadsDisponibles(leadsData.total_disponibles || 0);
+          // Backend devuelve "total" (count de leads en el pool), NO "total_disponibles"
+          setLeadsDisponibles(leadsData.total ?? leadsData.total_disponibles ?? 0);
         } else {
-          setLeadsDisponibles(campanasActivas.length * 10);
+          setLeadsDisponibles(0);
         }
       } catch (error) {
         setErrorRed(`Error de red: ${error.message}`);
-        setLeadsDisponibles(campanasActivas.length * 10);
+        setLeadsDisponibles(0);
       } finally {
         setLoadingCampanas(false);
       }
@@ -273,14 +278,14 @@ const OperatorDashboard = ({
       // Usar el lead_id del callback para cargarlo directamente
       if (callback.lead_id) {
         // Obtener detalles del lead
-        const leadRes = await fetch(`${N8N}/crm-lead-detail?lead_id=${callback.lead_id}`);
+        const leadRes = await fetch(`${N8N}/crm-lead-detail?lead_id=${callback.lead_id}&operador_id=${user.id}`);
         if (!leadRes.ok) {
           throw new Error(`Error obteniendo detalle del lead: HTTP ${leadRes.status}`);
         }
         
         const leadData = await leadRes.json();
         if (!leadData.ok || !leadData.lead) {
-          throw new Error('Lead no encontrado o respuesta inválida');
+          throw new Error('No se pudo cargar este callback. Puede que haya sido reasignado a otro operador.');
         }
         
         // Crear llamada activa para este lead
@@ -322,9 +327,8 @@ const OperatorDashboard = ({
         setErrorRed('');
       }, 1000);
     } catch (error) {
-      setErrorRed('Error al tomar callback. Usando asignación normal.');
-      // Intentar asignación normal como fallback
-      handleAsignarLead();
+      setErrorRed(error.message || 'No se pudo cargar este callback. Contacta al administrador si persiste.');
+      // Sin fallback a handleAsignarLead() — si el callback falló, no se sustituye con otro lead arbitrario
     }
   }, [user?.id, handleAsignarLead]);
 
@@ -371,10 +375,7 @@ const OperatorDashboard = ({
         sessionLeads={sessionLeads}
         trainingLeadsDisponibles={trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length}
         // Props para modo real (solo presente)
-        campanasActivas={campanasActivas}
         leadsDisponibles={leadsDisponibles}
-        onSeleccionarCampana={handleSeleccionarCampana}
-        campanaSeleccionada={campanaSeleccionada}
         loading={loadingCampanas}
       />
 

@@ -178,8 +178,8 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
     Promise.all([
-      fetch(`${n8nUrl}/crm-proformas?cliente_id=${cliente.id}`).then(r => r.json()),
-      fetch(`${n8nUrl}/crm-71-get-contratos-digitales?cliente_id=${cliente.id}`).then(r => r.json()),
+      fetch(`${n8nUrl}/crm-proformas?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+      fetch(`${n8nUrl}/crm-71-get-contratos-digitales?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
     ])
       .then(([dp, dc]) => {
         setProformas(dp.proformas || []);
@@ -199,11 +199,15 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+      if (!r.ok) {
+        const text = await r.text();
+        throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
+      }
       const d = await r.json();
-      if (d.ok || d.id || d.contrato_id) cargar();
-      else setError(d.error || `Error en ${endpoint}`);
-    } catch {
-      setError('Error de conexión');
+      if (d.ok) cargar();
+      else setError(d.message || d.error || `Error en ${endpoint}`);
+    } catch (err) {
+      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al ejecutar la acción' : 'Error al ejecutar la acción');
     } finally {
       setBusy(null);
     }

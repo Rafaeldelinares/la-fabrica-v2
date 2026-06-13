@@ -32,11 +32,15 @@ const VentaRow = ({ venta, onEstadoChange }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ venta_id: venta.id, estado: nuevoEstado }),
             });
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+            }
             const data = await res.json();
-            if (!data.ok) { setError('Error al guardar'); setEstado(venta.estado || 'activo'); }
+            if (!data.ok) { setError(data.message || 'Error al guardar'); setEstado(venta.estado || 'activo'); }
             else if (onEstadoChange) onEstadoChange(venta.id, nuevoEstado);
-        } catch {
-            setError('Error de conexión');
+        } catch (err) {
+            setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al guardar' : 'Error al guardar');
             setEstado(venta.estado || 'activo');
         } finally {
             setGuardando(false);

@@ -47,9 +47,21 @@ const TabContratos = ({ cliente, n8nUrl }) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contrato_id: contrato.id, estado: nuevoEstado }),
     })
-      .then(res => res.json())
-      .then(d => { if (d.ok) cargarContratos(); })
-      .catch(err => { if (import.meta.env.DEV) console.error('[TabContratos] cambiarEstado:', err); })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(d => {
+        if (d.ok) {
+          cargarContratos();
+        } else {
+          setErrorCarga(d.message || d.error || 'No se pudo cambiar el estado del contrato');
+        }
+      })
+      .catch(err => {
+        if (import.meta.env.DEV) console.error('[TabContratos] cambiarEstado:', err);
+        setErrorCarga('Error al cambiar estado — comprueba la conexión');
+      })
       .finally(() => setCambiandoEstado(null));
   };
 
@@ -72,15 +84,19 @@ const TabContratos = ({ cliente, n8nUrl }) => {
           fecha_fin:       fechaFin.toISOString().slice(0, 10),
         }),
       });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text || 'Error del servidor'}`);
+      }
       const data = await response.json();
       if (data.ok) {
         setNuevoOpen(false);
         setNuevoForm({ tipo_servicio: '', importe_mensual: '', fecha_inicio: '', meses: '12' });
         cargarContratos();
       } else {
-        setErrorGuardar('Error al guardar el contrato');
+        setErrorGuardar(data.message || 'Error al guardar el contrato');
       }
-    } catch (err) { if (import.meta.env.DEV) console.error('[TabContratos] nuevoContrato:', err); setErrorGuardar('Error de conexión'); } finally { setGuardandoNuevo(false); }
+    } catch (err) { if (import.meta.env.DEV) console.error('[TabContratos] nuevoContrato:', err); setErrorGuardar(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al guardar el contrato — comprueba la conexión' : 'Error al guardar el contrato'); } finally { setGuardandoNuevo(false); }
   };
 
   if (contratos === null) return (

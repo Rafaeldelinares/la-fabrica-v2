@@ -144,7 +144,7 @@ const EntrenamientoPanel = ({ user }) => {
 
   const cargarLeads = () => {
     fetch(`${base}/crm-leads-entrenamiento?operador_id=${user.id}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { if (d.ok) setLeads(d.leads); })
       .catch(() => setLeads([]));
   };

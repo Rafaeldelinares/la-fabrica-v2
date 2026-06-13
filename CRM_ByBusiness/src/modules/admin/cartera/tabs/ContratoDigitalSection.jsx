@@ -35,7 +35,7 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
     fetch(`${n8nUrl}/crm-contratos-digitales?cliente_id=${cliente.id}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { setContratos(d.contratos || []); setLoading(false); })
       .catch(() => { setError('Error al cargar contratos digitales'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
@@ -51,10 +51,14 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contrato_id: contrato.id }),
       });
+      if (!r.ok) {
+        const text = await r.text();
+        throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
+      }
       const d = await r.json();
       if (d.ok) cargar();
-      else setError('Error al enviar contrato');
-    } catch (err) { setError('Error de conexión'); void err; }
+      else setError(d.message || d.error || 'Error al enviar contrato');
+    } catch (err) { setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al enviar' : 'Error de conexión'); }
     finally { setBusy(null); }
   };
 

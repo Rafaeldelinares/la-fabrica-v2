@@ -352,9 +352,9 @@ const ClienteExpandido = ({ cliente, onRefresh }) => {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${N8N_URL}/crm-proformas?cliente_id=${cliente.id}`).then(r => r.json()),
-      fetch(`${N8N_URL}/crm-71-get-contratos-digitales?cliente_id=${cliente.id}`).then(r => r.json()).catch(() => ({})),
-      fetch(`${N8N_URL}/crm-facturas-get?cliente_id=${cliente.id}`).then(r => r.json()).catch(() => ({})),
+      fetch(`${N8N_URL}/crm-proformas?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+      fetch(`${N8N_URL}/crm-71-get-contratos-digitales?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(() => ({})),
+      fetch(`${N8N_URL}/crm-facturas-get?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(() => ({})),
     ])
       .then(([dp, dc, df]) => {
         setProformas(dp.ok ? (dp.proformas || []) : []);
@@ -510,8 +510,8 @@ const ClientesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   /** Carga la lista de clientes desde el servidor. */
   const loadClientes = () => {
     fetch(`${N8N_URL}/crm-clientes`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) { setClientes(d.clientes); setPagina(1); } })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(d => { if (d.ok) { setClientes(d.clientes); setPagina(1); } else setError(d.message || 'Error al cargar clientes'); })
       .catch(() => setClientes([]));
   };
 

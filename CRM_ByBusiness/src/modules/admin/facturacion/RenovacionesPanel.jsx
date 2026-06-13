@@ -51,7 +51,7 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
     setRenovaciones(null);
     setMesFiltro(null);
     fetch(`${N8N}/crm-renovaciones?meses=${meses}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => setRenovaciones(d.ok ? (d.renovaciones || []) : []))
       .catch(() => setRenovaciones([]));
   };

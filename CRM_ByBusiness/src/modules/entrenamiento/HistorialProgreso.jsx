@@ -102,7 +102,7 @@ const HistorialProgreso = ({ user }) => {
   const cargar = () => {
     setData(null);
     fetch(`${base}/crm-historial-operador?operador_id=${user.id}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(d => { if (d.ok) setData(d); })
       .catch(() => setData({ sesiones: [], resumen: {} }));
   };

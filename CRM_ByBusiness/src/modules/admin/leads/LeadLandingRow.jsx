@@ -32,6 +32,9 @@ const LeadLandingRow = ({ lead, gestores }) => {
     };
 
     const actualizarLead = async (campo, valor) => {
+        // Guardar valores previos para rollback si la API falla
+        const estadoPrevio = estado;
+        const gestorPrevio = gestorId;
         setGuardando(true);
         try {
             const body = { lead_id: lead.id, [campo]: valor };
@@ -40,9 +43,18 @@ const LeadLandingRow = ({ lead, gestores }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            if (!data.ok) mostrarError('Error al guardar');
+            if (!data.ok) {
+                // Rollback: el backend rechazo el cambio, no mentimos al usuario
+                setEstado(estadoPrevio);
+                setGestorId(gestorPrevio);
+                mostrarError(data.message || 'Error al guardar');
+            }
         } catch {
+            // Error de red o HTTP no-2xx: rollback
+            setEstado(estadoPrevio);
+            setGestorId(gestorPrevio);
             mostrarError('Error de conexión');
         } finally {
             setGuardando(false);
@@ -65,18 +77,25 @@ const LeadLandingRow = ({ lead, gestores }) => {
 
     /** Guarda una nota/observación en el historial del lead */
     const guardarNota = async () => {
+        if (!nota.trim()) return;
         setGuardandoNota(true);
         try {
             const res = await fetch(`${N8N}/crm-update-lead`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lead_id: lead.id, nota }),
+                body: JSON.stringify({ lead_id: lead.id, nota: nota.trim() }),
             });
             if (!res.ok) { mostrarError('Error al guardar nota'); return; }
             const data = await res.json();
-            if (!data.ok) { mostrarError(data.error || 'Error al guardar nota'); return; }
+            if (data.ok) {
+                // Limpiar UI al guardar OK (LeadRow lo hacia, LeadLandingRow no)
+                setNota('');
+                setNotaAbierta(false);
+            } else {
+                mostrarError(data.error || 'Error al guardar nota');
+            }
         } catch {
-            mostrarError('Error al guardar nota');
+            mostrarError('Error de conexión al guardar nota');
         } finally {
             setGuardandoNota(false);
         }

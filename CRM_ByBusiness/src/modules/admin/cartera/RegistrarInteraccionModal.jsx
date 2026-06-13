@@ -73,11 +73,15 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, interaccion, onClose, on
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
       const d = await res.json();
       if (d.ok) { onSaved(d.interaccion); }
-      else { setError('Error al guardar'); }
-    } catch {
-      setError('Error de conexión');
+      else { setError(d.message || 'Error al guardar'); }
+    } catch (err) {
+      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al guardar la interacción' : 'Error al guardar la interacción');
     } finally {
       setSaving(false);
     }
