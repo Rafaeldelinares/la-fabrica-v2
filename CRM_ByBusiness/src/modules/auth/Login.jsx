@@ -115,6 +115,10 @@ const Login = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: resetEmail.toLowerCase().trim() }),
       });
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+      }
       const data = await res.json();
       if (data.ok) {
         setResetResult(`Tu nueva contraseña fue enviada a ${resetEmail}. Revisa tu bandeja de entrada.`);

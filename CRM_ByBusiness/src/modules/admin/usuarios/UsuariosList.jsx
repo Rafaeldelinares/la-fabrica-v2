@@ -9,6 +9,11 @@ import { useAuth } from '../../auth/AuthContext';
 import HorarioModal from './HorarioModal';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
+// URLs específicas para webhooks que NO usan el VITE_N8N_URL genérico.
+// Estas viven en instancias de n8n distintas o en webhooks separados.
+const N8N_AUSENCIAS_URL = import.meta.env.VITE_N8N_AUSENCIAS_URL ?? '';
+const N8N_GESTIONES_URL = import.meta.env.VITE_N8N_GESTIONES_URL ?? '';
+
 const ROLES = [
   { value: 'admin',        label: 'Administrador' },
   { value: 'supervisor',   label: 'Supervisor' },
@@ -47,7 +52,7 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
   useEffect(() => {
     setCargando(true);
     setErrorCarga(null);
-    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id })
+    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })
       .then(resData => {
         const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setGestiones(gs);
@@ -225,7 +230,7 @@ const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
   useEffect(() => {
     setCargando(true);
     setErrorCarga(null);
-    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id })
+    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })
       .then(resData => {
         const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setDelegaciones(gs);
@@ -437,7 +442,7 @@ const UsuariosList = () => {
     setModalAusencia(null);
     const adminsEmails = usuarios.filter(usr => usr.rol === 'admin' && usr.estado === 'activo').map(usr => usr.email).join(',');
     try {
-      const data = await n8nPost('crm-ausencias', { action: 'ausencia_crear', operador_id: operador.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails });
+      const data = await n8nPost('crm-ausencias', { action: 'ausencia_crear', operador_id: operador.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }, { baseUrl: N8N_AUSENCIAS_URL });
       if (!data.ok) { setError(data.message || 'No se pudo marcar la ausencia'); return; }
       cargar();
       mostrarInfo(`✓ ${operador.nombre} marcado como ausente. Delegaciones creadas.`);
@@ -451,7 +456,7 @@ const UsuariosList = () => {
     setModalBaja(null);
     const adminsEmails = usuarios.filter(usr => usr.rol === 'admin' && usr.estado === 'activo').map(usr => usr.email).join(',');
     try {
-      const data = await n8nPost('crm-ausencias', { action: 'baja', operador_id: operador.id, operador_nombre: operador.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails });
+      const data = await n8nPost('crm-ausencias', { action: 'baja', operador_id: operador.id, operador_nombre: operador.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }, { baseUrl: N8N_AUSENCIAS_URL });
       if (!data.ok) { setError(data.message || 'No se pudo dar de baja'); return; }
       cargar();
       mostrarInfo(`✓ ${operador.nombre} dado de baja definitivamente.`);
@@ -464,7 +469,7 @@ const UsuariosList = () => {
     const operador = modalReactivar;
     setModalReactivar(null);
     try {
-      const data = await n8nPost('crm-ausencias', { action: 'ausencia_reactivar', operador_id: operador.id, resoluciones });
+      const data = await n8nPost('crm-ausencias', { action: 'ausencia_reactivar', operador_id: operador.id, resoluciones }, { baseUrl: N8N_AUSENCIAS_URL });
       if (!data.ok) { setError(data.message || 'No se pudo reactivar al usuario'); return; }
       cargar();
       mostrarInfo(`✓ ${operador.nombre} reactivado.`);

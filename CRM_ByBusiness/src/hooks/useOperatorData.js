@@ -142,15 +142,17 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
     refreshHistorial(leadId)
   }, [leadId, refreshHistorial])
 
-  // refreshData como alias de carga completa (compatibilidad)
-  const refreshData = useCallback(() => {
-    Promise.all([
+  // refreshData como alias de carga completa (compatibilidad).
+  // CRITICAL: debe retornar Promise para que callers puedan
+  // encadenar .then() / await refreshData() correctamente.
+  const refreshData = useCallback(async () => {
+    await Promise.all([
       cargarLlamadaActiva(),
       refreshStats(),
       refreshCampanas(),
       fetchProgramadas()
-    ])
-    if (leadId) refreshHistorial(leadId)
+    ]);
+    if (leadId) await refreshHistorial(leadId);
   }, [cargarLlamadaActiva, refreshStats, refreshCampanas, fetchProgramadas, refreshHistorial, leadId])
 
   return {

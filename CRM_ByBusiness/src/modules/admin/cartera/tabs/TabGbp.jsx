@@ -305,9 +305,9 @@ const URL_TYPE_LABELS = {
 
 /**
  * TabGbp — Pestaña de fichas Google Business del cliente con evolución y sentiment.
- * @param {{ cliente: object, n8nUrl: string }} props
+ * @param {{ cliente: object }} props
  */
-const TabGbp = ({ cliente, n8nUrl }) => {
+const TabGbp = ({ cliente }) => {
   const [fichas,      setFichas]      = useState(null);
   const [selIdx,      setSelIdx]      = useState(0);
   const [historico,   setHistorico]   = useState(null);
@@ -718,7 +718,6 @@ TabGbp.propTypes = {
     gmaps_last_updated:      PropTypes.string,
     bybusiness_url:          PropTypes.string,
   }).isRequired,
-  n8nUrl: PropTypes.string.isRequired,
 };
 
 export default TabGbp;

@@ -87,10 +87,12 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
   const [comentarios, setComentarios] = useState('');
   const [apto, setApto] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [errorEvaluar, setErrorEvaluar] = useState('');
 
   const evaluar = async () => {
     if (!op.sesion_id || apto === null) return;
     setSaving(true);
+    setErrorEvaluar('');
     try {
       await n8nPost('crm-evaluar-sesion', {
         sesion_id: op.sesion_id,
@@ -101,8 +103,13 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
         comentarios, apto,
       });
       onEvaluar.refetch();
-    } catch { /* error de red — finally restablece el estado */ }
-    finally { setSaving(false); }
+    } catch (err) {
+      // Mostrar error al supervisor en vez de swallow
+      if (import.meta.env.DEV) console.error('[SupervisorPanel] Error al guardar evaluación:', err);
+      setErrorEvaluar(err instanceof Error ? err.message : 'Error de red al guardar la evaluación');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const llamadas = op.ultimas_llamadas || [];

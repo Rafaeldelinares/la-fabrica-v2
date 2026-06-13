@@ -30,12 +30,20 @@ function fetchWithTimeout(url, options) {
 
 /**
  * Llamada base a un webhook de n8n con 1 reintento automático.
- * @param {string}      path    - ruta relativa (ej. 'crm-leads-get')
- * @param {RequestInit} [options]
+ * @param {string}      path    - ruta del webhook (ej. 'crm-leads-get') OR URL absoluta
+ * @param {RequestInit & { baseUrl?: string }} [options]  - baseUrl override
  * @returns {Promise<unknown>}
  */
 export async function n8nFetch(path, options = {}) {
-  const url  = `${BASE_URL}/${path}`;
+  // Aceptar URL absoluta (si el path empieza con http:// o https://)
+  // o usar baseUrl override (para workflows en instancias n8n distintas).
+  let url;
+  if (/^https?:\/\//.test(path)) {
+    url = path;
+  } else {
+    const base = options.baseUrl ?? BASE_URL;
+    url = `${base}/${path}`;
+  }
   const init = {
     headers: { 'Content-Type': 'application/json', ...options.headers },
     ...options,
@@ -63,20 +71,22 @@ export async function n8nFetch(path, options = {}) {
  * POST a un webhook de n8n.
  * @param {string}  path
  * @param {unknown} [body]
+ * @param {{ baseUrl?: string }} [options]  - baseUrl override
  * @returns {Promise<unknown>}
  */
-export const n8nPost = (path, body) =>
-  n8nFetch(path, { method: 'POST', body: JSON.stringify(body) });
+export const n8nPost = (path, body, options = {}) =>
+  n8nFetch(path, { ...options, method: 'POST', body: JSON.stringify(body) });
 
 /**
  * GET a un webhook de n8n con query params opcionales.
  * @param {string}                 path
  * @param {Record<string, string>} [params]
+ * @param {{ baseUrl?: string }}    [options]  - baseUrl override
  * @returns {Promise<unknown>}
  */
-export const n8nGet = (path, params) => {
+export const n8nGet = (path, params, options = {}) => {
   const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-  return n8nFetch(path + qs, { method: 'GET' });
+  return n8nFetch(path + qs, { ...options, method: 'GET' });
 };
 
 /**
