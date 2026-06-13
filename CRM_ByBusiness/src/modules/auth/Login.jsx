@@ -33,6 +33,10 @@ const Login = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: emailToLogin.toLowerCase().trim(), password: passwordToUse }),
     });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+    }
     return res.json();
   };
 
@@ -42,6 +46,10 @@ const Login = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: emailToLogin.toLowerCase().trim(), password: passwordToUse }),
     });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+    }
     const data = await res.json();
     if (data.ok && data.user) {
       return {
@@ -53,6 +61,8 @@ const Login = () => {
           rol: data.user.rol || 'operador',
           totp_habilitado: data.user.totp_habilitado || false,
           totp_configurado: data.user.totp_configurado || false,
+          // totp_secret solo viene si 2FA está activo y no configurado (para setup inicial)
+          totp_secret: data.user.totp_secret || undefined,
           es_simulacion: data.user.es_simulacion ?? false,
         },
       };
@@ -157,7 +167,6 @@ const Login = () => {
               onEmailChange={(e) => setEmail(e.target.value)}
               onPasswordChange={(e) => setPassword(e.target.value)}
               onSubmit={handleCredentials}
-              onForgotPassword={() => {}}
               onSubmitResetPassword={handleSubmitResetPassword}
               resetLoading={resetLoading}
               resetResult={resetResult}

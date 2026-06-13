@@ -31,8 +31,9 @@ const Setup2FAScreen = ({ usuario, onSuccess }) => {
       const res = await fetch(`${N8N_WEBHOOK}/crm-verificar-2fa`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: usuario.id, codigo }),
+        body: JSON.stringify({ usuario_id: usuario.id, codigo, is_setup: true }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.ok) {
         onSuccess();
@@ -40,8 +41,8 @@ const Setup2FAScreen = ({ usuario, onSuccess }) => {
         setErrorMsg(data.error || 'CÓDIGO ERRÓNEO. Intentá de nuevo.');
         setCodigo('');
       }
-    } catch {
-      setErrorMsg('Error de conexión con el servidor.');
+    } catch (err) {
+      setErrorMsg(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión con el servidor' : 'Error de conexión con el servidor');
     } finally {
       setLoading(false);
     }

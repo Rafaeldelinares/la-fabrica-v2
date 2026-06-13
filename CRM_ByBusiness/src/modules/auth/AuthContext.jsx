@@ -6,11 +6,21 @@ const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 60 Minutes
 export const AuthProvider = ({ children }) => {
   // INSTANT AUTH: Initialize state directly from localStorage (Lazy Init)
   const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('op_user');
-    return stored ? JSON.parse(stored) : null;
+    try {
+      const stored = localStorage.getItem('op_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      // localStorage corrupto o bloqueado (modo incognito, etc.) — empezar limpio
+      localStorage.removeItem('op_user');
+      return null;
+    }
   });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!localStorage.getItem('op_user');
+    try {
+      return !!localStorage.getItem('op_user');
+    } catch {
+      return false;
+    }
   });
   const [lastActivity, setLastActivity] = useState(Date.now());
   const [timeLeft, setTimeLeft] = useState(INACTIVITY_LIMIT_MS);
@@ -48,7 +58,8 @@ export const AuthProvider = ({ children }) => {
       email: userData.email,
       role: userData.role || userData.rol || 'operador',
       nombre: userData.nombre || userData.email.split('@')[0],
-      totp_secret: userData.totp_secret,
+      // No persistir totp_secret en localStorage: el secret es de setup, no de sesión
+      // (después del setup, solo el backend lo necesita; el frontend no)
       totp_habilitado: userData.totp_habilitado,
       es_simulacion: userData.es_simulacion ?? false,
     };
@@ -61,8 +72,11 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem('op_user');
-    window.location.reload(); // Hard refresh to clear memory
+    try {
+      localStorage.removeItem('op_user');
+    } catch {
+      // localStorage no disponible — seguir con logout igual
+    }
   };
 
   return (

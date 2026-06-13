@@ -29,8 +29,9 @@ const Verify2FAScreen = ({ usuario, email, onSuccess }) => {
       const res = await fetch(`${N8N_WEBHOOK}/crm-verificar-2fa`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: usuario.id, codigo: val }),
+        body: JSON.stringify({ usuario_id: usuario.id, codigo: val, is_setup: false }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.ok) {
         onSuccess();
