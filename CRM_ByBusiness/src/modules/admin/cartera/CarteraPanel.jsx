@@ -71,7 +71,7 @@ const CarteraPanel = () => {
       .then(data => { if (data.ok) setClientes(data.clientes); else setError('Error al cargar la cartera — respuesta inesperada'); })
       .catch(() => { setClientes([]); setError('Error al cargar la cartera — comprueba la conexión'); });
   // N8N es constante de módulo, no reactiva
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   const aniosDisponibles = useMemo(() => {

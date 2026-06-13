@@ -12,6 +12,7 @@ import DatePickerField from '../../../shared/ui/DatePickerField';
 import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
 import SlotPicker from './SlotPicker';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 /** Tipos de evento operador — se distribuyen 10:00–20:00 si llegan a las 00:00. */
 const TIPOS_OPERADOR = new Set(['interaccion', 'llamada_operador', 'callback_operador']);
@@ -113,8 +114,7 @@ const localizer = dateFnsLocalizer({
   getDay, locales: { es },
 });
 
-// Endpoint n8n — VITE_N8N_URL debe estar definida en producción
-const N8N = import.meta.env.VITE_N8N_URL;
+
 
 const TIPO = {
   cita_cliente:           { textClass: 'text-blue-500',    borderClass: 'border-blue-500/40',    bgClass: 'bg-blue-500/10',    label: 'Cita cliente',      Icon: CalIcon       },
@@ -163,15 +163,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
     setSaving(true);
     setErrorGuardar('');
     try {
-      const response = await fetch(`${N8N}/crm-crear-cita`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, gestor_id: gestorId }),
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text || 'Error del servidor'}`);
-      }
-      const data = await response.json();
+      const data = await n8nPost('crm-crear-cita', { ...form, gestor_id: gestorId });
       if (data.ok) { onCreated(); onClose(); }
       else { setErrorGuardar(data.error || data.message || 'Error al crear la cita — inténtalo de nuevo'); }
     } catch (err) {
@@ -431,8 +423,7 @@ const AgendaGlobalPanel = () => {
   const horariosRef = useRef(new Map());
 
   const abrirClienteDesdeAgenda = useCallback((clienteId) => {
-    fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-cartera-get', { cliente_id: clienteId })
       .then(data => {
         if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]);
         else setErrorCarga(true);
@@ -449,7 +440,7 @@ const AgendaGlobalPanel = () => {
       setTooltipEvento(evento);
     },
     clear: () => setTooltipEvento(null),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }), []);
 
   const cargar = useCallback(() => {
@@ -457,8 +448,7 @@ const AgendaGlobalPanel = () => {
     setErrorCarga(false);
     const fechaInicio = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
     const fechaFin    = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
-    fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-agenda-unificada', { fecha_inicio: fechaInicio, fecha_fin: fechaFin })
       .then(data => {
         if (data.ok) {
           setEventos(data.eventos.map(evento => {
@@ -486,8 +476,7 @@ const AgendaGlobalPanel = () => {
   useEffect(() => { cargar(); }, [cargar]);
 
   useEffect(() => {
-    fetch(`${N8N}/crm-clientes`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-clientes')
       .then(data => {
         if (data.ok) setClientes(data.clientes);
         else { setClientes([]); setErrorClientes(true); }
@@ -498,8 +487,7 @@ const AgendaGlobalPanel = () => {
   // Carga horarios de trabajo de todos los usuarios al montar el panel.
   // Se almacena en un ref para no forzar re-renders innecesarios.
   useEffect(() => {
-    fetch(`${N8N}/crm-horarios-todos`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-horarios-todos')
       .then(datos => {
         if (!datos.ok) return;
         const mapaHorarios = new Map();
@@ -518,8 +506,7 @@ const AgendaGlobalPanel = () => {
   }, []);
 
   useEffect(() => {
-    fetch(`${N8N}/crm-cartera-get`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-cartera-get')
       .then(data => {
         const clientes = data.ok ? (data.clientes || []) : [];
         const ahora              = new Date();
@@ -533,7 +520,6 @@ const AgendaGlobalPanel = () => {
         );
       })
       .catch(() => { setRenovaciones([]); setErrorCarga(true); });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo]);

@@ -7,10 +7,7 @@ import * as OTPAuth from 'otpauth';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
 import HorarioModal from './HorarioModal';
-
-const N8N      = import.meta.env.VITE_N8N_URL;
-const N8N_AUS  = import.meta.env.VITE_N8N_AUSENCIAS_URL;
-const N8N_GEST = import.meta.env.VITE_N8N_GESTIONES_URL;
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const ROLES = [
   { value: 'admin',        label: 'Administrador' },
@@ -50,8 +47,7 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
   useEffect(() => {
     setCargando(true);
     setErrorCarga(null);
-    fetch(`${N8N_GEST}?operador_id=${usuario.id}`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id })
       .then(resData => {
         const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setGestiones(gs);
@@ -229,8 +225,7 @@ const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
   useEffect(() => {
     setCargando(true);
     setErrorCarga(null);
-    fetch(`${N8N_GEST}?operador_id=${usuario.id}`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id })
       .then(resData => {
         const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setDelegaciones(gs);
@@ -315,15 +310,7 @@ const Modal2FA = ({ qrModal, onVerificado, onError }) => {
     setVerificando(true);
     setErrorLocal('');
     try {
-      const response = await fetch(`${N8N}/crm-verificar-2fa`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: qrModal.usuarioId, codigo }),
-      });
-      if (!response.ok) {
-        const errBody = await response.text().catch(() => '');
-        throw new Error(`HTTP ${response.status} — ${errBody || 'sin cuerpo'}`);
-      }
-      const data = await response.json();
+      const data = await n8nPost('crm-verificar-2fa', { usuario_id: qrModal.usuarioId, codigo });
       if (data.ok) { onVerificado(); }
       else { setErrorLocal('Código incorrecto, inténtalo de nuevo'); setCodigo(''); }
     } catch { setErrorLocal('Error de conexión'); }
@@ -406,11 +393,7 @@ const UsuariosList = () => {
   const cargar = useCallback(() => {
     setLoading(true);
     setError(null);
-    fetch(`${N8N}/crm-usuarios-get`)
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
+    n8nGet('crm-usuarios-get')
       .then(resData => { if (resData.ok) setUsuarios(resData.usuarios); else setError('Error al cargar usuarios'); })
       .catch(() => setError('Error de conexión al cargar usuarios'))
       .finally(() => setLoading(false));
@@ -432,7 +415,7 @@ const UsuariosList = () => {
     if (!formData.nombre || !formData.email || (modo === 'crear' && !formData.password)) return;
     setSaving(true);
     try {
-      const url      = modo === 'crear' ? `${N8N}/crm-crear-usuario` : `${N8N}/crm-editar-usuario`;
+      const path = modo === 'crear' ? 'crm-crear-usuario' : 'crm-editar-usuario';
       // creado_por: id del admin que crea/edita el usuario (auditoría)
       // En edicion, NO mandar password si esta vacio (significa "no cambiar")
       const payload  = {
@@ -440,13 +423,11 @@ const UsuariosList = () => {
         creado_por: user?.id,
         ...(modo === 'editar' && !formData.password ? { password: undefined } : {}),
       };
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data     = await response.json();
+      const data = await n8nPost(path, payload);
       if (!data.ok) { setError(data.message || data.error || 'No se pudo guardar el usuario'); return; }
       cargar(); cerrar();
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al guardar — comprueba la conexión' : 'Error al guardar');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al guardar — comprueba la conexión' : 'Error al guardar');
     }
     finally { setSaving(false); }
   };
@@ -456,17 +437,12 @@ const UsuariosList = () => {
     setModalAusencia(null);
     const adminsEmails = usuarios.filter(usr => usr.rol === 'admin' && usr.estado === 'activo').map(usr => usr.email).join(',');
     try {
-      const res = await fetch(N8N_AUS, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ausencia_crear', operador_id: operador.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-ausencias', { action: 'ausencia_crear', operador_id: operador.id, creado_por: user?.id, delegaciones, admins_emails: adminsEmails });
       if (!data.ok) { setError(data.message || 'No se pudo marcar la ausencia'); return; }
       cargar();
       mostrarInfo(`✓ ${operador.nombre} marcado como ausente. Delegaciones creadas.`);
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al marcar ausencia — comprueba la conexión' : 'Error al marcar ausencia');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al marcar ausencia — comprueba la conexión' : 'Error al marcar ausencia');
     }
   };
 
@@ -475,17 +451,12 @@ const UsuariosList = () => {
     setModalBaja(null);
     const adminsEmails = usuarios.filter(usr => usr.rol === 'admin' && usr.estado === 'activo').map(usr => usr.email).join(',');
     try {
-      const res = await fetch(N8N_AUS, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'baja', operador_id: operador.id, operador_nombre: operador.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-ausencias', { action: 'baja', operador_id: operador.id, operador_nombre: operador.nombre, creado_por: user?.id, delegaciones, admins_emails: adminsEmails });
       if (!data.ok) { setError(data.message || 'No se pudo dar de baja'); return; }
       cargar();
       mostrarInfo(`✓ ${operador.nombre} dado de baja definitivamente.`);
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al dar de baja — comprueba la conexión' : 'Error al dar de baja');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al dar de baja — comprueba la conexión' : 'Error al dar de baja');
     }
   };
 
@@ -493,65 +464,52 @@ const UsuariosList = () => {
     const operador = modalReactivar;
     setModalReactivar(null);
     try {
-      const res = await fetch(N8N_AUS, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'ausencia_reactivar', operador_id: operador.id, resoluciones }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-ausencias', { action: 'ausencia_reactivar', operador_id: operador.id, resoluciones });
       if (!data.ok) { setError(data.message || 'No se pudo reactivar al usuario'); return; }
       cargar();
       mostrarInfo(`✓ ${operador.nombre} reactivado.`);
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al reactivar — comprueba la conexión' : 'Error al reactivar');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al reactivar — comprueba la conexión' : 'Error al reactivar');
     }
   };
 
   const suspender = async (id) => {
     try {
-      const res = await fetch(`${N8N}/crm-eliminar-usuario`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-eliminar-usuario', { id });
       if (!data.ok) { setError(data.message || 'No se pudo suspender al usuario'); return; }
       cargar();
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al suspender — comprueba la conexión' : 'Error al suspender');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al suspender — comprueba la conexión' : 'Error al suspender');
     }
   };
 
   const reactivarSuspendido = async (id) => {
     try {
-      const res = await fetch(`${N8N}/crm-reactivar-usuario`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-reactivar-usuario', { id });
       if (!data.ok) { setError(data.message || 'No se pudo reactivar al usuario'); return; }
       cargar();
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al reactivar — comprueba la conexión' : 'Error al reactivar');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al reactivar — comprueba la conexión' : 'Error al reactivar');
     }
   };
 
   const activar2fa = async (usuario) => {
     try {
-      const response = await fetch(`${N8N}/crm-activar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: usuario.id }) });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
+      const data = await n8nPost('crm-activar-2fa', { id: usuario.id });
       if (!data.ok) { setError(data.message || 'No se pudo iniciar la activación de 2FA'); return; }
       setQrModal({ usuarioId: usuario.id, nombre: usuario.nombre, email: usuario.email, secret: data.totp_secret, verificado: false });
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al activar 2FA — comprueba la conexión' : 'Error al activar 2FA');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al activar 2FA — comprueba la conexión' : 'Error al activar 2FA');
     }
   };
 
   const desactivar2fa = async (id) => {
     try {
-      const res = await fetch(`${N8N}/crm-desactivar-2fa`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-desactivar-2fa', { id });
       if (!data.ok) { setError(data.message || 'No se pudo desactivar 2FA'); return; }
       cargar();
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al desactivar 2FA — comprueba la conexión' : 'Error al desactivar 2FA');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al desactivar 2FA — comprueba la conexión' : 'Error al desactivar 2FA');
     }
   };
 

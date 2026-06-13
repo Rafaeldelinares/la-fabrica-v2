@@ -4,6 +4,7 @@ import Badge from '../../shared/ui/Badge';
 import EmptyState from '../../shared/ui/EmptyState';
 import { GraduationCap, RefreshCw, RotateCcw, UserCheck, Star, Trash2, Plus, ChevronDown, ChevronUp, AlertTriangle, TrendingDown, PhoneOff, TrendingUp } from 'lucide-react';
 import { fmtHora } from '../../utils/dates';
+import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
 
 const ALERTAS_REGLAS = [
   {
@@ -90,18 +91,14 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
   const evaluar = async () => {
     if (!op.sesion_id || apto === null) return;
     setSaving(true);
-    const base = import.meta.env.VITE_N8N_URL;
     try {
-      await fetch(`${base}/crm-evaluar-sesion`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sesion_id: op.sesion_id,
-          supervisor_id: onEvaluar.supervisorId,
-          punt_argumentacion: punt.argumentacion,
-          punt_objeciones: punt.objeciones,
-          punt_cierre: punt.cierre,
-          comentarios, apto,
-        }),
+      await n8nPost('crm-evaluar-sesion', {
+        sesion_id: op.sesion_id,
+        supervisor_id: onEvaluar.supervisorId,
+        punt_argumentacion: punt.argumentacion,
+        punt_objeciones: punt.objeciones,
+        punt_cierre: punt.cierre,
+        comentarios, apto,
       });
       onEvaluar.refetch();
     } catch { /* error de red — finally restablece el estado */ }
@@ -215,11 +212,9 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
 const GestionLeads = ({ onRefresh }) => {
   const [leads, setLeads] = useState(null);
   const [resetting, setResetting] = useState(false);
-  const base = import.meta.env.VITE_N8N_URL;
 
   const cargar = () => {
-    fetch(`${base}/crm-leads-entrenamiento`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-leads-entrenamiento')
       .then(d => { if (d.ok) setLeads(d.leads); })
       .catch(() => setLeads([]));
   };
@@ -230,10 +225,7 @@ const GestionLeads = ({ onRefresh }) => {
     if (!confirm('¿Borrar TODAS las interacciones de entrenamiento? Los leads quedarán limpios.')) return;
     setResetting(true);
     try {
-      await fetch(`${base}/crm-reset-entrenamiento`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'reset_historial' }),
-      });
+      await n8nPost('crm-reset-entrenamiento', { accion: 'reset_historial' });
       cargar(); onRefresh();
     } finally { setResetting(false); }
   };
@@ -241,20 +233,14 @@ const GestionLeads = ({ onRefresh }) => {
   const resetOperador = async (operadorId, nombre) => {
     if (!confirm(`¿Borrar interacciones de ${nombre}?`)) return;
     try {
-      await fetch(`${base}/crm-reset-entrenamiento`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: 'reset_historial', operador_id: operadorId }),
-      });
+      await n8nPost('crm-reset-entrenamiento', { accion: 'reset_historial', operador_id: operadorId });
       cargar(); onRefresh();
     } catch { /* error de red */ }
   };
 
   const toggleLead = async (lead) => {
     try {
-      await fetch(`${base}/crm-reset-entrenamiento`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accion: lead.activo ? 'borrar_lead' : 'restaurar_lead', lead_id: lead.id }),
-      });
+      await n8nPost('crm-reset-entrenamiento', { accion: lead.activo ? 'borrar_lead' : 'restaurar_lead', lead_id: lead.id });
       cargar();
     } catch { /* error de red */ }
   };
@@ -303,12 +289,10 @@ const GestionLeads = ({ onRefresh }) => {
 const SupervisorPanel = ({ user }) => {
   const [operadores, setOperadores] = useState(null);
   const [tab, setTab] = useState('operadores');
-  const base = import.meta.env.VITE_N8N_URL;
 
   const cargar = () => {
     setOperadores(null);
-    fetch(`${base}/crm-panel-supervisor`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-panel-supervisor')
       .then(d => { if (d.ok) setOperadores(d.operadores); })
       .catch(() => setOperadores([]));
   };

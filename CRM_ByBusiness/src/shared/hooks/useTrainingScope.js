@@ -30,7 +30,7 @@ const useTrainingScope = () => {
     } else if (es_simulacion === true || rol === 'en_practicas') {
       mode = 'training';
       if (rol === 'en_practicas') {
-        // eslint-disable-next-line no-console
+         
         console.warn(
           '[useTrainingScope] "en_practicas" rol is deprecated — alias for training mode. ' +
           'DB migration to set es_simulacion=true on these users is pending.',

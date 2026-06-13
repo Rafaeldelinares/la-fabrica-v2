@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, Plus, Search, Link, Phone, Globe, Instagram, Facebook } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../../utils/dates';
+import { n8nGet, n8nPost } from '../../../../shared/hooks/useN8n';
 
 /**
  * Barra de sentimiento con etiqueta y porcentaje.
@@ -324,10 +325,8 @@ const TabGbp = ({ cliente, n8nUrl }) => {
 
   const fetchFichas = useCallback(() => {
     setErrorCarga(null);
-    fetch(`${n8nUrl}/crm-gbp-fichas-cliente?cliente_id=${cliente.id}`)
-      .then(res => res.text())
-      .then(text => {
-        const data = text ? JSON.parse(text) : {};
+    n8nGet('crm-gbp-fichas-cliente', { cliente_id: cliente.id })
+      .then(data => {
         if (data.ok && data.fichas?.length > 0) {
           setFichas(data.fichas);
         } else {
@@ -349,20 +348,19 @@ const TabGbp = ({ cliente, n8nUrl }) => {
         }
       })
       .catch(() => { setFichas([]); setErrorCarga('Error al cargar fichas GBP'); });
-  }, [cliente.id, cliente.gmaps_nombre, cliente.nombre_comercial, cliente.gmaps_url, cliente.google_cid, cliente.gmaps_rating, cliente.gmaps_reseñas, cliente.gmaps_address, cliente.gmaps_sentiment, cliente.gmaps_pendiente_validar, cliente.gmaps_last_updated, n8nUrl]);
+  }, [cliente.id, cliente.gmaps_nombre, cliente.nombre_comercial, cliente.gmaps_url, cliente.google_cid, cliente.gmaps_rating, cliente.gmaps_reseñas, cliente.gmaps_address, cliente.gmaps_sentiment, cliente.gmaps_pendiente_validar, cliente.gmaps_last_updated]);
 
   useEffect(() => { fetchFichas(); }, [fetchFichas]);
 
   useEffect(() => {
     if (fichas === null) return;
+    const params = { cliente_id: cliente.id };
     const fichaId = fichas?.[selIdx]?.id;
-    const params = new URLSearchParams({ cliente_id: cliente.id });
-    if (fichaId) params.set('ficha_id', fichaId);
-    fetch(`${n8nUrl}/crm-gbp-historico-cliente?${params}`)
-      .then(res => res.json())
+    if (fichaId) params.ficha_id = fichaId;
+    n8nGet('crm-gbp-historico-cliente', params)
       .then(data => setHistorico(data.ok ? data.historico : []))
       .catch(() => { setHistorico([]); setErrorCarga('Error al cargar historial GBP'); });
-  }, [cliente.id, selIdx, fichas, n8nUrl]);
+  }, [cliente.id, selIdx, fichas]);
 
   const fichaActual = fichas?.[selIdx] || null;
 
@@ -374,17 +372,11 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     try {
       const localidad = cliente.localidad_negocio || cliente.localidad || '';
       const query = `${cliente.nombre_comercial}${localidad ? ' ' + localidad : ''}`;
-      const res = await fetch(`${n8nUrl}/crm-gbp-refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id: cliente.id,
-          query,
-          web: cliente.web || null,
-        }),
+      const data = await n8nPost('crm-gbp-refresh', {
+        cliente_id: cliente.id,
+        query,
+        web: cliente.web || null,
       });
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
       if (data.ok && data.type === 'list' && data.candidatos?.length > 0) {
         setCandidatos(data.candidatos);
       } else {
@@ -398,28 +390,18 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setConfirmando(true);
     setErrorAction(null);
     try {
-      const res = await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id: cliente.id,
-          nombre:  candidato.name,
-          rating:  candidato.rating,
-          reviews: candidato.reviews,
-          address: candidato.address,
-        }),
+      const data = await n8nPost('crm-gbp-confirmar', {
+        cliente_id: cliente.id,
+        nombre:  candidato.name,
+        rating:  candidato.rating,
+        reviews: candidato.reviews,
+        address: candidato.address,
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : { ok: true };
       if (!data.ok) { setErrorAction(data.message || 'No se pudo confirmar la ficha'); return; }
       setCandidatos(null);
       fetchFichas();
     } catch (err) {
-      setErrorAction(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al confirmar ficha — comprueba la conexión' : 'Error al confirmar ficha');
+      setErrorAction(err instanceof Error && err.message.startsWith('n8n') ? 'Error al confirmar ficha — comprueba la conexión' : 'Error al confirmar ficha');
     } finally { setConfirmando(false); }
   };
 
@@ -427,21 +409,11 @@ const TabGbp = ({ cliente, n8nUrl }) => {
   const handleValidar = async (fichaId, accion) => {
     setErrorAction(null);
     try {
-      const res = await fetch(`${n8nUrl}/crm-gbp-validar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, ficha_id: fichaId, accion }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : { ok: true };
+      const data = await n8nPost('crm-gbp-validar', { cliente_id: cliente.id, ficha_id: fichaId, accion });
       if (!data.ok) { setErrorAction(data.message || `No se pudo ${accion} la ficha`); return; }
       fetchFichas();
     } catch (err) {
-      setErrorAction(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al validar ficha — comprueba la conexión' : 'Error al validar ficha');
+      setErrorAction(err instanceof Error && err.message.startsWith('n8n') ? 'Error al validar ficha — comprueba la conexión' : 'Error al validar ficha');
     }
   };
 
@@ -464,18 +436,12 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setPreview(null);
     try {
       const urlType = detectUrlType(addUrl.trim());
-      const res = await fetch(`${n8nUrl}/crm-gbp-verificar-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          gmaps_url: addUrl.trim(),
-          url_type: urlType,
-          nombre_comercial: cliente.nombre_comercial,
-          localidad: cliente.localidad_negocio || cliente.localidad || '',
-        }),
+      const data = await n8nPost('crm-gbp-verificar-url', {
+        gmaps_url: addUrl.trim(),
+        url_type: urlType,
+        nombre_comercial: cliente.nombre_comercial,
+        localidad: cliente.localidad_negocio || cliente.localidad || '',
       });
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : {};
       if (data.ok && data.nombre) {
         setPreview(data);
       } else {
@@ -490,31 +456,21 @@ const TabGbp = ({ cliente, n8nUrl }) => {
     setVerificando(true);
     setErrorAction(null);
     try {
-      const res = await fetch(`${n8nUrl}/crm-gbp-confirmar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id: cliente.id,
-          nombre:  preview.nombre,
-          rating:  preview.rating,
-          reviews: preview.reviews,
-          address: preview.address,
-          gmaps_url: addUrl.trim(),
-          cid: preview.cid,
-          gestionada_por_bybusiness: gestionada,
-        }),
+      const data = await n8nPost('crm-gbp-confirmar', {
+        cliente_id: cliente.id,
+        nombre:  preview.nombre,
+        rating:  preview.rating,
+        reviews: preview.reviews,
+        address: preview.address,
+        gmaps_url: addUrl.trim(),
+        cid: preview.cid,
+        gestionada_por_bybusiness: gestionada,
       });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : { ok: true };
       if (!data.ok) { setErrorAction(data.message || 'No se pudo guardar la ficha'); return; }
       resetAdd();
       fetchFichas();
     } catch (err) {
-      setErrorAction(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al guardar ficha — comprueba la conexión' : 'Error al guardar ficha');
+      setErrorAction(err instanceof Error && err.message.startsWith('n8n') ? 'Error al guardar ficha — comprueba la conexión' : 'Error al guardar ficha');
     } finally { setVerificando(false); }
   };
 

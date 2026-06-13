@@ -8,6 +8,7 @@ import {
   FileText, ExternalLink, MessageCircle, Mail, Receipt, RotateCcw, Pencil,
 } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 
 /** Formatea un número como moneda EUR. */
@@ -74,17 +75,12 @@ const PagoChip = ({ pg, onCobrado }) => {
   const [referencia, setReferencia] = useState('');
   const [saving, setSaving]         = useState(false);
   const [errorMsg, setErrorMsg]     = useState(null);
-  const base = import.meta.env.VITE_N8N_URL;
 
   const cobrar = async () => {
     setSaving(true);
     setErrorMsg(null);
     try {
-      const r = await fetch(`${base}/crm-cobro`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pago_id: pg.id, metodo, referencia, fecha: new Date().toISOString().slice(0,10) }),
-      });
-      const d = await r.json();
+      const d = await n8nPost('crm-cobro', { pago_id: pg.id, metodo, referencia, fecha: new Date().toISOString().slice(0,10) });
       if (d.ok) { setCobrandoId(null); onCobrado && onCobrado(); }
       else setErrorMsg('No se pudo registrar el cobro.');
     } catch (err) {
@@ -160,7 +156,6 @@ const FilaProformaSimple = ({ proforma, cliente, contrato, onRefresh }) => {
   const [busy, setBusy]       = useState(null);
   const [verDoc, setVerDoc]   = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
-  const n8nUrl = import.meta.env.VITE_N8N_URL;
 
   const waEstado = contrato?.whatsapp_estado || 'pendiente';
   const emEstado = contrato?.email_estado    || 'pendiente';
@@ -177,11 +172,7 @@ const FilaProformaSimple = ({ proforma, cliente, contrato, onRefresh }) => {
     setBusy(key);
     setErrorMsg(null);
     try {
-      const r = await fetch(`${n8nUrl}/${endpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
+      const d = await n8nPost(endpoint, body);
       if (d.ok || d.id || d.contrato_id) onRefresh();
       else setErrorMsg('La acción no se completó. Intentá nuevamente.');
     } catch (err) {
@@ -274,17 +265,12 @@ FilaProformaSimple.propTypes = {
 const FilaFacturaSimple = ({ factura: f, onRefresh }) => {
   const [busy, setBusy]         = useState(null);
   const [errorMsg, setErrorMsg] = useState(null);
-  const n8nUrl = import.meta.env.VITE_N8N_URL;
 
   const accion = async (endpoint, body, key) => {
     setBusy(key);
     setErrorMsg(null);
     try {
-      const r = await fetch(`${n8nUrl}/${endpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
+      const d = await n8nPost(endpoint, body);
       if (d.ok || d.id || d.factura_id) onRefresh();
       else setErrorMsg('La acción no se completó. Intentá nuevamente.');
     } catch (err) {
@@ -348,13 +334,12 @@ const ClienteExpandido = ({ cliente, onRefresh }) => {
   const [proformas,  setProformas]  = useState(null);
   const [contratos,  setContratos]  = useState([]);
   const [facturas,   setFacturas]   = useState(null);
-  const N8N_URL = import.meta.env.VITE_N8N_URL;
 
   useEffect(() => {
     Promise.all([
-      fetch(`${N8N_URL}/crm-proformas?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
-      fetch(`${N8N_URL}/crm-71-get-contratos-digitales?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(() => ({})),
-      fetch(`${N8N_URL}/crm-facturas-get?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(() => ({})),
+      n8nGet('crm-proformas', { cliente_id: cliente.id }),
+      n8nGet('crm-71-get-contratos-digitales', { cliente_id: cliente.id }).catch(() => ({})),
+      n8nGet('crm-facturas-get', { cliente_id: cliente.id }).catch(() => ({})),
     ])
       .then(([dp, dc, df]) => {
         setProformas(dp.ok ? (dp.proformas || []) : []);
@@ -501,7 +486,7 @@ const ClientesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [pagina,      setPagina]      = useState(1);
   const [busqueda,    setBusqueda]    = useState('');
   const [orden,       setOrden]       = useState('nombre_asc');
-  const N8N_URL = import.meta.env.VITE_N8N_URL;
+  const [error, setError] = useState(null);
 
   const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 40) / 52));
 
@@ -509,8 +494,7 @@ const ClientesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
 
   /** Carga la lista de clientes desde el servidor. */
   const loadClientes = () => {
-    fetch(`${N8N_URL}/crm-clientes`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-clientes')
       .then(d => { if (d.ok) { setClientes(d.clientes); setPagina(1); } else setError(d.message || 'Error al cargar clientes'); })
       .catch(() => setClientes([]));
   };

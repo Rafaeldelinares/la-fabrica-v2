@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-
-const N8N = import.meta.env.VITE_N8N_URL
+import { n8nGet, n8nPost } from '../shared/hooks/useN8n'
 
 const useOperatorData = (userId, isTraining, leadId = null) => {
   const esSimulacion = isTraining ? 'true' : 'false'
@@ -23,11 +22,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   const fetchProgramadas = useCallback(async () => {
     if (!userId) return
     try {
-      const res = await fetch(
-        `${N8N}/crm-callbacks-operador?operador_id=${userId}&es_simulacion=${esSimulacion}`
-      )
-      if (!res.ok) throw new Error('Error cargando programadas')
-      const rows = await res.json()
+      const rows = await n8nGet('crm-callbacks-operador', { operador_id: userId, es_simulacion: esSimulacion })
       setProgramadas(Array.isArray(rows) ? rows : [])
     } catch (err) {
       console.error('Error cargando programadas:', err)
@@ -39,11 +34,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   const cargarLlamadaActiva = useCallback(async () => {
     if (!userId) return
     try {
-      const res = await fetch(
-        `${N8N}/crm-llamada-activa?operador_id=${userId}&es_simulacion=${esSimulacion}`
-      )
-      if (!res.ok) throw new Error('Error cargando llamada activa')
-      const rows = await res.json()
+      const rows = await n8nGet('crm-llamada-activa', { operador_id: userId, es_simulacion: esSimulacion })
       if (Array.isArray(rows) && rows.length > 0) {
         setLlamadaActiva(rows[0])
         setLlamadaActivaId(rows[0].llamada_activa_id ?? rows[0].id ?? null)
@@ -61,11 +52,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   const refreshStats = useCallback(async () => {
     if (!userId) return
     try {
-      const res = await fetch(
-        `${N8N}/crm-resultados-operador?operador_id=${userId}&es_simulacion=${esSimulacion}`
-      )
-      if (!res.ok) throw new Error(`Error HTTP ${res.status}: ${res.statusText}`)
-      const data = await res.json()
+      const data = await n8nGet('crm-resultados-operador', { operador_id: userId, es_simulacion: esSimulacion })
       // El endpoint devuelve {ok: true, stats: {...}} o directamente el objeto stats
       const statsData = data?.stats || (data?.ok === undefined ? data : null)
       setStats(statsData)
@@ -79,9 +66,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   // Cargar campañas
   const refreshCampanas = useCallback(async () => {
     try {
-      const res = await fetch(`${N8N}/crm-campanas?es_simulacion=${esSimulacion}`)
-      if (!res.ok) throw new Error('Error cargando campañas')
-      const rows = await res.json()
+      const rows = await n8nGet('crm-campanas', { es_simulacion: esSimulacion })
       setCampanas(Array.isArray(rows) ? rows : [])
     } catch (err) {
       console.error('Error cargando campañas:', err)
@@ -92,11 +77,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   const refreshHistorial = useCallback(async (lid) => {
     if (!lid || !userId) return
     try {
-      const res = await fetch(
-        `${N8N}/crm-agenda-unificada?operador_id=${userId}&lead_id=${lid}&es_simulacion=${esSimulacion}`
-      )
-      if (!res.ok) throw new Error('Error cargando historial')
-      const rows = await res.json()
+      const rows = await n8nGet('crm-agenda-unificada', { operador_id: userId, lead_id: lid, es_simulacion: esSimulacion })
       setHistorial(Array.isArray(rows) ? rows : [])
     } catch (err) {
       console.error('Error cargando historial lead:', err)
@@ -108,13 +89,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   const obtenerSiguienteLead = useCallback(async () => {
     if (!userId) return
     try {
-      const res = await fetch(`${N8N}/crm-distribuidor-campanas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operador_id: userId, es_simulacion: isTraining })
-      })
-      if (!res.ok) throw new Error('Error obteniendo siguiente lead')
-      const rows = await res.json()
+      const rows = await n8nPost('crm-distribuidor-campanas', { operador_id: userId, es_simulacion: isTraining })
       if (Array.isArray(rows) && rows.length > 0) {
         const lead = rows[0]
         setLlamadaActiva(lead)
@@ -135,12 +110,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   // Registrar resultado de una llamada
   const registrarResultado = useCallback(async (datos) => {
     try {
-      const res = await fetch(`${N8N}/crm-registrar-resultado`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...datos, es_simulacion: isTraining })
-      })
-      if (!res.ok) throw new Error('Error registrando resultado')
+      await n8nPost('crm-registrar-resultado', { ...datos, es_simulacion: isTraining })
       setLlamadaActiva(null)
       setLlamadaActivaId(null)
       await refreshStats()

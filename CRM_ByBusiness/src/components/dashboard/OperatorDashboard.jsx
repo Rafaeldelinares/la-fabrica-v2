@@ -7,8 +7,7 @@ import OperatorSkeleton from './OperatorSkeleton';
 import Zone1Filters from './zones/Zone1Filters';
 import Zone2Content from './zones/Zone2Content';
 import Zone3Sidebar from './zones/Zone3Sidebar';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
 
 // Función no-op estable para modo training (evita recreación en cada render)
 const noop = () => {};
@@ -76,11 +75,7 @@ const OperatorDashboard = ({
       
       try {
         // Cargar campañas activas
-        const campanasRes = await fetch(`${N8N}/crm-campanas-activas?operador_id=${user.id}&es_simulacion=${isTraining}`);
-        if (!campanasRes.ok) {
-          throw new Error(`Error cargando campañas: HTTP ${campanasRes.status}`);
-        }
-        const campanasData = await campanasRes.json();
+        const campanasData = await n8nGet('crm-campanas-activas', { operador_id: user.id, es_simulacion: isTraining });
         if (campanasData.ok) {
           setCampanasActivas(campanasData.campanas || []);
           if (campanasData.campanas?.length > 0 && !campanaSeleccionada) {
@@ -93,30 +88,16 @@ const OperatorDashboard = ({
         }
 
         // Cargar callbacks HOY
-        const callbacksRes = await fetch(`${N8N}/crm-callbacks-operador?operador_id=${user.id}&es_simulacion=${isTraining}`);
-        if (!callbacksRes.ok) {
-          throw new Error(`Error cargando callbacks: HTTP ${callbacksRes.status}`);
-        }
-        const callbacksData = await callbacksRes.json();
+        const callbacksData = await n8nGet('crm-callbacks-operador', { operador_id: user.id, es_simulacion: isTraining });
         if (callbacksData.ok) {
           setCallbacksHoy(callbacksData.callbacks_hoy || []);
         }
 
         // Cargar leads disponibles
-        const leadsRes = await fetch(`${N8N}/crm-leads-disponibles`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            es_simulacion: isTraining,
-            campana_id: campanaSeleccionada
-          })
+        const leadsData = await n8nPost('crm-leads-disponibles', {
+          es_simulacion: isTraining,
+          campana_id: campanaSeleccionada
         });
-        
-        if (!leadsRes.ok) {
-          throw new Error(`Error cargando leads: HTTP ${leadsRes.status}`);
-        }
-        
-        const leadsData = await leadsRes.json();
         if (leadsData.ok) {
           // Backend devuelve "total" (count de leads en el pool), NO "total_disponibles"
           setLeadsDisponibles(leadsData.total ?? leadsData.total_disponibles ?? 0);
@@ -137,7 +118,7 @@ const OperatorDashboard = ({
     return () => clearInterval(interval);
     // Nota: campanasActivas no está en deps porque se actualiza dentro del efecto.
     // Agregarlo causaría bucle infinito. Usamos campanaSeleccionada como trigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isTraining, user?.id, campanaSeleccionada]);
 
   /**
@@ -156,9 +137,7 @@ const OperatorDashboard = ({
       return;
     }
     try {
-      const resp = await fetch(`${N8N}/crm-llamada-activa?operador_id=${user?.id}`);
-      if (!resp.ok) { setErrorRed('Error del servidor al obtener lead.'); return; }
-      const data = await resp.json();
+      const data = await n8nGet('crm-llamada-activa', { operador_id: user?.id });
       if (data?.ok && data.lead) {
         setLead(data.lead);
         setLlamadaId(data.llamada_id);
@@ -181,20 +160,15 @@ const OperatorDashboard = ({
         setErrorRed('Error: No hay sesión de entrenamiento activa');
         return;
       }
-      fetch(`${N8N}/crm-resultado-entrenamiento`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lead_ficticio_id: lead.id,
-          operador_id: user?.id,
-          sesion_id: sesionIdToUse,
-          resultado, notas,
-          duracion_seg: Math.floor((Date.now() - startTime) / 1000),
-          ...detalles,
-        }),
+      n8nPost('crm-resultado-entrenamiento', {
+        lead_ficticio_id: lead.id,
+        operador_id: user?.id,
+        sesion_id: sesionIdToUse,
+        resultado, notas,
+        duracion_seg: Math.floor((Date.now() - startTime) / 1000),
+        ...detalles,
       })
-        .then(async resp => {
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const data = await resp.json();
+        .then(data => {
           if (!data?.ok) throw new Error(data?.message || 'Error del servidor');
           setSessionLeads(prev => [...prev, { ...lead, resultado }]);
           setLead(null); setNotas(''); setStartTime(null);
@@ -211,13 +185,8 @@ const OperatorDashboard = ({
       duracion: Math.floor((Date.now() - startTime) / 1000),
       ...detalles,
     };
-    fetch(`${N8N}/crm-registrar-resultado`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-      .then(async resp => {
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
+    n8nPost('crm-registrar-resultado', payload)
+      .then(data => {
         if (!data?.ok) throw new Error(data?.message || 'Error del servidor');
         setSessionLeads(prev => [...prev, { ...lead, resultado }]);
         setLead(null); setLlamadaId(null); setStartTime(null);
@@ -241,18 +210,8 @@ const OperatorDashboard = ({
       duracion: Math.floor((Date.now() - startTime) / 1000),
     };
 
-    fetch(`${N8N}/crm-registrar-resultado`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cerrarPayload),
-    })
-      .then(resp => {
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return fetch(`${N8N}/enviar-info`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lead_id: lead?.id, operador_id: user?.id, email_destino: emailDestino, tipo_info: tipoInfo }),
-        });
-      })
-      .then(res => res.json())
+    n8nPost('crm-registrar-resultado', cerrarPayload)
+      .then(() => n8nPost('enviar-info', { lead_id: lead?.id, operador_id: user?.id, email_destino: emailDestino, tipo_info: tipoInfo }))
       .then(data => {
         if (data.success) {
           setSessionLeads(prev => [...prev, { ...lead, resultado: 'enviar_info' }]);
@@ -278,33 +237,18 @@ const OperatorDashboard = ({
       // Usar el lead_id del callback para cargarlo directamente
       if (callback.lead_id) {
         // Obtener detalles del lead
-        const leadRes = await fetch(`${N8N}/crm-lead-detail?lead_id=${callback.lead_id}&operador_id=${user.id}`);
-        if (!leadRes.ok) {
-          throw new Error(`Error obteniendo detalle del lead: HTTP ${leadRes.status}`);
-        }
-        
-        const leadData = await leadRes.json();
+        const leadData = await n8nGet('crm-lead-detail', { lead_id: callback.lead_id, operador_id: user.id });
         if (!leadData.ok || !leadData.lead) {
           throw new Error('No se pudo cargar este callback. Puede que haya sido reasignado a otro operador.');
         }
         
         // Crear llamada activa para este lead
-        const llamadaRes = await fetch(`${N8N}/crm-llamada-activa`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operador_id: user?.id,
-            lead_id: callback.lead_id,
-            es_callback: true,
-            llamada_programada_id: callback.id
-          })
+        const llamadaData = await n8nPost('crm-llamada-activa', {
+          operador_id: user?.id,
+          lead_id: callback.lead_id,
+          es_callback: true,
+          llamada_programada_id: callback.id
         });
-
-        if (!llamadaRes.ok) {
-          throw new Error(`Error creando llamada activa: HTTP ${llamadaRes.status}`);
-        }
-        
-        const llamadaData = await llamadaRes.json();
         if (!llamadaData.lead) {
           throw new Error('No se pudo cargar el lead para la llamada');
         }
