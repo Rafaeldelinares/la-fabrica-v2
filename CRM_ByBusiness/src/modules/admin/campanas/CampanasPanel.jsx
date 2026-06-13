@@ -136,6 +136,10 @@ const CampanasPanel = () => {
   const cargarEstadisticas = async () => {
     try {
       const res = await fetch(`${N8N}/crm-estadisticas-campanas`);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+      }
       const data = await res.json();
       
       if (data.ok && Array.isArray(data.estadisticas)) {
@@ -219,23 +223,25 @@ const CampanasPanel = () => {
 
   const confirmarEliminar = async () => {
     if (!campanaSeleccionada) return;
-    
+
     setEliminando(true);
     try {
+      // El workflow CRM_CAMPANAS_ELIMINAR está configurado como POST, no DELETE.
+      // Hacer fetch con text() primero para evitar crash si el body viene vacío.
       const res = await fetch(`${N8N}/crm-campanas-eliminar`, {
-        method: 'DELETE',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: campanaSeleccionada.id })
       });
-      
-      // Verificar que la respuesta sea OK antes de parsear JSON
+
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
       }
-      
-      const data = await res.json();
-      
+
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : { ok: true };
+
       if (data.ok) {
         await cargarDatos();
         setMostrarEliminar(false);
@@ -247,7 +253,7 @@ const CampanasPanel = () => {
         setError(data.message || 'Error al eliminar campaña');
       }
     } catch (err) {
-      setError('Error al eliminar — comprueba la conexión');
+      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al eliminar — comprueba la conexión' : 'Error al eliminar — comprueba la conexión');
     } finally {
       setEliminando(false);
     }
@@ -274,7 +280,7 @@ const CampanasPanel = () => {
       
       const data = await res.json();
       
-      if (data.ok || Array.isArray(data)) {
+      if (data.ok) {
         await cargarDatos();
         setMostrarDrawer(false);
       } else {

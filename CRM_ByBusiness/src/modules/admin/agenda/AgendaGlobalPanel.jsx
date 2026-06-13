@@ -147,7 +147,7 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
   const [duracionMin, setDuracionMin] = useState(30);
   const [mostrarSlotPicker, setMostrarSlotPicker] = useState(false);
   const [saving, setSaving]         = useState(false);
-  const [errorGuardar, setErrorGuardar] = useState(false);
+  const [errorGuardar, setErrorGuardar] = useState('');
 
   const actualizarCampo = (campo, valor) => setForm(prev => ({ ...prev, [campo]: valor }));
 
@@ -161,17 +161,21 @@ const NuevaCitaModal = ({ clientes, gestorId, onClose, onCreated }) => {
   const guardar = async () => {
     if (!form.cliente_id || !form.fecha_hora || !form.motivo) return;
     setSaving(true);
-    setErrorGuardar(false);
+    setErrorGuardar('');
     try {
       const response = await fetch(`${N8N}/crm-crear-cita`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, gestor_id: gestorId }),
       });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text || 'Error del servidor'}`);
+      }
       const data = await response.json();
       if (data.ok) { onCreated(); onClose(); }
-      else { setErrorGuardar(true); }
-    } catch {
-      setErrorGuardar(true);
+      else { setErrorGuardar(data.error || data.message || 'Error al crear la cita — inténtalo de nuevo'); }
+    } catch (err) {
+      setErrorGuardar(typeof err?.message === 'string' ? err.message : 'Error al crear la cita — inténtalo de nuevo');
     } finally { setSaving(false); }
   };
 
@@ -428,7 +432,7 @@ const AgendaGlobalPanel = () => {
 
   const abrirClienteDesdeAgenda = useCallback((clienteId) => {
     fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
         if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]);
         else setErrorCarga(true);
@@ -454,7 +458,7 @@ const AgendaGlobalPanel = () => {
     const fechaInicio = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
     const fechaFin    = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
     fetch(`${N8N}/crm-agenda-unificada?fecha_inicio=${fechaInicio}&fecha_fin=${fechaFin}`)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
         if (data.ok) {
           setEventos(data.eventos.map(evento => {
@@ -483,7 +487,7 @@ const AgendaGlobalPanel = () => {
 
   useEffect(() => {
     fetch(`${N8N}/crm-clientes`)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
         if (data.ok) setClientes(data.clientes);
         else { setClientes([]); setErrorClientes(true); }
@@ -495,7 +499,7 @@ const AgendaGlobalPanel = () => {
   // Se almacena en un ref para no forzar re-renders innecesarios.
   useEffect(() => {
     fetch(`${N8N}/crm-horarios-todos`)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(datos => {
         if (!datos.ok) return;
         const mapaHorarios = new Map();
@@ -515,7 +519,7 @@ const AgendaGlobalPanel = () => {
 
   useEffect(() => {
     fetch(`${N8N}/crm-cartera-get`)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
       .then(data => {
         const clientes = data.ok ? (data.clientes || []) : [];
         const ahora              = new Date();

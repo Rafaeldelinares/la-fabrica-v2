@@ -55,8 +55,12 @@ const AsignameUnLead = ({ onAssigned }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ operator_id: user.id, mode: 'one' }),
             });
+            if (!res.ok) {
+                const errBody = await res.text().catch(() => '');
+                throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+            }
             const data = await res.json();
-            if (!res.ok || !data.ok) {
+            if (!data.ok) {
                 // TODO: webhooks crm-distribuidor-huerfanos y crm-distribuidor-campanas
                 // serán creados en PR #4 — por ahora devuelven 404 esperados.
                 console.warn(`[AsignameUnLead] Webhook ${webhookPath} returned ${res.status}`);

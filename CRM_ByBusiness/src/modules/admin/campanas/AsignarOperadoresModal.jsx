@@ -35,8 +35,12 @@ const AsignarOperadoresModal = ({ campana, operadores, onClose, onAsignar }) => 
     setLoading(true);
     try {
       const res = await fetch(`${N8N}/crm-campana-operadores?campana_id=${campana.id}`);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+      }
       const data = await res.json();
-      
+
       if (data.ok && Array.isArray(data.asignaciones)) {
         setAsignaciones(data.asignaciones);
       } else {
@@ -116,6 +120,12 @@ const AsignarOperadoresModal = ({ campana, operadores, onClose, onAsignar }) => 
         }),
       });
 
+      // Verificar HTTP antes de parsear JSON: en 5xx el body no es JSON y crashea
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
+
       const data = await res.json();
 
       if (data.ok) {
@@ -126,7 +136,8 @@ const AsignarOperadoresModal = ({ campana, operadores, onClose, onAsignar }) => 
         setError(data.message || 'Error al guardar asignaciones');
       }
     } catch (err) {
-      setError('Error al guardar — comprueba la conexión');
+      const msg = err instanceof Error ? err.message : 'Error al guardar — comprueba la conexión';
+      setError(msg.startsWith('HTTP') ? 'Error al guardar — comprueba la conexión' : msg);
     } finally {
       setGuardando(false);
     }

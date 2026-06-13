@@ -67,12 +67,16 @@ const CampañasPanel = () => {
   const cargarDatos = async () => {
     setLoading(true);
     setError('');
-    
+
     try {
       // Cargar campañas
       const campanasRes = await fetch(`${N8N}/crm-campanas`);
+      if (!campanasRes.ok) {
+        const errBody = await campanasRes.text().catch(() => '');
+        throw new Error(`HTTP ${campanasRes.status} — ${errBody || 'sin cuerpo'}`);
+      }
       const campanasData = await campanasRes.json();
-      
+
       if (Array.isArray(campanasData)) {
         setCampañas(campanasData);
       } else if (campanasData.ok && Array.isArray(campanasData.campanas)) {
@@ -83,10 +87,14 @@ const CampañasPanel = () => {
 
       // Cargar operadores
       const operadoresRes = await fetch(`${N8N}/crm-usuarios-get`);
+      if (!operadoresRes.ok) {
+        const errBody = await operadoresRes.text().catch(() => '');
+        throw new Error(`HTTP ${operadoresRes.status} — ${errBody || 'sin cuerpo'}`);
+      }
       const operadoresData = await operadoresRes.json();
-      
+
       if (operadoresData.ok) {
-        setOperadores(operadoresData.usuarios.filter(u => 
+        setOperadores(operadoresData.usuarios.filter(u =>
           ['operador', 'en_practicas'].includes(u.rol)
         ));
       }
@@ -105,6 +113,10 @@ const CampañasPanel = () => {
   const cargarEstadisticas = async () => {
     try {
       const res = await fetch(`${N8N}/crm-estadisticas-campanas`);
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+      }
       const data = await res.json();
       
       if (data.ok && Array.isArray(data.estadisticas)) {
@@ -187,17 +199,25 @@ const CampañasPanel = () => {
 
   const confirmarEliminar = async () => {
     if (!campanaSeleccionada) return;
-    
+
     setEliminando(true);
     try {
+      // El workflow CRM_CAMPANAS_ELIMINAR está configurado como POST, no DELETE.
+      // Hacer fetch con text() primero para evitar crash si el body viene vacío.
       const res = await fetch(`${N8N}/crm-campanas-eliminar`, {
-        method: 'DELETE',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: campanaSeleccionada.id })
       });
-      
-      const data = await res.json();
-      
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
+      }
+
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : { ok: true };
+
       if (data.ok) {
         await cargarDatos();
         setMostrarEliminar(false);
@@ -205,7 +225,7 @@ const CampañasPanel = () => {
       } else {
         setError(data.message || 'Error al eliminar campaña');
       }
-    } catch (err) {
+    } catch {
       setError('Error al eliminar — comprueba la conexión');
     } finally {
       setEliminando(false);
@@ -225,10 +245,14 @@ const CampañasPanel = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(datos)
       });
-      
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
+      }
       const data = await res.json();
-      
-      if (data.ok || Array.isArray(data)) {
+
+      if (data.ok) {
         await cargarDatos();
         setMostrarDrawer(false);
       } else {
