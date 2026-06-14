@@ -97,7 +97,7 @@ const CampanasPanel = () => {
         try {
           campanasData = JSON.parse(text);
         } catch (parseErr) {
-          console.error('Error parseando respuesta JSON:', parseErr);
+          if (import.meta.env.DEV) console.warn('Respuesta no-JSON de crm-campanas:', parseErr.message);
           campanasData = [];
         }
       }
@@ -771,25 +771,31 @@ CampanaEstadoBadge.propTypes = {
 };
 
 /**
- * Barra de progreso para objetivos
+ * Barra de progreso para objetivos.
+ * Muestra el label, el porcentaje y (opcional) el ratio actual/objetivo
+ * en formato "actual / objetivo" para que el operador sepa el delta.
  */
-const ProgresoBar = ({ label, porcentaje, color }) => {
+const ProgresoBar = ({ label, porcentaje, color, actual, objetivo }) => {
   const colorClasses = {
     emerald: 'bg-emerald-500',
     blue: 'bg-blue-500',
     red: 'bg-[#D00000]',
     amber: 'bg-amber-500',
   };
-  
+
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between text-[10px] text-slate-500">
         <span>{label}</span>
-        <span>{porcentaje}%</span>
+        <span className="font-mono">
+          {actual != null && objetivo != null
+            ? `${actual} / ${objetivo} · ${porcentaje}%`
+            : `${porcentaje}%`}
+        </span>
       </div>
       {/* CSS custom property: Tailwind no soporta anchos dinámicos de runtime */}
       <div className="h-1.5 w-32 bg-slate-800 rounded-full overflow-hidden">
-        <div 
+        <div
           style={{ '--w': `${Math.min(100, porcentaje)}%` }}
           className={`h-full ${colorClasses[color]} transition-all duration-500 [width:var(--w)]`}
         />
