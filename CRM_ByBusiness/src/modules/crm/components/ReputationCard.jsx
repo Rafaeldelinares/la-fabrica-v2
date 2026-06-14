@@ -27,7 +27,7 @@ const ReputationCard = ({ data, loading, error, onSave }) => {
     );
   }
 
-  const { name, rating, reviews, breakdown, website, phone, address } = data;
+  const { name, rating, reviews, breakdown, address } = data;
   
   // Calculate if reviews 1 and 2 are > 10%
   const totalReviews = reviews || 1;

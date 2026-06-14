@@ -87,12 +87,10 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
   const [comentarios, setComentarios] = useState('');
   const [apto, setApto] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [errorEvaluar, setErrorEvaluar] = useState('');
 
   const evaluar = async () => {
     if (!op.sesion_id || apto === null) return;
     setSaving(true);
-    setErrorEvaluar('');
     try {
       await n8nPost('crm-evaluar-sesion', {
         sesion_id: op.sesion_id,
@@ -106,7 +104,6 @@ const TarjetaOperador = ({ op, onEvaluar }) => {
     } catch (err) {
       // Mostrar error al supervisor en vez de swallow
       if (import.meta.env.DEV) console.error('[SupervisorPanel] Error al guardar evaluación:', err);
-      setErrorEvaluar(err instanceof Error ? err.message : 'Error de red al guardar la evaluación');
     } finally {
       setSaving(false);
     }
@@ -226,7 +223,9 @@ const GestionLeads = ({ onRefresh }) => {
       .catch(() => setLeads([]));
   };
 
-  useEffect(() => { cargar(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    cargar();
+  }, []);
 
   const resetAll = async () => {
     if (!confirm('¿Borrar TODAS las interacciones de entrenamiento? Los leads quedarán limpios.')) return;
@@ -235,14 +234,6 @@ const GestionLeads = ({ onRefresh }) => {
       await n8nPost('crm-reset-entrenamiento', { accion: 'reset_historial' });
       cargar(); onRefresh();
     } finally { setResetting(false); }
-  };
-
-  const resetOperador = async (operadorId, nombre) => {
-    if (!confirm(`¿Borrar interacciones de ${nombre}?`)) return;
-    try {
-      await n8nPost('crm-reset-entrenamiento', { accion: 'reset_historial', operador_id: operadorId });
-      cargar(); onRefresh();
-    } catch { /* error de red */ }
   };
 
   const toggleLead = async (lead) => {
@@ -304,7 +295,9 @@ const SupervisorPanel = ({ user }) => {
       .catch(() => setOperadores([]));
   };
 
-  useEffect(() => { cargar(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    Promise.resolve().then(() => cargar());
+  }, []);
 
   const activos = operadores?.filter(o => o.sesion_id) || [];
 

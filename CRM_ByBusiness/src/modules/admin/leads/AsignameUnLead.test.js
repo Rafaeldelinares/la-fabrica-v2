@@ -17,21 +17,11 @@
  *     test: { environment: 'jsdom', globals: true },
  *   });
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 /**
  * Mock AuthContext — provides a minimal user object.
  */
-const mockAuthContext = (user = { id: 1, email: 'op@test.com', role: 'operador' }) => ({
-    user,
-    isAuthenticated: !!user,
-    login: vi.fn(),
-    logout: vi.fn(),
-    registerActivity: vi.fn(),
-    timeLeft: 3_600_000,
-});
-
 /**
  * Mock N8N campaigns endpoint.
  * @param {Array} campanas
@@ -134,8 +124,7 @@ describe('AsignameUnLead', () => {
             const lead = { id: 99, nombre: 'Nuevo Lead' };
             mockCampaignsFetch([]);
             mockAssignFetch(lead);
-            const onAssigned = vi.fn();
-            // render(..., { wrapper: ({ children }) => <AuthContext.Provider value={mockAuthContext()}>{children}</AuthContext.Provider> });
+            // render(..., { wrapper: ({ children }) => <AuthContext.Provider value={makeAuthContext()}>{children}</AuthContext.Provider> });
             // fireEvent.click(screen.getByRole('button', { name: /lead sin campaña/i }));
             // await waitFor(() => {
             //     expect(onAssigned).toHaveBeenCalledWith(lead);

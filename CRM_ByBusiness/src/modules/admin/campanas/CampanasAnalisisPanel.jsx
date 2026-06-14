@@ -102,10 +102,8 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [dashboard, setDashboard] = useState(null);
-  const [segmentos, setSegmentos] = useState([]);
   const [provincias, setProvincias] = useState([]);
   const [categorias, setCategorias] = useState([]);
-  const [resumen, setResumen] = useState(null);
 
   const [nivelLocalidad, setNivelLocalidad] = useState(null);
   const [nivelCategoria, setNivelCategoria] = useState(null);
@@ -180,6 +178,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
 
   useEffect(() => {
     cargarDatos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cargarDatos is stable; intentional mount-only fetch
   }, []);
 
   const cargarDatos = async () => {
@@ -201,9 +200,6 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
       const analisisData = await analisisRes.json();
 
       if (analisisData.ok && analisisData.modo === 'analisis') {
-        setSegmentos(analisisData.segmentos || []);
-        setResumen(analisisData.resumen || null);
-
         // Convertir segmentos al formato esperado por el componente
         const provs = {};
         const cats = {};
@@ -406,7 +402,6 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
     if (nivelLocalidad?.provincia) {
       const prov = provincias.find(p => p.provincia === nivelLocalidad.provincia);
       if (!prov) return null;
-      const maxLocal = Math.max(...(prov.localidades?.map(l => l.total_leads || 0) || [1]));
       return (
         <>
           <button
@@ -417,9 +412,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
             Volver a Comunidades
           </button>
           <div className="grid grid-cols-5 gap-4">
-            {prov.localidades?.sort((a, b) => (b.total_leads || 0) - (a.total_leads || 0)).slice(0, 10).map(loc => {
-              const porcentaje = maxLocal > 0 ? ((loc.total_leads || 0) / maxLocal) * 100 : 0;
-              return (
+            {prov.localidades?.sort((a, b) => (b.total_leads || 0) - (a.total_leads || 0)).slice(0, 10).map(loc => (
                 <Card key={loc.localidad} className="bg-slate-900 border-slate-800">
                   <div className="bg-slate-800/50 px-3 py-2 border-b border-slate-700">
                     <div className="text-xs font-bold text-white truncate">{loc.localidad}</div>
@@ -450,8 +443,7 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
                     )}
                   </div>
                 </Card>
-              );
-            })}
+            ))}
           </div>
         </>
       );
@@ -462,7 +454,6 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
       const comunidad = comunidades.find(c => c.nombre === nivelLocalidad.comunidad);
       if (!comunidad) return null;
       const maxProv = Math.max(...comunidad.provincias.map(p => p.total_leads || 0), 1);
-      const totalPaginas = Math.ceil(comunidad.provincias.length / ITEMS_POR_PAGINA);
       const inicio = 0;
       const fin = ITEMS_POR_PAGINA;
       const provinciasVisibles = comunidad.provincias.sort((a, b) => (b.total_leads || 0) - (a.total_leads || 0)).slice(inicio, fin);
@@ -631,7 +622,6 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
       const cat = categorias.find(c => c.categoria === nivelCategoria.categoria);
       if (!cat) return null;
       const maxProv = Math.max(...(cat.provincias?.map(p => p.total || 0) || [1]));
-      const totalPaginas = Math.ceil((cat.provincias?.length || 0) / ITEMS_POR_PAGINA);
       const provinciasVisibles = cat.provincias?.sort((a, b) => (b.total || 0) - (a.total || 0)).slice(0, 10) || [];
       
       return (
@@ -673,7 +663,6 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
       const familia = familias.find(f => f.nombre === nivelCategoria.familia);
       if (!familia) return null;
       const maxCat = Math.max(...familia.categorias.map(c => c.total_leads || 0), 1);
-      const totalPaginas = Math.ceil(familia.categorias.length / ITEMS_POR_PAGINA);
       const categoriasVisibles = familia.categorias.sort((a, b) => (b.total_leads || 0) - (a.total_leads || 0)).slice(0, 10);
       
       return (

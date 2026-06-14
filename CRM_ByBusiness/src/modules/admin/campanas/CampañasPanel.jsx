@@ -22,10 +22,12 @@ import {
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
-import { useAuth } from '../../auth/AuthContext';
+
 import CampanaDrawer from './CampanaDrawer';
 import AsignarOperadoresModal from './AsignarOperadoresModal';
 import GeneradorCampanasPanel from './GeneradorCampanasPanel';
+import CampanaEstadoBadge from './CampanaEstadoBadge';
+import ProgresoBar from './ProgresoBar';
 
 const PAGE_SIZE = 10;
 const N8N = import.meta.env.VITE_N8N_URL;
@@ -35,7 +37,6 @@ const N8N = import.meta.env.VITE_N8N_URL;
  * Permite crear campañas, asignar operadores, y ver métricas de cumplimiento.
  */
 const CampañasPanel = () => {
-  const { user } = useAuth();
   const [campañas, setCampañas] = useState(null);
   const [operadores, setOperadores] = useState([]);
   const [estadisticas, setEstadisticas] = useState({});
@@ -62,6 +63,7 @@ const CampañasPanel = () => {
   // Cargar datos iniciales
   useEffect(() => {
     cargarDatos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cargarDatos es estable; carga intencional solo en montaje
   }, []);
 
   const cargarDatos = async () => {
@@ -139,17 +141,19 @@ const CampañasPanel = () => {
       // Filtro por tipo (real vs simulación)
       if (filtroTipo === 'real' && c.es_simulacion) return false;
       if (filtroTipo === 'simulacion' && !c.es_simulacion) return false;
-      
-      // Filtro por estado
-      if (filtroEstado && c.estado !== filtroEstado) return false;
-      
+
+      // Filtro por estado — usar campo booleano `activo` que es la verdad actual.
+      // El campo `estado` es legacy y no refleja desactivaciones manuales.
+      if (filtroEstado === 'activa' && !c.activo) return false;
+      if (filtroEstado === 'inactiva' && c.activo) return false;
+
       // Búsqueda
       if (busqueda) {
         const q = busqueda.toLowerCase();
         return (c.nombre || '').toLowerCase().includes(q) ||
                (c.descripcion || '').toLowerCase().includes(q);
       }
-      
+
       return true;
     });
   }, [campañas, filtroTipo, filtroEstado, busqueda]);
@@ -258,7 +262,7 @@ const CampañasPanel = () => {
       } else {
         setError(data.message || 'Error al guardar campaña');
       }
-    } catch (err) {
+    } catch {
       setError('Error al guardar — comprueba la conexión');
     }
   };
@@ -652,74 +656,6 @@ const CampañasPanel = () => {
       )}
     </div>
   );
-};
-
-/**
- * Badge de estado de campaña
- */
-const CampanaEstadoBadge = ({ estado, activo }) => {
-  const config = {
-    activa: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/20', label: 'Activa' },
-    inactiva: { bg: 'bg-slate-700/30', text: 'text-slate-500', border: 'border-slate-600/30', label: 'Inactiva' },
-    pausada: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/20', label: 'Pausada' },
-    completada: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/20', label: 'Completada' },
-  };
-  
-  const conf = config[estado] || config.inactiva;
-  
-  if (!activo) {
-    return (
-      <Badge className="bg-slate-800 text-slate-500 border-slate-700 line-through">
-        {conf.label}
-      </Badge>
-    );
-  }
-  
-  return (
-    <Badge className={`${conf.bg} ${conf.text} ${conf.border}`}>
-      {conf.label}
-    </Badge>
-  );
-};
-
-CampanaEstadoBadge.propTypes = {
-  estado: PropTypes.string.isRequired,
-  activo: PropTypes.bool,
-};
-
-/**
- * Barra de progreso para objetivos
- */
-const ProgresoBar = ({ label, actual, objetivo, porcentaje, color }) => {
-  const colorClasses = {
-    emerald: 'bg-emerald-500',
-    blue: 'bg-blue-500',
-    red: 'bg-[#D00000]',
-    amber: 'bg-amber-500',
-  };
-  
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex justify-between text-[10px] text-slate-500">
-        <span>{label}</span>
-        <span>{porcentaje}%</span>
-      </div>
-      <div className="h-1.5 w-32 bg-slate-800 rounded-full overflow-hidden">
-        <div 
-          className={`h-full ${colorClasses[color]} transition-all duration-500`}
-          style={{ width: `${Math.min(100, porcentaje)}%` }}
-        />
-      </div>
-    </div>
-  );
-};
-
-ProgresoBar.propTypes = {
-  label: PropTypes.string.isRequired,
-  actual: PropTypes.number.isRequired,
-  objetivo: PropTypes.number.isRequired,
-  porcentaje: PropTypes.number.isRequired,
-  color: PropTypes.oneOf(['emerald', 'blue', 'red', 'amber']).isRequired,
 };
 
 export default CampañasPanel;

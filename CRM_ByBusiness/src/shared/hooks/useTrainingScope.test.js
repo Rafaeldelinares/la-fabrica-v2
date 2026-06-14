@@ -14,23 +14,6 @@ import { describe, it, expect, vi } from 'vitest';
  * Mock user factories — used to construct AuthContext value objects.
  * @param {Partial<{role: string, es_simulacion: boolean}>} overrides
  */
-const makeUser = (overrides = {}) => ({
-  id: 1,
-  email: 'test@example.com',
-  role: 'operador',
-  es_simulacion: false,
-  ...overrides,
-});
-
-const mockAuthContext = (user) => ({
-  user,
-  isAuthenticated: !!user,
-  login: vi.fn(),
-  logout: vi.fn(),
-  registerActivity: vi.fn(),
-  timeLeft: 3_600_000,
-});
-
 /**
  * Helper — renders useTrainingScope with a given user and returns the hook value.
  * In a real setup this uses @testing-library/react's render + screen.

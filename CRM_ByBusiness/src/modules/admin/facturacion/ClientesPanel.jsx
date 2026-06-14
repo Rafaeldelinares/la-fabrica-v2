@@ -64,6 +64,13 @@ ActionIcon.propTypes = {
   disabled: PropTypes.bool,
 };
 
+const Skeleton = () => (
+  <div className="flex flex-col gap-2 py-2 animate-pulse">
+    <div className="h-6 bg-slate-800 rounded-sm" />
+    <div className="h-6 bg-slate-800 rounded-sm w-4/5" />
+  </div>
+);
+
 /**
  * PagoChip — Pastilla de pago individual dentro de un plan de pagos de proforma.
  * @param {object}   pg         - Objeto de pago con id, importe, estado, fecha y fracción
@@ -83,7 +90,7 @@ const PagoChip = ({ pg, onCobrado }) => {
       const d = await n8nPost('crm-cobro', { pago_id: pg.id, metodo, referencia, fecha: new Date().toISOString().slice(0,10) });
       if (d.ok) { setCobrandoId(null); onCobrado && onCobrado(); }
       else setErrorMsg('No se pudo registrar el cobro.');
-    } catch (err) {
+    } catch {
       setErrorMsg('Error de conexión. Intentá nuevamente.');
     } finally { setSaving(false); }
   };
@@ -175,7 +182,7 @@ const FilaProformaSimple = ({ proforma, cliente, contrato, onRefresh }) => {
       const d = await n8nPost(endpoint, body);
       if (d.ok || d.id || d.contrato_id) onRefresh();
       else setErrorMsg('La acción no se completó. Intentá nuevamente.');
-    } catch (err) {
+    } catch {
       setErrorMsg('Error de conexión. Intentá nuevamente.');
     } finally { setBusy(null); }
   };
@@ -273,7 +280,7 @@ const FilaFacturaSimple = ({ factura: f, onRefresh }) => {
       const d = await n8nPost(endpoint, body);
       if (d.ok || d.id || d.factura_id) onRefresh();
       else setErrorMsg('La acción no se completó. Intentá nuevamente.');
-    } catch (err) {
+    } catch {
       setErrorMsg('Error de conexión. Intentá nuevamente.');
     } finally { setBusy(null); }
   };
@@ -347,15 +354,7 @@ const ClienteExpandido = ({ cliente, onRefresh }) => {
         setFacturas(df.facturas || []);
       })
       .catch(() => { setProformas([]); setContratos([]); setFacturas([]); });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cliente.id]);
-
-  const Skeleton = () => (
-    <div className="flex flex-col gap-2 py-2 animate-pulse">
-      <div className="h-6 bg-slate-800 rounded-sm" />
-      <div className="h-6 bg-slate-800 rounded-sm w-4/5" />
-    </div>
-  );
 
   return (
     <div className="px-4 pb-3 space-y-3">
@@ -486,24 +485,26 @@ const ClientesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [pagina,      setPagina]      = useState(1);
   const [busqueda,    setBusqueda]    = useState('');
   const [orden,       setOrden]       = useState('nombre_asc');
-  const [error, setError] = useState(null);
 
   const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 40) / 52));
 
-  useEffect(() => { setPagina(1); }, [filasPorPagina]);
+  useEffect(() => {
+    Promise.resolve().then(() => setPagina(1));
+  }, [filasPorPagina]);
 
   /** Carga la lista de clientes desde el servidor. */
   const loadClientes = () => {
     n8nGet('crm-clientes')
-      .then(d => { if (d.ok) { setClientes(d.clientes); setPagina(1); } else setError(d.message || 'Error al cargar clientes'); })
+      .then(d => { if (d.ok) { setClientes(d.clientes); setPagina(1); } })
       .catch(() => setClientes([]));
   };
 
   useEffect(() => {
-    setBusqueda('');
-    setOrden('nombre_asc');
+    Promise.resolve().then(() => {
+      setBusqueda('');
+      setOrden('nombre_asc');
+    });
     loadClientes();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reloadKey]);
 
   const clientesFiltrados = useMemo(() => {

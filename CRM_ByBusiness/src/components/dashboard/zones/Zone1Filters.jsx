@@ -26,7 +26,6 @@ const Zone1Filters = ({
   errorRed,
   setErrorRed,
   handleAsignarLead,
-  trainingLeads = [],
   sessionLeads = [],
   trainingLeadsDisponibles = 0,
   // Props para modo real

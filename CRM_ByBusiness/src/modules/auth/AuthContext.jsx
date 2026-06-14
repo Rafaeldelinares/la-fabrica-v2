@@ -3,6 +3,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const AuthContext = createContext(null);
 const INACTIVITY_LIMIT_MS = 60 * 60 * 1000; // 60 Minutes
 
+export const useAuth = () => useContext(AuthContext);
+
 export const AuthProvider = ({ children }) => {
   // INSTANT AUTH: Initialize state directly from localStorage (Lazy Init)
   const [user, setUser] = useState(() => {
@@ -22,30 +24,11 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
   });
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [lastActivity, setLastActivity] = useState(() => Date.now());
   const [timeLeft, setTimeLeft] = useState(INACTIVITY_LIMIT_MS);
 
   // We no longer need the useEffect just for loading session
   // useEffect(() => { ... }, []); removed
-
-  // Inactivity Timer Logic
-  useEffect(() => {
-    if (!isAuthenticated) return;
-
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const diff = now - lastActivity;
-      
-      const remaining = Math.max(0, INACTIVITY_LIMIT_MS - diff);
-      setTimeLeft(remaining);
-
-      if (diff > INACTIVITY_LIMIT_MS) {
-        logout(); // Auto-expulsion
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isAuthenticated, lastActivity]);
 
   // Activity Listener
   const registerActivity = () => {
@@ -79,11 +62,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Inactivity Timer Logic
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const diff = now - lastActivity;
+      
+      const remaining = Math.max(0, INACTIVITY_LIMIT_MS - diff);
+      setTimeLeft(remaining);
+
+      if (diff > INACTIVITY_LIMIT_MS) {
+        logout(); // Auto-expulsion
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, lastActivity]);
+
   return (
     <AuthContext.Provider value={{ user, isAuthenticated, login, logout, registerActivity, timeLeft }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-export const useAuth = () => useContext(AuthContext);

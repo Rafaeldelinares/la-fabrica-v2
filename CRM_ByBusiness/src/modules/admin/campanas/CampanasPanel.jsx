@@ -23,7 +23,7 @@ import {
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
-import { useAuth } from '../../auth/AuthContext';
+
 import CampanaDrawer from './CampanaDrawer';
 import AsignarOperadoresModal from './AsignarOperadoresModal';
 import GeneradorCampanasPanel from './GeneradorCampanasPanel';
@@ -37,13 +37,11 @@ const N8N = import.meta.env.VITE_N8N_URL;
  * v2026.04.11 - Fix manejo de respuesta vacía cuando no hay campañas
  */
 const CampanasPanel = () => {
-  const { user } = useAuth();
   const [campanas, setCampanas] = useState(null);
   const [operadores, setOperadores] = useState([]);
   const [estadisticas, setEstadisticas] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [version] = useState('2026.04.11');
   
   // Filtros
   const [filtroTipo, setFiltroTipo] = useState(''); // '' | 'real' | 'simulacion'
@@ -76,6 +74,7 @@ const CampanasPanel = () => {
   // Cargar datos iniciales
   useEffect(() => {
     cargarDatos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cargarDatos es estable; carga intencional solo en montaje
   }, []);
 
   const cargarDatos = async () => {
@@ -88,7 +87,6 @@ const CampanasPanel = () => {
       if (!campanasRes.ok) throw new Error(`crm-campanas HTTP ${campanasRes.status}`);
       
       // Verificar si la respuesta tiene contenido antes de parsear JSON
-      const contentLength = campanasRes.headers.get('content-length');
       const text = await campanasRes.text();
       
       let campanasData;
@@ -286,7 +284,7 @@ const CampanasPanel = () => {
       } else {
         setError(data.message || 'Error al guardar campaña');
       }
-    } catch (err) {
+    } catch {
       setError('Error al guardar — comprueba la conexión');
     }
   };
@@ -775,7 +773,7 @@ CampanaEstadoBadge.propTypes = {
 /**
  * Barra de progreso para objetivos
  */
-const ProgresoBar = ({ label, actual, objetivo, porcentaje, color }) => {
+const ProgresoBar = ({ label, porcentaje, color }) => {
   const colorClasses = {
     emerald: 'bg-emerald-500',
     blue: 'bg-blue-500',

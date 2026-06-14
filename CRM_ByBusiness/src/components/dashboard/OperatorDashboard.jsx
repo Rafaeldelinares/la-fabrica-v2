@@ -41,7 +41,6 @@ const OperatorDashboard = ({
   const [elapsedString, setElapsedString] = useState('00:00');
   const [errorRed, setErrorRed] = useState('');
   // Nuevos estados para Zone1Filters
-  const [campanasActivas, setCampanasActivas] = useState([]);
   const [campanaSeleccionada, setCampanaSeleccionada] = useState(null);
   const [callbacksHoy, setCallbacksHoy] = useState([]);
   const [leadsDisponibles, setLeadsDisponibles] = useState(0);
@@ -77,13 +76,11 @@ const OperatorDashboard = ({
         // Cargar campañas activas
         const campanasData = await n8nGet('crm-campanas-activas', { operador_id: user.id, es_simulacion: isTraining });
         if (campanasData.ok) {
-          setCampanasActivas(campanasData.campanas || []);
           if (campanasData.campanas?.length > 0 && !campanaSeleccionada) {
             setCampanaSeleccionada(campanasData.campanas[0].id);
           }
         } else {
           // Security-hardened webhook: no assignments or forbidden → clear state, show error
-          setCampanasActivas([]);
           setErrorRed('No tienes campañas asignadas. Contacta al administrador.');
         }
 
@@ -116,9 +113,7 @@ const OperatorDashboard = ({
     // Refrescar cada 30 segundos
     const interval = setInterval(cargarDatosZone1, 30000);
     return () => clearInterval(interval);
-    // Nota: campanasActivas no está en deps porque se actualiza dentro del efecto.
-    // Agregarlo causaría bucle infinito. Usamos campanaSeleccionada como trigger.
-     
+    // Usamos campanaSeleccionada como trigger.
   }, [isTraining, user?.id, campanaSeleccionada]);
 
   /**
@@ -224,13 +219,6 @@ const OperatorDashboard = ({
       })
       .catch(err => setErrorRed('Error de red: ' + err.message));
   }, [lead, user?.id, startTime, refreshData]);
-
-  // Funciones para Zone1Filters
-  const handleSeleccionarCampana = useCallback((campanaId) => {
-    setCampanaSeleccionada(campanaId);
-    // Actualizar leads disponibles según campaña seleccionada
-    // Esto se hará automáticamente en el próximo ciclo del useEffect
-  }, []);
 
   const handleTomarCallback = useCallback(async (callback) => {
     try {

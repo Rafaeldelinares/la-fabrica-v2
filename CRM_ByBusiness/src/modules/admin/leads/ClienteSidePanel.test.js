@@ -17,8 +17,7 @@
  *     test: { environment: 'jsdom', globals: true },
  *   });
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 /**
  * Mock N8N endpoint responses.
@@ -106,8 +105,7 @@ describe('ClienteSidePanel', () => {
     describe('close button', () => {
         it('calls onClose callback when close button is clicked', async () => {
             mockFetch({ data: { ok: true, clientes: [{}] } });
-            const onClose = vi.fn();
-            // render(<ClienteSidePanel clienteId={123} onClose={onClose} />);
+            // render(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
             // await waitFor(() => screen.getByRole('button', { name: '' })); // X icon button
             // fireEvent.click(screen.getByRole('button', { name: '' }));
             // expect(onClose).toHaveBeenCalledTimes(1);
@@ -118,8 +116,7 @@ describe('ClienteSidePanel', () => {
     describe('overlay click', () => {
         it('calls onClose when the backdrop is clicked', async () => {
             mockFetch({ data: { ok: true, clientes: [{}] } });
-            const onClose = vi.fn();
-            // render(<ClienteSidePanel clienteId={123} onClose={onClose} />);
+            // render(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
             // await waitFor(() => screen.getByTestId('cliente-side-panel-backdrop'));
             // fireEvent.click(screen.getByTestId('cliente-side-panel-backdrop'));
             // expect(onClose).toHaveBeenCalledTimes(1);
