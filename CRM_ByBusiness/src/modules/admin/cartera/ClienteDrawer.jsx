@@ -8,6 +8,7 @@ import TabHistorial from './tabs/TabHistorial';
 import TabGbp            from './tabs/TabGbp';
 import TabTarjetaDigital from './tabs/TabTarjetaDigital';
 import { fmtDias } from '../../../utils/dates';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const SEMAFORO = {
   verde: 'bg-emerald-500',
@@ -43,17 +44,15 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
   const [interaccionEditar, setInteraccionEditar] = useState(null);
   const [errorTimeline,    setErrorTimeline]    = useState(null);
 
-  const N8N = import.meta.env.VITE_N8N_URL;
-
   const fetchTimeline = () => {
     setErrorTimeline(null);
-    fetch(`${N8N}/crm-interacciones-cliente?cliente_id=${cliente.id}`)
-      .then(res => res.json())
+    n8nGet('crm-interacciones-cliente', { cliente_id: cliente.id })
       .then(data => { if (data.ok) setTimeline(data.timeline); else setTimeline([]); })
       .catch(() => { setTimeline([]); setErrorTimeline('Error al cargar historial'); });
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTimeline();
   }, [cliente.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -70,12 +69,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
   };
 
   const handleDeleteInteraccion = (interaccionId) => {
-    fetch(`${N8N}/crm-interaccion-borrar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ interaccion_id: interaccionId }),
-    })
-      .then(res => res.json())
+    n8nPost('crm-interaccion-borrar', { interaccion_id: interaccionId })
       .then(d => { if (d.ok) fetchTimeline(); })
       .catch(() => setErrorTimeline('Error al borrar la interacción'));
   };
@@ -144,12 +138,12 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
           {activeTab === 'ficha'     && (
             <TabFicha
               cliente={cliente}
-              n8nUrl={N8N}
+              n8nUrl={import.meta.env.VITE_N8N_URL}
               onGestorChanged={onGestorChanged}
               onClienteBaja={onClienteBaja}
             />
           )}
-          {activeTab === 'facturacion' && <TabFacturacion cliente={cliente} n8nUrl={N8N} gestorId={gestorId} />}
+          {activeTab === 'facturacion' && <TabFacturacion cliente={cliente} n8nUrl={import.meta.env.VITE_N8N_URL} gestorId={gestorId} />}
           {activeTab === 'historial' && (
             <>
               {errorTimeline && (
@@ -162,7 +156,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
               />
             </>
           )}
-          {activeTab === 'gbp'       && <TabGbp cliente={cliente} n8nUrl={N8N} />}
+          {activeTab === 'gbp'       && <TabGbp cliente={cliente} n8nUrl={import.meta.env.VITE_N8N_URL} />}
           {activeTab === 'tarjeta'   && <TabTarjetaDigital cliente={cliente} />}
         </div>
       </div>

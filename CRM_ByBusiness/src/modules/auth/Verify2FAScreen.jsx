@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { ShieldCheck, Loader } from 'lucide-react';
-
-const N8N_WEBHOOK = import.meta.env.VITE_N8N_URL;
+import { n8nPost } from '../../shared/hooks/useN8n';
 
 /**
  * Verify2FAScreen — Pantalla de verificación TOTP para usuarios con 2FA ya configurado.
@@ -26,13 +25,7 @@ const Verify2FAScreen = ({ usuario, email, onSuccess }) => {
     setErrorMsg('');
     setLoading(true);
     try {
-      const res = await fetch(`${N8N_WEBHOOK}/crm-verificar-2fa`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: usuario.id, codigo: val, is_setup: false }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-verificar-2fa', { usuario_id: usuario.id, codigo: val, is_setup: false });
       if (data.ok) {
         onSuccess();
       } else {

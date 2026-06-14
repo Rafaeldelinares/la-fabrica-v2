@@ -50,6 +50,7 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
   const [errorCarga, setErrorCarga] = useState(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCargando(true);
     setErrorCarga(null);
     n8nPost('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })
@@ -228,6 +229,7 @@ const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
   const [errorCarga, setErrorCarga]     = useState(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCargando(true);
     setErrorCarga(null);
     n8nPost('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })

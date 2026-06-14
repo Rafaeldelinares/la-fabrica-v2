@@ -5,8 +5,7 @@ import {
   FileText, ExternalLink, ChevronDown, ChevronRight,
   CheckCircle, MessageCircle, Mail, Eye, Receipt, RotateCcw, Pencil, X, Building2,
 } from 'lucide-react';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
 
@@ -265,8 +264,8 @@ const ProformasPanel = ({ onAbrirCliente, reloadKey }) => {
 
   const loadData = useCallback(() => {
     Promise.all([
-      fetch(`${N8N}/crm-proformas`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
-      fetch(`${N8N}/crm-contratos-digitales-all`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }).catch(() => ({ contratos: [] })),
+      n8nGet('crm-proformas'),
+      n8nGet('crm-contratos-digitales-all').catch(() => ({ contratos: [] })),
     ])
       .then(([dp, dc]) => {
         const lista = dp.proformas || [];
@@ -296,12 +295,7 @@ const ProformasPanel = ({ onAbrirCliente, reloadKey }) => {
   const accion = async (endpoint, body, key) => {
     setBusy(key);
     try {
-      const r = await fetch(`${N8N}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
+      const d = await n8nPost(endpoint, body);
       if (d.ok || d.id || d.contrato_id) loadData();
     } catch (err) {
       console.error('[ProformasPanel] accion error:', err);

@@ -6,8 +6,7 @@ import {
   MessageCircle, Mail, Building2,
 } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const fmtEur = (v) => v != null ? `${parseFloat(v).toFixed(2)} €` : '—';
 
@@ -197,8 +196,7 @@ const FacturasPanel = ({ onAbrirCliente, reloadKey }) => {
   const [orden,        setOrden]        = useState('fecha_desc');
 
   const loadData = useCallback(() => {
-    fetch(`${N8N}/crm-facturas`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-facturas')
       .then(d => {
         const lista = d.facturas || [];
         const mapa = {};
@@ -226,12 +224,7 @@ const FacturasPanel = ({ onAbrirCliente, reloadKey }) => {
   const accion = async (endpoint, body, key) => {
     setBusy(key);
     try {
-      const r = await fetch(`${N8N}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
+      const d = await n8nPost(endpoint, body);
       if (d.ok || d.id || d.factura_id || d.pago_id) loadData();
     } catch (err) {
       console.error('[FacturasPanel] accion error:', err);

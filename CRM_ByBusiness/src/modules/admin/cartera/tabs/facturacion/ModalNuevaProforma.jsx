@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { X, Plus, Trash2 } from 'lucide-react';
+import { n8nGet, n8nPost } from '../../../../../shared/hooks/useN8n';
 
 const lineaVacia = () => ({ _id: Date.now() + Math.random(), descripcion: '', cantidad: 1, precio_unitario: 0, dto_pct: 0 });
 const subtotalLinea = (l) => +(l.cantidad * l.precio_unitario * (1 - l.dto_pct / 100)).toFixed(2);
@@ -32,8 +33,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
   const [error,         setError]         = useState(null);
 
   useEffect(() => {
-    fetch(`${n8nUrl}/crm-productos`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-productos', {}, { baseUrl: n8nUrl })
       .then(d => setProductos(d.productos || []))
       .catch(() => {});
   }, [n8nUrl]);
@@ -53,62 +53,35 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
     try {
       let proformaId;
       if (editMode) {
-        const resE = await fetch(`${n8nUrl}/crm-proforma-editar`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            proforma_id:    proformaEditar.id,
-            notas,
-            fraccionado,
-            num_fracciones: fraccionado ? numFracciones : 1,
-            iva_pct:        aplicarIva ? ivaPct : null,
-          }),
-        });
-        if (!resE.ok) {
-          const text = await resE.text();
-          throw new Error(`HTTP ${resE.status}: ${text || 'Error del servidor'}`);
-        }
-        const dataE = await resE.json();
+        const dataE = await n8nPost('crm-proforma-editar', {
+          proforma_id:    proformaEditar.id,
+          notas,
+          fraccionado,
+          num_fracciones: fraccionado ? numFracciones : 1,
+          iva_pct:        aplicarIva ? ivaPct : null,
+        }, { baseUrl: n8nUrl });
         if (!dataE.ok) throw new Error(dataE.error || 'Error al editar proforma');
         proformaId = proformaEditar.id;
       } else {
-        const resP = await fetch(`${n8nUrl}/crm-proforma-crear`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cliente_id:     cliente.id,
-            operador_id:    operadorId,
-            notas,
-            fraccionado,
-            num_fracciones: fraccionado ? numFracciones : 1,
-            iva_pct:        aplicarIva ? ivaPct : null,
-          }),
-        });
-        if (!resP.ok) {
-          const text = await resP.text();
-          throw new Error(`HTTP ${resP.status}: ${text || 'Error del servidor'}`);
-        }
-        const dataP = await resP.json();
+        const dataP = await n8nPost('crm-proforma-crear', {
+          cliente_id:     cliente.id,
+          operador_id:    operadorId,
+          notas,
+          fraccionado,
+          num_fracciones: fraccionado ? numFracciones : 1,
+          iva_pct:        aplicarIva ? ivaPct : null,
+        }, { baseUrl: n8nUrl });
         if (!dataP.ok) throw new Error(dataP.error || 'Error al crear proforma');
         proformaId = dataP.proforma?.id;
       }
       for (const l of lineas) {
-        const r = await fetch(`${n8nUrl}/crm-proforma-linea`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            proforma_id:     proformaId,
-            descripcion:     l.descripcion,
-            cantidad:        l.cantidad,
-            precio_unitario: l.precio_unitario,
-            dto_pct:         l.dto_pct,
-          }),
-        });
-        if (!r.ok) {
-          const text = await r.text();
-          throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
-        }
-        const dL = await r.json();
+        const dL = await n8nPost('crm-proforma-linea', {
+          proforma_id:     proformaId,
+          descripcion:     l.descripcion,
+          cantidad:        l.cantidad,
+          precio_unitario: l.precio_unitario,
+          dto_pct:         l.dto_pct,
+        }, { baseUrl: n8nUrl });
         if (!dL.ok) throw new Error(`Error en línea: ${l.descripcion}`);
       }
       onCreated();

@@ -3,8 +3,7 @@ import PropTypes from 'prop-types';
 import { X, Send } from 'lucide-react';
 import { formatISO } from 'date-fns';
 import DatePickerField from '../../../shared/ui/DatePickerField';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nPost } from '../../../shared/hooks/useN8n';
 
 /**
  * Mapa de tipos de interacción disponibles en el CRM.
@@ -46,9 +45,7 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, interaccion, onClose, on
     setSaving(true);
     setError('');
     try {
-      const url = esEdicion
-        ? `${N8N}/crm-interaccion-editar`
-        : `${N8N}/crm-registrar-interaccion`;
+      const path = esEdicion ? 'crm-interaccion-editar' : 'crm-registrar-interaccion';
 
       const body = esEdicion
         ? {
@@ -68,16 +65,7 @@ const RegistrarInteraccionModal = ({ cliente, gestorId, interaccion, onClose, on
             fecha_hora:        fechaHora ? formatISO(fechaHora) : null,
           };
 
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-      const d = await res.json();
+      const d = await n8nPost(path, body);
       if (d.ok) { onSaved(d.interaccion); }
       else { setError(d.message || 'Error al guardar'); }
     } catch (err) {

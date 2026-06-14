@@ -10,6 +10,7 @@ import CampanasAnalisisPanel from '../campanas/CampanasAnalisisPanel';
 import AnalisisInteligentePanel from '../campanas/AnalisisInteligentePanel';
 import { useAuth } from '../../auth/AuthContext';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const PAGE_SIZE = 15;
 
@@ -17,7 +18,6 @@ const PAGE_SIZE = 15;
 const LeadsPanel = () => {
     const { user } = useAuth();
     const scope = useTrainingScope();
-    const N8N = import.meta.env.VITE_N8N_URL;
 
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
@@ -31,33 +31,25 @@ const LeadsPanel = () => {
     const [mostrarAnalisis, setMostrarAnalisis]   = useState(false);
     const [mostrarAnalisisInteligente, setMostrarAnalisisInteligente] = useState(false);
     const [filtrosGenerador, setFiltrosGenerador] = useState([]);
-    const [datosAnalisis, setDatosAnalisis]       = useState(null);
+    const [_datosAnalisis, setDatosAnalisis]       = useState(null);
 
     const cargarOperadores = useCallback(() => {
-        fetch(`${N8N}/crm-operadores-activos`)
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
-            })
+        n8nGet('crm-operadores-activos')
             .then(data => { if (data.ok) setGestores(data.operadores); })
             .catch(() => { setGestores([]); setError('Error al cargar gestores — comprueba la conexion'); });
-    }, [N8N]);
+    }, []);
 
     const cargarLeads = useCallback(() => {
         setLeads(null);
-        fetch(`${N8N}/crm-leads-admin?es_simulacion=${scope.getFilterValue()}&limit=20000`)
-            .then(res => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
-            })
+        n8nGet('crm-leads-admin', { es_simulacion: scope.getFilterValue(), limit: '20000' })
             .then(data => {
                 if (data.ok) { setLeads(data.leads); setTotal(data.total); setError(''); }
                 else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
             })
             .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexion'); });
-    }, [N8N, scope]);
+    }, [scope]);
 
-    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]);
+    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]); // eslint-disable-line react-hooks/set-state-in-effect
 
     const leadsFiltrados = (leads ?? []).filter(lead =>
         (!filtroEstado    || lead.estado    === filtroEstado) &&

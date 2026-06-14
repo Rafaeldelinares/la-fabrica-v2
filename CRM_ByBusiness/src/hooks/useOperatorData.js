@@ -9,7 +9,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   const [historial, setHistorial] = useState([])
   const [stats, setStats] = useState(null)
   const [campanas, setCampanas] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
   // Compatibilidad con componentes que usan trainingLeads / sesionId
@@ -123,6 +123,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   // Carga inicial
   useEffect(() => {
     if (!userId) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     setError(null)
     Promise.all([
@@ -136,6 +137,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   // Recargar historial cuando cambia leadId
   useEffect(() => {
     if (!leadId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHistorial([])
       return
     }

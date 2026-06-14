@@ -11,7 +11,7 @@
  * Los toasts se descartan automáticamente a los 4s.
  * Se muestran máximo 3 simultáneos (los más recientes).
  */
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 
 /** @type {React.Context<{success:Function,error:Function,info:Function,warning:Function}|null>} */
@@ -146,6 +146,7 @@ ToastProvider.propTypes = {
  * Hook para disparar notificaciones desde cualquier componente.
  * @returns {{ success: Function, error: Function, info: Function, warning: Function }}
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
   const ctx = useContext(ToastCtx);
   if (!ctx) throw new Error('useToast debe usarse dentro de <ToastProvider>');

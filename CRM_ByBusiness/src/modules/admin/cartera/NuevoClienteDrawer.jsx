@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../auth/AuthContext';
 import { X, Plus, CheckCircle, Building2, Phone, MapPin, User, BadgeCheck } from 'lucide-react';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const PROVINCIAS = [
   'Álava','Albacete','Alicante','Almería','Asturias','Ávila','Badajoz','Barcelona','Burgos',
@@ -35,7 +36,6 @@ const Input = ({ ...props }) => (
  * @param {{ onClose: Function, onCreado: Function }} props
  */
 const NuevoClienteDrawer = ({ onClose, onCreado }) => {
-  const N8N = import.meta.env.VITE_N8N_URL;
   const creadoTimerRef = useRef(null);
   const { user } = useAuth();
 
@@ -62,8 +62,7 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
   useEffect(() => () => { if (creadoTimerRef.current) clearTimeout(creadoTimerRef.current); }, []);
 
   useEffect(() => {
-    fetch(`${N8N}/crm-usuarios-get`)
-      .then(res => res.json())
+    n8nGet('crm-usuarios-get')
       .then(data => {
         if (data.ok) {
           setGestores(data.usuarios.filter(u => ['admin', 'operador'].includes(u.rol)));
@@ -93,17 +92,12 @@ const NuevoClienteDrawer = ({ onClose, onCreado }) => {
     setError('');
     setGuardando(true);
     try {
-      const r = await fetch(`${N8N}/crm-cliente-crear`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          gestor_id: form.gestor_id ? parseInt(form.gestor_id) : null,
-          usuario_creador: user?.id || null,
-          nombre_gestor: gestores.find(g => g.id === parseInt(form.gestor_id))?.nombre || '',
-        }),
+      const d = await n8nPost('crm-cliente-crear', {
+        ...form,
+        gestor_id: form.gestor_id ? parseInt(form.gestor_id) : null,
+        usuario_creador: user?.id || null,
+        nombre_gestor: gestores.find(g => g.id === parseInt(form.gestor_id))?.nombre || '',
       });
-      const d = await r.json();
       if (d.ok) {
         setGuardado(true);
         creadoTimerRef.current = setTimeout(() => onCreado(d.cliente), 1200);

@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { QRCodeSVG } from 'qrcode.react';
 import { ShieldCheck, Loader } from 'lucide-react';
-
-const N8N_WEBHOOK = import.meta.env.VITE_N8N_URL;
+import { n8nPost } from '../../shared/hooks/useN8n';
 
 /**
  * Setup2FAScreen — Pantalla de vinculación inicial de autenticador TOTP.
@@ -28,21 +27,15 @@ const Setup2FAScreen = ({ usuario, onSuccess }) => {
     setErrorMsg('');
     setLoading(true);
     try {
-      const res = await fetch(`${N8N_WEBHOOK}/crm-verificar-2fa`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ usuario_id: usuario.id, codigo, is_setup: true }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-verificar-2fa', { usuario_id: usuario.id, codigo, is_setup: true });
       if (data.ok) {
         onSuccess();
       } else {
         setErrorMsg(data.error || 'CÓDIGO ERRÓNEO. Intentá de nuevo.');
         setCodigo('');
       }
-    } catch (err) {
-      setErrorMsg(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión con el servidor' : 'Error de conexión con el servidor');
+    } catch {
+      setErrorMsg('Error de conexión con el servidor');
     } finally {
       setLoading(false);
     }

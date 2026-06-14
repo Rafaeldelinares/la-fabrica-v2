@@ -3,8 +3,7 @@ import PropTypes from 'prop-types';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { RefreshCw } from 'lucide-react';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 /**
  * Formatea un string ISO de slot a "Lun 20/03 · 10:00".
@@ -46,8 +45,7 @@ const SlotPicker = ({ usuarioId, duracionMin, fechaDesde, onSlotSelected, onCanc
       n_slots:      8,
     });
 
-    fetch(`${N8N}/crm-buscar-hueco?${params.toString()}`)
-      .then(respuesta => respuesta.json())
+    n8nGet(`crm-buscar-hueco?${params.toString()}`)
       .then(datos => {
         if (!datos.ok) { setError(true); return; }
         if (datos.slots.length === 0) { setSinHuecos(true); setSlots([]); return; }
@@ -57,7 +55,7 @@ const SlotPicker = ({ usuarioId, duracionMin, fechaDesde, onSlotSelected, onCanc
       .finally(() => setCargando(false));
   };
 
-  useEffect(() => { buscarHuecos(); }, [usuarioId, duracionMin, fechaDesde]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { buscarHuecos(); }, [usuarioId, duracionMin, fechaDesde]); // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
 
   if (cargando) {
     return (

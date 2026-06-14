@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import { RefreshCw, Plus, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
+import { n8nPost } from '../../../shared/hooks/useN8n';
 
 /**
  * GeneradorCampanasPanel — Panel de generación automática de campañas desde leads huérfanos.
@@ -10,7 +11,6 @@ import { RefreshCw, Plus, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-r
  * @param {Function} onCerrar — Callback al cerrar el modal
  */
 const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
-  const N8N = import.meta.env.VITE_N8N_URL;
   const [modo, setModo] = useState(modoInicial);
   const [analizando, setAnalizando] = useState(false);
   const [resultado, setResultado] = useState(null);
@@ -33,13 +33,7 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
     setAnalizando(true);
     setError('');
     try {
-      const res = await fetch(`${N8N}/crm-analisis-campanas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ es_simulacion: modo === 'entrenamiento', max_leads: maxLeads })
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await n8nPost('crm-analisis-campanas', { es_simulacion: modo === 'entrenamiento', max_leads: maxLeads });
       if (data.ok) setResultado(data);
       else setError('Error en el análisis');
     } catch {
@@ -47,24 +41,18 @@ const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
     } finally {
       setAnalizando(false);
     }
-  }, [N8N, modo, maxLeads]);
+  }, [modo, maxLeads]);
 
   const crearCampana = async (propuesta) => {
     setCreando(prev => ({ ...prev, [propuesta.id]: true }));
     try {
-      const res = await fetch(`${N8N}/crm-campana-crear`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre: propuesta.nombre,
-          descripcion: propuesta.descripcion,
-          leads_ids: propuesta.leads_ids,
-          es_simulacion: modo === 'entrenamiento',
-          prioridad: 1
-        })
+      const data = await n8nPost('crm-campana-crear', {
+        nombre: propuesta.nombre,
+        descripcion: propuesta.descripcion,
+        leads_ids: propuesta.leads_ids,
+        es_simulacion: modo === 'entrenamiento',
+        prioridad: 1
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
       if (data.ok) {
         mostrarMensaje(`Campaña "${data.campana.nombre}" creada con ${data.leads_asignados} leads`);
         analizar();

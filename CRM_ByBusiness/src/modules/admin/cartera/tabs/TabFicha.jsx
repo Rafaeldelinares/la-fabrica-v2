@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { format } from 'date-fns';
 import { Phone, Mail, User, Globe, FileText, Building2, ExternalLink, BadgeCheck, CalendarClock, CheckCircle, AlertTriangle } from 'lucide-react';
 import DatePickerField from '../../../../shared/ui/DatePickerField';
+import { n8nGet, n8nPost } from '../../../../shared/hooks/useN8n';
 
 /**
  * TabFicha — Pestaña de datos de contacto, localización y próxima acción del cliente.
@@ -42,8 +43,7 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
   }, []);
 
   useEffect(() => {
-    fetch(`${n8nUrl}/crm-usuarios-get`)
-      .then(res => res.json())
+    n8nGet('crm-usuarios-get', {}, { baseUrl: n8nUrl })
       .then(data => { if (data.ok) setGestores(data.usuarios.filter(usr => usr.rol === 'admin')); })
       .catch(() => { setGestores([]); setErrorGestores('Error al cargar gestores'); });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,11 +53,7 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
     setGuardandoGest(true);
     setErrorGest(null);
     try {
-      await fetch(`${n8nUrl}/crm-cliente-gestor-asignar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, gestor_id: gestorId || null }),
-      });
+      await n8nPost('crm-cliente-gestor-asignar', { cliente_id: cliente.id, gestor_id: gestorId || null }, { baseUrl: n8nUrl });
       setGuardadoGest(true);
       clearTimeout(timerGuardadoGest.current);
       timerGuardadoGest.current = setTimeout(() => setGuardadoGest(false), 2000);
@@ -70,11 +66,7 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
     setGuardando(true);
     setErrorProxima(null);
     try {
-      await fetch(`${n8nUrl}/crm-cliente-proxima-accion`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, fecha: proximaFecha || null, nota: proximaNota || null }),
-      });
+      await n8nPost('crm-cliente-proxima-accion', { cliente_id: cliente.id, fecha: proximaFecha || null, nota: proximaNota || null }, { baseUrl: n8nUrl });
       setGuardado(true);
       clearTimeout(timerGuardado.current);
       timerGuardado.current = setTimeout(() => setGuardado(false), 2000);
@@ -85,11 +77,7 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
     setGuardandoBy(true);
     setErrorBy(null);
     try {
-      await fetch(`${n8nUrl}/crm-cliente-bybusiness-url`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, bybusiness_url: byBusinessUrl || null }),
-      });
+      await n8nPost('crm-cliente-bybusiness-url', { cliente_id: cliente.id, bybusiness_url: byBusinessUrl || null }, { baseUrl: n8nUrl });
       setGuardadoBy(true);
       clearTimeout(timerGuardadoBy.current);
       timerGuardadoBy.current = setTimeout(() => setGuardadoBy(false), 2000);
@@ -100,12 +88,7 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
     setDandoBaja(true);
     setErrorBaja(null);
     try {
-      const res = await fetch(`${n8nUrl}/crm-cliente-baja`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, tipo: confirmBaja }),
-      });
-      const data = await res.json();
+      const data = await n8nPost('crm-cliente-baja', { cliente_id: cliente.id, tipo: confirmBaja }, { baseUrl: n8nUrl });
       if (data.ok) { onClienteBaja?.(); }
       else { setErrorBaja('Error al procesar'); }
     } catch { setErrorBaja('Error de conexión'); } finally { setDandoBaja(false); }

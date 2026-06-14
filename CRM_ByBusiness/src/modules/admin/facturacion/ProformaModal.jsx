@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { X, Plus, Trash2, FileText } from 'lucide-react';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 /** Formatea un número como precio en euros. */
 const fmtEur = (v) => v != null ? `${parseFloat(v || 0).toFixed(2)} €` : '0.00 €';
@@ -101,8 +100,7 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`${N8N}/crm-productos`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-productos')
       .then(d => { if (d.ok) setProductos(d.productos); })
       .catch(() => {});
   }, []);
@@ -111,10 +109,7 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
 
   const rollback = async (proformaId) => {
     try {
-      await fetch(`${N8N}/crm-proforma-borrar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proforma_id: proformaId }),
-      });
+      await n8nPost('crm-proforma-borrar', { proforma_id: proformaId });
     } catch { /* rollback best-effort */ }
   };
 
@@ -127,11 +122,7 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
     try {
       // Paso 1 — crear cabecera
       setSavingMsg('Creando proforma...');
-      const r1 = await fetch(`${N8N}/crm-proforma-crear`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: cliente.id, operador_id: operadorId, fraccionado, num_fracciones: fraccionado ? numFracciones : 1, requiere_factura: requiereFactura, notas }),
-      });
-      const d1 = await r1.json();
+      const d1 = await n8nPost('crm-proforma-crear', { cliente_id: cliente.id, operador_id: operadorId, fraccionado, num_fracciones: fraccionado ? numFracciones : 1, requiere_factura: requiereFactura, notas });
       if (!d1.ok) throw new Error(d1.error || 'Error creando proforma');
       proformaId = d1.proforma.id;
 
@@ -139,21 +130,13 @@ const ProformaModal = ({ cliente, operadorId, onClose, onCreated }) => {
       for (let i = 0; i < validLineas.length; i++) {
         setSavingMsg(`Añadiendo líneas (${i + 1}/${validLineas.length})...`);
         const linea = validLineas[i];
-        const r2 = await fetch(`${N8N}/crm-proforma-linea`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ proforma_id: proformaId, producto_id: linea.producto_id || null, descripcion: linea.descripcion, cantidad: linea.cantidad, precio_unitario: linea.precio_unitario, dto_pct: linea.dto_pct || 0 }),
-        });
-        const d2 = await r2.json();
+        const d2 = await n8nPost('crm-proforma-linea', { proforma_id: proformaId, producto_id: linea.producto_id || null, descripcion: linea.descripcion, cantidad: linea.cantidad, precio_unitario: linea.precio_unitario, dto_pct: linea.dto_pct || 0 });
         if (d2.ok === false) throw new Error(d2.error || `Error añadiendo línea ${i + 1}`);
       }
 
       // Paso 3 — generar plan de pagos
       setSavingMsg('Generando plan de pagos...');
-      const r3 = await fetch(`${N8N}/crm-pagos-generar`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ proforma_id: proformaId }),
-      });
-      const d3 = await r3.json();
+      const d3 = await n8nPost('crm-pagos-generar', { proforma_id: proformaId });
       if (d3.ok === false) throw new Error(d3.error || 'Error generando plan de pagos');
 
       onCreated && onCreated();

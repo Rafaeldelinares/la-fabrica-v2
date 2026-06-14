@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { GraduationCap, RefreshCw, AlertCircle } from 'lucide-react'
-
-const N8N = import.meta.env.VITE_N8N_URL
+import { n8nGet, n8nPost } from '../../shared/hooks/useN8n'
 
 /**
  * Wrapper component para manejar lógica de modo entrenamiento
@@ -28,17 +27,9 @@ const TrainingModeWrapper = ({ children, isTraining, userId, onError }) => {
 
     const iniciarSesion = async () => {
       setTrainingData(prev => ({ ...prev, loading: true, error: null }))
-      
+
       try {
-        const response = await fetch(`${N8N}/crm-iniciar-sesion-entrenamiento`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operador_id: userId })
-        })
-        
-        if (!response.ok) throw new Error('Error iniciando sesión entrenamiento')
-        
-        const result = await response.json()
+        const result = await n8nPost('crm-iniciar-sesion-entrenamiento', { operador_id: userId })
         if (result.ok) {
           setTrainingData(prev => ({
             ...prev,
@@ -72,10 +63,7 @@ const TrainingModeWrapper = ({ children, isTraining, userId, onError }) => {
 
     const cargarLeads = async () => {
       try {
-        const response = await fetch(`${N8N}/crm-leads-entrenamiento?operador_id=${userId}`)
-        if (!response.ok) throw new Error('Error cargando leads entrenamiento')
-        
-        const result = await response.json()
+        const result = await n8nGet('crm-leads-entrenamiento', { operador_id: userId })
         if (result.ok) {
           setTrainingData(prev => ({
             ...prev,
@@ -104,10 +92,7 @@ const TrainingModeWrapper = ({ children, isTraining, userId, onError }) => {
     if (!isTraining || !userId) return
 
     try {
-      const response = await fetch(`${N8N}/crm-historial-operador?operador_id=${userId}`)
-      if (!response.ok) throw new Error('Error cargando estadísticas')
-      
-      const result = await response.json()
+      const result = await n8nGet('crm-historial-operador', { operador_id: userId })
       if (result.ok) {
         setTrainingData(prev => ({
           ...prev,
@@ -125,19 +110,11 @@ const TrainingModeWrapper = ({ children, isTraining, userId, onError }) => {
     if (!isTraining || !userId) return
 
     setTrainingData(prev => ({ ...prev, loading: true }))
-    
+
     try {
-      const [leadsRes, statsRes] = await Promise.all([
-        fetch(`${N8N}/crm-leads-entrenamiento?operador_id=${userId}`),
-        fetch(`${N8N}/crm-historial-operador?operador_id=${userId}`)
-      ])
-
-      if (!leadsRes.ok) throw new Error('Error refrescando leads')
-      if (!statsRes.ok) throw new Error('Error refrescando estadísticas')
-
       const [leadsData, statsData] = await Promise.all([
-        leadsRes.json(),
-        statsRes.json()
+        n8nGet('crm-leads-entrenamiento', { operador_id: userId }),
+        n8nGet('crm-historial-operador', { operador_id: userId }),
       ])
 
       setTrainingData(prev => ({

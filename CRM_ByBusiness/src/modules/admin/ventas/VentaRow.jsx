@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import Badge from '../../../shared/ui/Badge';
 import { fmtFecha } from '../../../utils/dates';
+import { n8nPost } from '../../../shared/hooks/useN8n';
 
 const ESTADO_CLASSES = {
     activo:    'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -15,8 +16,6 @@ const ESTADO_CLASSES = {
  * @param {Function} props.onEstadoChange - Callback cuando se actualiza el estado
  */
 const VentaRow = ({ venta, onEstadoChange }) => {
-    const N8N = import.meta.env.VITE_N8N_URL;
-
     const [estado, setEstado]       = useState(venta.estado || 'activo');
     const [guardando, setGuardando] = useState(false);
     const [error, setError]         = useState('');
@@ -27,16 +26,7 @@ const VentaRow = ({ venta, onEstadoChange }) => {
         setGuardando(true);
         setError('');
         try {
-            const res = await fetch(`${N8N}/crm-venta-actualizar`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ venta_id: venta.id, estado: nuevoEstado }),
-            });
-            if (!res.ok) {
-                const text = await res.text();
-                throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-            }
-            const data = await res.json();
+            const data = await n8nPost('crm-venta-actualizar', { venta_id: venta.id, estado: nuevoEstado });
             if (!data.ok) { setError(data.message || 'Error al guardar'); setEstado(venta.estado || 'activo'); }
             else if (onEstadoChange) onEstadoChange(venta.id, nuevoEstado);
         } catch (err) {

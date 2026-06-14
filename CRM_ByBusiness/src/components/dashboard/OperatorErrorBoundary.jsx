@@ -84,7 +84,7 @@ class OperatorErrorBoundary extends React.Component {
             </p>
 
             {/* Detalles del error (solo en desarrollo) */}
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <div className="mb-6 p-4 bg-slate-900 border border-slate-800 rounded-sm text-left">
                 <p className="text-sm font-mono text-[#D00000] mb-2">
                   {this.state.error.toString()}

@@ -4,6 +4,7 @@ import Badge from '../../../shared/ui/Badge';
 import { MessageSquare, User } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import ClienteSidePanel from './ClienteSidePanel';
+import { n8nPost } from '../../../shared/hooks/useN8n';
 
 const ESTADOS = ['pendiente','asignado','en_llamada','vendido','no_interesa','callback','no_contesta','error','lista_negra'];
 
@@ -23,8 +24,6 @@ const getPrioridadClasses = (prioridad) => {
  * @param {boolean} props.isAdmin  - Si es admin, muestra boton Ver cliente en vendido
  */
 const LeadRow = ({ lead, gestores, isAdmin }) => {
-    const N8N = import.meta.env.VITE_N8N_URL;
-
     const [estado, setEstado]               = useState(lead.estado);
     const [gestorId, setGestorId]           = useState(lead.operador_id ?? '');
     const [guardando, setGuardando]         = useState(false);
@@ -51,13 +50,7 @@ const LeadRow = ({ lead, gestores, isAdmin }) => {
         setGuardando(true);
         try {
             const body = { id: lead.id, [campo]: valor };
-            const res = await fetch(`${N8N}/crm-update-lead`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
+            const data = await n8nPost('crm-update-lead', body);
             if (!data.ok) {
                 // Rollback: el backend rechazo el cambio, no mentimos al usuario
                 setEstado(estadoPrevio);
@@ -89,13 +82,7 @@ const LeadRow = ({ lead, gestores, isAdmin }) => {
         if (!nota.trim()) return;
         setGuardandoNota(true);
         try {
-            const res = await fetch(`${N8N}/crm-lead-nota`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lead_id: lead.id, nota: nota.trim() }),
-            });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
+            const data = await n8nPost('crm-lead-nota', { lead_id: lead.id, nota: nota.trim() });
             if (data.ok) { setNota(''); setNotaAbierta(false); }
             else mostrarError('Error al guardar nota');
         } catch {

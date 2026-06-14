@@ -107,7 +107,7 @@ export async function n8nHealthCheck() {
       signal: controller.signal,
     });
     return true;
-  } catch (_err) {
+  } catch {
     return false;
   } finally {
     clearTimeout(timerId);

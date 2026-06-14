@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { ChevronDown, ChevronRight, ExternalLink, CheckCircle } from 'lucide-react';
+import { n8nGet, n8nPost } from '../../../../../shared/hooks/useN8n';
 
 const ESTADO_BADGE = {
   emitida:  'bg-blue-900/50 text-blue-300 border border-blue-800/40',
@@ -22,8 +23,7 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
 
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
-    fetch(`${n8nUrl}/crm-facturas-get?cliente_id=${cliente.id}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-facturas-get', { cliente_id: cliente.id }, { baseUrl: n8nUrl })
       .then(d => { setFacturas(d.facturas || []); setLoading(false); })
       .catch(() => { setError('Error al cargar facturas'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
@@ -33,20 +33,11 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
   const cobrarPago = async (pagoId, metodo) => {
     setBusy(pagoId);
     try {
-      const r = await fetch(`${n8nUrl}/crm-pago-cobrar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pago_id: pagoId, metodo: metodo || 'transferencia' }),
-      });
-      if (!r.ok) {
-        const text = await r.text();
-        throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
-      }
-      const d = await r.json();
+      const d = await n8nPost('crm-pago-cobrar', { pago_id: pagoId, metodo: metodo || 'transferencia' }, { baseUrl: n8nUrl });
       if (d.ok) cargar();
       else setError(d.message || 'Error al registrar el cobro');
-    } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al cobrar el pago' : 'Error al cobrar el pago');
+    } catch {
+      setError('Error al cobrar el pago');
     } finally {
       setBusy(null);
     }

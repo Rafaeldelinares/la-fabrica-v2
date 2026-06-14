@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Card from '../../shared/ui/Card';
 import { TrendingUp, Phone, ShoppingBag, Star, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
+import { n8nGet } from '../../shared/hooks/useN8n';
 
 const Stat = ({ label, value, color = 'text-white', suffix = '' }) => (
   <div className="bg-slate-950 border border-slate-800 rounded-sm p-3 flex flex-col gap-1">
@@ -97,17 +98,15 @@ const FilaSesion = ({ s, idx }) => {
 
 const HistorialProgreso = ({ user }) => {
   const [data, setData] = useState(null);
-  const base = import.meta.env.VITE_N8N_URL || 'http://localhost:5678/webhook';
 
   const cargar = () => {
     setData(null);
-    fetch(`${base}/crm-historial-operador?operador_id=${user.id}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-historial-operador', { operador_id: user.id })
       .then(d => { if (d.ok) setData(d); })
       .catch(() => setData({ sesiones: [], resumen: {} }));
   };
 
-  useEffect(cargar, []);
+  useEffect(cargar, [user.id]); // eslint-disable-line react-hooks/set-state-in-effect
 
   if (data === null) return (
     <div className="flex flex-col gap-3 animate-pulse">

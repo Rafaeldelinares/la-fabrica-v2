@@ -5,6 +5,7 @@ import EmptyState from '../../shared/ui/EmptyState';
 import HistorialProgreso from './HistorialProgreso';
 import { GraduationCap, Phone, PhoneOff, PhoneMissed, Calendar, TrendingUp, RefreshCw, Play, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import { fmtFecha } from '../../utils/dates';
+import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
 
 const DIFICULTAD_COLOR = {
   facil:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -30,17 +31,13 @@ const TarjetaLead = ({ lead, onRegistrar }) => {
   const registrar = async () => {
     if (!resultado) return;
     setSaving(true);
-    const base = import.meta.env.VITE_N8N_URL;
     try {
-      await fetch(`${base}/crm-resultado-entrenamiento`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lead_ficticio_id: lead.id,
-          operador_id: onRegistrar.operadorId,
-          sesion_id: onRegistrar.sesionId,
-          resultado, notas,
-          duracion_seg: duracion ? parseInt(duracion) : null,
-        }),
+      await n8nPost('crm-resultado-entrenamiento', {
+        lead_ficticio_id: lead.id,
+        operador_id: onRegistrar.operadorId,
+        sesion_id: onRegistrar.sesionId,
+        resultado, notas,
+        duracion_seg: duracion ? parseInt(duracion) : null,
       });
       setResultado(''); setNotas(''); setDuracion(''); setOpen(false);
       onRegistrar.refetch();
@@ -140,11 +137,9 @@ const EntrenamientoPanel = ({ user }) => {
   const [leads, setLeads] = useState(null);
   const [sesionId, setSesionId] = useState(null);
   const [iniciando, setIniciando] = useState(false);
-  const base = import.meta.env.VITE_N8N_URL;
 
   const cargarLeads = () => {
-    fetch(`${base}/crm-leads-entrenamiento?operador_id=${user.id}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-leads-entrenamiento', { operador_id: user.id })
       .then(d => { if (d.ok) setLeads(d.leads); })
       .catch(() => setLeads([]));
   };
@@ -152,11 +147,7 @@ const EntrenamientoPanel = ({ user }) => {
   const iniciarSesion = async () => {
     setIniciando(true);
     try {
-      const r = await fetch(`${base}/crm-iniciar-sesion-entrenamiento`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operador_id: user.id }),
-      });
-      const d = await r.json();
+      const d = await n8nPost('crm-iniciar-sesion-entrenamiento', { operador_id: user.id });
       if (d.ok) { setSesionId(d.sesion.id); cargarLeads(); }
     } finally { setIniciando(false); }
   };

@@ -473,7 +473,10 @@ const AgendaGlobalPanel = () => {
       .finally(() => setLoading(false));
   }, [fecha]);
 
-  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    cargar();
+  }, [cargar]);
 
   useEffect(() => {
     n8nGet('crm-clientes')

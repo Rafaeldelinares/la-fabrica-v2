@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { X, ExternalLink, Loader } from 'lucide-react';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const L = (t) => <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{t}</p>;
 const V = (v) => <p className="text-sm text-slate-200 font-mono mt-0.5 break-all">{v ?? '—'}</p>;
@@ -18,11 +17,14 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
     const [error, setError]     = useState('');
 
     useEffect(() => {
-        if (!clienteId) { setLoading(false); return; }
+        if (!clienteId) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setLoading(false);
+          return;
+        }
         setLoading(true);
         setError('');
-        fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
-            .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+        n8nGet(`crm-cartera-get?cliente_id=${clienteId}`)
             .then(data => {
                 if (data.ok && data.clientes?.length) setCliente(data.clientes[0]);
                 else setError('Cliente no encontrado');

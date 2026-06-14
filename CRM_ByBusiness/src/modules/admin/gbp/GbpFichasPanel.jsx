@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { RefreshCw, Plus, MapPin, Star, AlertCircle } from 'lucide-react';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { fmtFecha } from '../../../utils/dates';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const ESTADO_COLOR = {
   activa:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -29,15 +30,13 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
   const [fichas,       setFichas]       = useState(null);
   const [filtroEstado, setFiltroEstado] = useState('');
   const [error,        setError]        = useState(null);
-  const base = import.meta.env.VITE_N8N_URL;
 
   /** Carga las fichas GBP desde n8n, filtrando por estado si está seleccionado. */
   const cargar = () => {
     setFichas(null);
     setError(null);
     const params = filtroEstado ? `?estado=${filtroEstado}` : '';
-    fetch(`${base}/crm-gbp-fichas${params}`)
-      .then(res => res.json())
+    n8nGet(`crm-gbp-fichas${params}`)
       .then(data => { if (data.ok) setFichas(data.fichas); else setFichas([]); })
       .catch(() => { setFichas([]); setError('Error al cargar fichas GBP'); });
   };

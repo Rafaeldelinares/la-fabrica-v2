@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { Send, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
+import { n8nGet, n8nPost } from '../../../../shared/hooks/useN8n';
 
 const ESTADO_BADGE = {
   borrador:             'bg-slate-700/60 text-slate-400 border-slate-600',
@@ -34,8 +35,7 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
 
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
-    fetch(`${n8nUrl}/crm-contratos-digitales?cliente_id=${cliente.id}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-contratos-digitales', { cliente_id: cliente.id }, { baseUrl: n8nUrl })
       .then(d => { setContratos(d.contratos || []); setLoading(false); })
       .catch(() => { setError('Error al cargar contratos digitales'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
@@ -46,19 +46,10 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
     setBusy(`enviar-${contrato.id}`);
     setError(null);
     try {
-      const r = await fetch(`${n8nUrl}/crm-72-post-contrato-enviar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contrato_id: contrato.id }),
-      });
-      if (!r.ok) {
-        const text = await r.text();
-        throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
-      }
-      const d = await r.json();
+      const d = await n8nPost('crm-72-post-contrato-enviar', { contrato_id: contrato.id }, { baseUrl: n8nUrl });
       if (d.ok) cargar();
       else setError(d.message || d.error || 'Error al enviar contrato');
-    } catch (err) { setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al enviar' : 'Error de conexión'); }
+    } catch { setError('Error de conexión al enviar'); }
     finally { setBusy(null); }
   };
 

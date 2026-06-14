@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { RefreshCw, ExternalLink } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../utils/dates';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const MESES_OPCIONES = [3, 6, 9, 12, 15, 18, 20];
 
@@ -41,22 +42,19 @@ const RenovacionesPanel = ({ onAbrirCliente, alturaDisponible, reloadKey }) => {
   const [pagina,       setPagina]       = useState(1);
   const [busqueda,     setBusqueda]     = useState('');
   const [urgencia,     setUrgencia]     = useState('todas');
-  const N8N = import.meta.env.VITE_N8N_URL;
-
   const filasPorPagina = Math.max(5, Math.floor((alturaDisponible - 380) / 40));
 
-  useEffect(() => { setPagina(1); }, [filasPorPagina]);
+  useEffect(() => { setPagina(1); }, [filasPorPagina]); // eslint-disable-line react-hooks/set-state-in-effect
 
   const load = () => {
     setRenovaciones(null);
     setMesFiltro(null);
-    fetch(`${N8N}/crm-renovaciones?meses=${meses}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-renovaciones', { meses })
       .then(d => setRenovaciones(d.ok ? (d.renovaciones || []) : []))
       .catch(() => setRenovaciones([]));
   };
 
-  useEffect(load, [meses, reloadKey]);
+  useEffect(load, [meses, reloadKey]); // eslint-disable-line react-hooks/set-state-in-effect
 
   const currentKey = useMemo(() => {
     const now = new Date();

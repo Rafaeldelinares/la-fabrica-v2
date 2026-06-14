@@ -4,6 +4,7 @@ import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import VentaRow from './VentaRow';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 /** Devuelve YYYY-MM-DD de hace N días */
 const fechaHace = (dias) => {
@@ -17,8 +18,6 @@ const fechaHace = (dias) => {
  * Consume crm-ventas y crm-operadores-lista vía n8n.
  */
 const VentasPanel = () => {
-    const N8N = import.meta.env.VITE_N8N_URL;
-
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroOperador, setFiltroOperador]   = useState('');
     const [fechaDesde, setFechaDesde]           = useState(fechaHace(30));
@@ -29,11 +28,9 @@ const VentasPanel = () => {
     const [error, setError]                     = useState('');
 
     useEffect(() => {
-        fetch(`${N8N}/crm-operadores-lista`)
-            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        n8nGet('crm-operadores-lista')
             .then(d => { if (d.ok) setOperadores(d.operadores); })
             .catch(() => setOperadores([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const cargarVentas = useCallback(() => {
@@ -43,16 +40,15 @@ const VentasPanel = () => {
         if (filtroOperador)  params.set('operador_id', filtroOperador);
         if (fechaDesde)      params.set('fecha_desde', fechaDesde);
         if (fechaHasta)      params.set('fecha_hasta', fechaHasta);
-        fetch(`${N8N}/crm-ventas?${params}`)
-            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        n8nGet(`crm-ventas?${params}`)
             .then(d => {
                 if (d.ok) { setVentas(d.ventas); setTotal(d.total); setError(''); }
                 else { setVentas([]); setError(d.message || 'Error al cargar ventas — respuesta inesperada del servidor'); }
             })
             .catch(() => { setVentas([]); setError('Error al cargar ventas — comprueba la conexión'); });
-    }, [N8N, filtroEstado, filtroOperador, fechaDesde, fechaHasta]);
+    }, [filtroEstado, filtroOperador, fechaDesde, fechaHasta]);
 
-    useEffect(() => { cargarVentas(); }, [cargarVentas]);
+    useEffect(() => { cargarVentas(); }, [cargarVentas]); // eslint-disable-line react-hooks/set-state-in-effect
 
     const onEstadoChange = (ventaId, nuevoEstado) => {
         setVentas(prev => prev.map(v => v.id === ventaId ? { ...v, estado: nuevoEstado } : v));

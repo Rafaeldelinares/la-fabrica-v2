@@ -4,8 +4,7 @@ import { MapPin, Tag, BarChart3, RefreshCw, ChevronLeft, ChevronRight } from 'lu
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import { useTrainingScope } from '../../../shared/hooks/useTrainingScope';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nPost } from '../../../shared/hooks/useN8n';
 
 /**
  * Panel de Análisis de Campañas - Análisis detallado por localidad, categoría y dashboard.
@@ -186,18 +185,10 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
     setError('');
     try {
       // Nuevo endpoint unificado con modo analisis
-      const analisisRes = await fetch(`${N8N}/webhook/crm-analisis-campanas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modo: 'analisis',
-          es_simulacion: getFilterValue()
-        })
+      const analisisData = await n8nPost('webhook/crm-analisis-campanas', {
+        modo: 'analisis',
+        es_simulacion: getFilterValue()
       });
-
-      if (!analisisRes.ok) throw new Error(`HTTP ${analisisRes.status}`);
-
-      const analisisData = await analisisRes.json();
 
       if (analisisData.ok && analisisData.modo === 'analisis') {
         // Convertir segmentos al formato esperado por el componente

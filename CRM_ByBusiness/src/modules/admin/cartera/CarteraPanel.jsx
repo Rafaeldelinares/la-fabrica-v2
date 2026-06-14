@@ -7,9 +7,9 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import ClienteDrawer from './ClienteDrawer';
 import NuevoClienteDrawer from './NuevoClienteDrawer';
 import { useAuth } from '../../auth/AuthContext';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const PAGE_SIZE = 15;
-const N8N = import.meta.env.VITE_N8N_URL;
 
 const SEMAFORO_CONFIG = {
   verde: { dot: 'bg-emerald-500', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', label: 'Al día',    desc: 'Contacto en los últimos 30 días, sin pagos pendientes ni renovaciones urgentes.' },
@@ -66,12 +66,9 @@ const CarteraPanel = () => {
   const [error, setError]               = useState('');
 
   useEffect(() => {
-    fetch(`${N8N}/crm-cartera-get`)
-      .then(res => res.json())
+    n8nGet('crm-cartera-get')
       .then(data => { if (data.ok) setClientes(data.clientes); else setError('Error al cargar la cartera — respuesta inesperada'); })
       .catch(() => { setClientes([]); setError('Error al cargar la cartera — comprueba la conexión'); });
-  // N8N es constante de módulo, no reactiva
-   
   }, []);
 
   const aniosDisponibles = useMemo(() => {
@@ -148,7 +145,7 @@ const CarteraPanel = () => {
   };
 
   // Reset página al cambiar filtros
-  useEffect(() => { setPagina(1); }, [filtroSemaforo, filtroAnio, busqueda]);
+  useEffect(() => { setPagina(1); }, [filtroSemaforo, filtroAnio, busqueda]); // eslint-disable-line react-hooks/set-state-in-effect
 
   return (
     <div className="flex gap-0 h-full overflow-hidden">
@@ -420,8 +417,7 @@ const CarteraPanel = () => {
               onCreado={(cliente) => {
                 setNuevoCliente(false);
                 // Recargar cartera e ir directamente al nuevo cliente
-                fetch(`${N8N}/crm-cartera-get`)
-                  .then(res => res.json())
+                n8nGet('crm-cartera-get')
                   .then(data => {
                     if (data.ok) {
                       setClientes(data.clientes);

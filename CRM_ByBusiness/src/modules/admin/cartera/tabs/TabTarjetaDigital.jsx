@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { ExternalLink, RefreshCw, AlertTriangle } from 'lucide-react';
 import { fmtFecha } from '../../../../utils/dates';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../../../shared/hooks/useN8n';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -67,20 +66,11 @@ const DiscrepanciaFila = ({ campo, valorTarjeta, valorCrm, clienteId, onSynced }
     setSyncing(true);
     setErrorMsg(null);
     try {
-      const res = await fetch(`${N8N}/crm-tarjeta-sync-campo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cliente_id: clienteId, campo, valor: valorTarjeta }),
-      });
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-      const data = await res.json();
+      const data = await n8nPost('crm-tarjeta-sync-campo', { cliente_id: clienteId, campo, valor: valorTarjeta });
       if (data.ok) { setSynced(true); onSynced?.(campo); }
       else { setErrorMsg(data.message || 'Error al sincronizar'); }
-    } catch (err) {
-      setErrorMsg(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al sincronizar' : 'Error de conexión al sincronizar');
+    } catch {
+      setErrorMsg('Error de conexión al sincronizar');
     } finally {
       setSyncing(false);
     }
@@ -134,13 +124,12 @@ const TabTarjetaDigital = ({ cliente }) => {
   const cargar = useCallback(() => {
     setEstado('loading');
     setErrorMsg('');
-    fetch(`${N8N}/crm-tarjeta-get?cliente_id=${cliente.id}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-tarjeta-get', { cliente_id: cliente.id })
       .then(d => { setTarjeta(d); setEstado('ok'); })
       .catch(() => { setErrorMsg('Error al cargar la tarjeta — comprueba la conexión'); setEstado('error'); });
   }, [cliente.id]);
 
-  useEffect(() => { cargar(); }, [cargar]);
+  useEffect(() => { cargar(); }, [cargar]); // eslint-disable-line react-hooks/set-state-in-effect
 
   // ── loading ──────────────────────────────────────────────────────────────
   if (estado === 'loading') return <SkeletonTarjeta />;

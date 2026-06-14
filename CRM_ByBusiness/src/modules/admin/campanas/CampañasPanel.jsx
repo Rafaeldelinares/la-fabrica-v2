@@ -28,9 +28,9 @@ import AsignarOperadoresModal from './AsignarOperadoresModal';
 import GeneradorCampanasPanel from './GeneradorCampanasPanel';
 import CampanaEstadoBadge from './CampanaEstadoBadge';
 import ProgresoBar from './ProgresoBar';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const PAGE_SIZE = 10;
-const N8N = import.meta.env.VITE_N8N_URL;
 
 /**
  * CampañasPanel — Panel de gestión de campañas de llamadas.
@@ -72,12 +72,7 @@ const CampañasPanel = () => {
 
     try {
       // Cargar campañas
-      const campanasRes = await fetch(`${N8N}/crm-campanas`);
-      if (!campanasRes.ok) {
-        const errBody = await campanasRes.text().catch(() => '');
-        throw new Error(`HTTP ${campanasRes.status} — ${errBody || 'sin cuerpo'}`);
-      }
-      const campanasData = await campanasRes.json();
+      const campanasData = await n8nGet('crm-campanas');
 
       if (Array.isArray(campanasData)) {
         setCampañas(campanasData);
@@ -88,12 +83,7 @@ const CampañasPanel = () => {
       }
 
       // Cargar operadores
-      const operadoresRes = await fetch(`${N8N}/crm-usuarios-get`);
-      if (!operadoresRes.ok) {
-        const errBody = await operadoresRes.text().catch(() => '');
-        throw new Error(`HTTP ${operadoresRes.status} — ${errBody || 'sin cuerpo'}`);
-      }
-      const operadoresData = await operadoresRes.json();
+      const operadoresData = await n8nGet('crm-usuarios-get');
 
       if (operadoresData.ok) {
         setOperadores(operadoresData.usuarios.filter(u =>
@@ -114,12 +104,7 @@ const CampañasPanel = () => {
 
   const cargarEstadisticas = async () => {
     try {
-      const res = await fetch(`${N8N}/crm-estadisticas-campanas`);
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
-      }
-      const data = await res.json();
+      const data = await n8nGet('crm-estadisticas-campanas');
       
       if (data.ok && Array.isArray(data.estadisticas)) {
         const statsMap = {};
@@ -206,21 +191,7 @@ const CampañasPanel = () => {
 
     setEliminando(true);
     try {
-      // El workflow CRM_CAMPANAS_ELIMINAR está configurado como POST, no DELETE.
-      // Hacer fetch con text() primero para evitar crash si el body viene vacío.
-      const res = await fetch(`${N8N}/crm-campanas-eliminar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: campanaSeleccionada.id })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : { ok: true };
+      const data = await n8nPost('crm-campanas-eliminar', { id: campanaSeleccionada.id });
 
       if (data.ok) {
         await cargarDatos();
@@ -238,23 +209,9 @@ const CampañasPanel = () => {
 
   const onGuardarCampana = async (datos) => {
     try {
-      const url = modoCreacion 
-        ? `${N8N}/crm-campanas-crear`
-        : `${N8N}/crm-campanas-actualizar`;
+      const path = modoCreacion ? 'crm-campanas-crear' : 'crm-campanas-actualizar';
       
-      const method = modoCreacion ? 'POST' : 'PUT';
-      
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(datos)
-      });
-
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
-      }
-      const data = await res.json();
+      const data = await n8nPost(path, datos);
 
       if (data.ok) {
         await cargarDatos();

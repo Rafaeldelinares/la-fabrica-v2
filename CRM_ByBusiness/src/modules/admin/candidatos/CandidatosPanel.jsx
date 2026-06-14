@@ -5,6 +5,7 @@ import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { Users, ExternalLink } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const ESTADO_CLASSES = {
   nuevo:      'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -36,18 +37,8 @@ const CandidatosPanel = () => {
 
   /** Actualiza el estado de un candidato en el servidor y refleja el cambio en la UI. */
   const cambiarEstado = async (id, nuevoEstado) => {
-    const N8N = import.meta.env.VITE_N8N_URL;
     try {
-      const response = await fetch(`${N8N}/crm-candidato-update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, estado: nuevoEstado }),
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text || 'Error del servidor'}`);
-      }
-      const data = await response.json();
+      const data = await n8nPost('crm-candidato-update', { id, estado: nuevoEstado });
       if (data.ok) {
         setCandidatos(prev => prev.map(c => c.id === id ? { ...c, estado: nuevoEstado } : c));
       } else {
@@ -62,9 +53,7 @@ const CandidatosPanel = () => {
     const params = new URLSearchParams();
     if (filtroEstado) params.set('estado', filtroEstado);
     if (filtroOrigen) params.set('origen', filtroOrigen);
-    const N8N = import.meta.env.VITE_N8N_URL;
-    fetch(`${N8N}/crm-candidatos-admin?${params}`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet(`crm-candidatos-admin?${params}`)
       .then(data => {
         if (data.ok) { setCandidatos(data.candidatos); setTotal(data.total); setError(''); }
         else { setCandidatos([]); setError('Error al cargar candidatos — respuesta inesperada del servidor'); }

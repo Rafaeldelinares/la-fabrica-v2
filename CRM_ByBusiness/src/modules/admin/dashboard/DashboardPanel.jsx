@@ -5,6 +5,7 @@ import Stat from '../../../shared/ui/Stat';
 import Badge from '../../../shared/ui/Badge';
 import { RefreshCw } from 'lucide-react';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const PRIORIDAD_CLASSES = {
     alta:   'bg-red-500/10 text-red-500 border-red-500/20',
@@ -33,7 +34,6 @@ const TICK_MS          = 60_000;  // 1 minuto
  *   GET crm-actividad-operadores → { ok: true, data: [ { nombre, id, llamadas_hoy, ventas_hoy, callbacks_hoy, tasa_hoy } ] }
  */
 const DashboardPanel = () => {
-    const N8N = import.meta.env.VITE_N8N_URL;
     const { mode, isAdmin, isTraining, getFilterValue } = useTrainingScope();
 
     const [kpis, setKpis]             = useState(null);
@@ -56,8 +56,7 @@ const DashboardPanel = () => {
         const scopeValue = getFilterValue();
 
         // KPIs: el admin recibe ambos universos (real+training), los demás solo el suyo
-        fetch(`${N8N}/crm-kpi-dashboard?es_simulacion=${scopeValue}&mode=${mode}`)
-            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        n8nGet(`crm-kpi-dashboard?es_simulacion=${scopeValue}&mode=${mode}`)
             .then(d => {
                 if (d.ok) {
                     // d.data es array de filas: para admin [{real:..., training:...}, {real:..., training:...}]
@@ -70,8 +69,7 @@ const DashboardPanel = () => {
             .catch(() => setErrorKpis('Error al cargar KPIs — comprueba la conexión'));
 
         // Leads recientes — siempre filtrados por scope
-        fetch(`${N8N}/crm-leads-admin?es_simulacion=${scopeValue}&limit=5`)
-            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        n8nGet(`crm-leads-admin?es_simulacion=${scopeValue}&limit=5`)
             .then(d => {
                 if (d.ok && Array.isArray(d.data)) {
                     setLeads(d.data);
@@ -84,8 +82,7 @@ const DashboardPanel = () => {
             .catch(() => setErrorLeads('Error al cargar leads recientes'));
 
         // Actividad de operadores — filtrada por scope
-        fetch(`${N8N}/crm-actividad-operadores?es_simulacion=${scopeValue}`)
-            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+        n8nGet(`crm-actividad-operadores?es_simulacion=${scopeValue}`)
             .then(d => {
                 if (d.ok && Array.isArray(d.data)) {
                     setOperadores(d.data);
@@ -97,12 +94,12 @@ const DashboardPanel = () => {
 
         setUltimaActualizacion(new Date());
         setMinutosSinRefresh(0);
-    }, [N8N, mode, getFilterValue]);
+    }, [mode, getFilterValue]);
 
     /* Montaje: carga inicial + auto-refresh + tick contador */
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         cargarDatos();
-
         autoRefreshRef.current = setInterval(cargarDatos, AUTO_REFRESH_MS);
         tickRef.current = setInterval(() => setMinutosSinRefresh(m => m + 1), TICK_MS);
 

@@ -13,8 +13,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../auth/AuthContext';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const AsignameUnLead = ({ onAssigned }) => {
     const { user } = useAuth();
@@ -28,8 +27,7 @@ const AsignameUnLead = ({ onAssigned }) => {
     const fetchCampaigns = useCallback(() => {
         const es_sim = scope.getFilterValue();
         const param = es_sim === 'both' ? '' : `?es_simulacion=${es_sim}`;
-        return fetch(`${N8N}/crm-campanas${param}`)
-            .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+        return n8nGet(`crm-campanas${param}`)
             .then(data => {
                 if (data.ok) {
                     // Filter to active campaigns only (activo=true)
@@ -38,7 +36,7 @@ const AsignameUnLead = ({ onAssigned }) => {
             })
             .catch(() => setError('Error al cargar campañas'))
             .finally(() => setLoading(false));
-    }, [N8N, scope]);
+    }, [scope]);
 
     useEffect(() => { fetchCampaigns(); }, [fetchCampaigns]);
 
@@ -48,23 +46,14 @@ const AsignameUnLead = ({ onAssigned }) => {
         setError('');
         try {
             const url = campanaId
-                ? `${N8N}/${webhookPath}?campana_id=${campanaId}`
-                : `${N8N}/${webhookPath}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ operator_id: user.id, mode: 'one' }),
-            });
-            if (!res.ok) {
-                const errBody = await res.text().catch(() => '');
-                throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
-            }
-            const data = await res.json();
+                ? `${webhookPath}?campana_id=${campanaId}`
+                : webhookPath;
+            const data = await n8nPost(url, { operator_id: user.id, mode: 'one' });
             if (!data.ok) {
                 // TODO: webhooks crm-distribuidor-huerfanos y crm-distribuidor-campanas
                 // serán creados en PR #4 — por ahora devuelven 404 esperados.
-                console.warn(`[AsignameUnLead] Webhook ${webhookPath} returned ${res.status}`);
-                throw new Error(data?.error || `HTTP ${res.status}`);
+                console.warn(`[AsignameUnLead] Webhook ${webhookPath} returned !data.ok`);
+                throw new Error(data?.error || 'Error en servidor');
             }
             onAssigned?.(data.lead);
         } catch (err) {
@@ -72,7 +61,7 @@ const AsignameUnLead = ({ onAssigned }) => {
         } finally {
             setLoadingBtn(null);
         }
-    }, [N8N, user]);
+    }, [user, onAssigned]);
 
     if (loading) {
         return (

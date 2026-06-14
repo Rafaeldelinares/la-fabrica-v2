@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { X, Users, Clock, Calendar, Check, AlertTriangle } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const DIAS_SEMANA = [
   { id: 1, label: 'Lun', nombre: 'Lunes' },
@@ -29,17 +28,12 @@ const AsignarOperadoresModal = ({ campana, operadores, onClose, onAsignar }) => 
   // Cargar asignaciones existentes
   useEffect(() => {
     cargarAsignaciones();
-  }, [campana.id]);
+  }, [campana.id, cargarAsignaciones]);
 
-  const cargarAsignaciones = async () => {
+  const cargarAsignaciones = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${N8N}/crm-campana-operadores?campana_id=${campana.id}`);
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
-      }
-      const data = await res.json();
+      const data = await n8nGet(`crm-campana-operadores?campana_id=${campana.id}`);
 
       if (data.ok && Array.isArray(data.asignaciones)) {
         setAsignaciones(data.asignaciones);
@@ -52,7 +46,7 @@ const AsignarOperadoresModal = ({ campana, operadores, onClose, onAsignar }) => 
     } finally {
       setLoading(false);
     }
-  };
+  }, [campana.id]);
 
   const toggleOperador = (operadorId) => {
     setAsignaciones(prev => {
@@ -104,29 +98,17 @@ const AsignarOperadoresModal = ({ campana, operadores, onClose, onAsignar }) => 
     setSuccess('');
 
     try {
-      const res = await fetch(`${N8N}/crm-campana-asignar-operadores`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campana_id: campana.id,
-          asignaciones: asignaciones.map(a => ({
-            operador_id: a.operador_id,
-            capacidad_diaria: a.capacidad_diaria || 10,
-            horario_inicio: a.horario_inicio || '08:00',
-            horario_fin: a.horario_fin || '20:00',
-            dias_activos: a.dias_activos || [1, 2, 3, 4, 5],
-            activo: true,
-          })),
-        }),
+      const data = await n8nPost('crm-campana-asignar-operadores', {
+        campana_id: campana.id,
+        asignaciones: asignaciones.map(a => ({
+          operador_id: a.operador_id,
+          capacidad_diaria: a.capacidad_diaria || 10,
+          horario_inicio: a.horario_inicio || '08:00',
+          horario_fin: a.horario_fin || '20:00',
+          dias_activos: a.dias_activos || [1, 2, 3, 4, 5],
+          activo: true,
+        })),
       });
-
-      // Verificar HTTP antes de parsear JSON: en 5xx el body no es JSON y crashea
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-
-      const data = await res.json();
 
       if (data.ok) {
         setSuccess('Asignaciones guardadas correctamente');

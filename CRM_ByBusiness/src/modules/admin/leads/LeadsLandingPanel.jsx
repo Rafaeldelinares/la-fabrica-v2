@@ -4,6 +4,7 @@ import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { Database, RefreshCw, Target, Zap } from 'lucide-react';
 import LeadLandingRow from './LeadLandingRow';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const PAGE_SIZE = 15;
 const LANDING_ORIGIN = 'digital.ia-bybusiness.es';
@@ -13,8 +14,6 @@ const LANDING_ORIGIN = 'digital.ia-bybusiness.es';
  * Enfocado en el diagnóstico IA y captación masiva.
  */
 const LeadsLandingPanel = () => {
-    const N8N = import.meta.env.VITE_N8N_URL;
-
     const [leads, setLeads]       = useState(null);
     const [total, setTotal]       = useState(0);
     const [gestores, setGestores] = useState([]);
@@ -22,23 +21,15 @@ const LeadsLandingPanel = () => {
     const [pagina, setPagina]     = useState(1);
 
     const cargarOperadores = useCallback(() => {
-        fetch(`${N8N}/crm-operadores-activos`)
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
-            })
+        n8nGet('crm-operadores-activos')
             .then(d => { if (d.ok) setGestores(d.operadores); })
             .catch(() => { setGestores([]); });
-    }, [N8N]);
+    }, []);
 
     const cargarLeads = useCallback(() => {
         setLeads(null);
         // Endpoint específico para leads de landing
-        fetch(`${N8N}/crm-leads-landing-get`)
-            .then(r => {
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                return r.json();
-            })
+        n8nGet('crm-leads-landing-get')
             .then(data => {
                 if (data.ok) { 
                     setLeads(data.leads); 
@@ -50,9 +41,9 @@ const LeadsLandingPanel = () => {
                 }
             })
             .catch(() => { setLeads([]); setError('Error de conexión con el servidor'); });
-    }, [N8N]);
+    }, []);
 
-    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]);
+    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]); // eslint-disable-line react-hooks/set-state-in-effect
 
     const totalPaginas = Math.max(1, Math.ceil((leads?.length || 0) / PAGE_SIZE));
     const paginaReal   = Math.min(pagina, totalPaginas);

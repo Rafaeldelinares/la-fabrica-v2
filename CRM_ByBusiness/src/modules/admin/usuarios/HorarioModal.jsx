@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { X, Plus, Trash2, Clock, Save } from 'lucide-react';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const DIAS_SEMANA = [
   { valor: 0, etiqueta: 'Lunes' },
@@ -41,16 +40,16 @@ const normalizarHora = (tiempo) => {
 const HorarioModal = ({ usuario, onClose, onGuardado }) => {
   /** @type {[Array<{dia_semana: number, hora_inicio: string, hora_fin: string}>, Function]} */
   const [bloques, setBloques]       = useState([]);
-  const [cargando, setCargando]     = useState(true);
+  const [cargando, setCargando]     = useState(false);
   const [guardando, setGuardando]   = useState(false);
   const [errorCarga, setErrorCarga] = useState(false);
   const [errorGuardado, setErrorGuardado] = useState(null);
 
-  useEffect(() => {
+useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCargando(true);
     setErrorCarga(false);
-    fetch(`${N8N}/crm-horarios?usuario_id=${usuario.id}`)
-      .then(respuesta => respuesta.json())
+    n8nGet(`crm-horarios?usuario_id=${usuario.id}`)
       .then(datos => {
         if (datos.ok) {
           setBloques(
@@ -60,11 +59,11 @@ const HorarioModal = ({ usuario, onClose, onGuardado }) => {
               hora_fin:    normalizarHora(bloque.hora_fin),
             }))
           );
-        } else {
-          setErrorCarga(true);
         }
       })
-      .catch(() => setErrorCarga(true))
+.catch(() => {
+        setErrorCarga(true);
+      })
       .finally(() => setCargando(false));
   }, [usuario.id]);
 
@@ -124,12 +123,7 @@ const HorarioModal = ({ usuario, onClose, onGuardado }) => {
     }
 
     setGuardando(true);
-    fetch(`${N8N}/crm-horarios-guardar`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ usuario_id: usuario.id, bloques }),
-    })
-      .then(respuesta => respuesta.json())
+    n8nPost('crm-horarios-guardar', { usuario_id: usuario.id, bloques })
       .then(datos => {
         if (datos.ok) {
           onGuardado();

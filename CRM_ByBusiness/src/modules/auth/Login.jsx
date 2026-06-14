@@ -4,8 +4,8 @@ import { useAuth } from './AuthContext';
 import CredentialsForm from './CredentialsForm';
 import Setup2FAScreen from './Setup2FAScreen';
 import Verify2FAScreen from './Verify2FAScreen';
+import { n8nPost } from '../../shared/hooks/useN8n';
 
-const N8N_WEBHOOK = import.meta.env.VITE_N8N_URL;
 const API_URL = import.meta.env.VITE_API_URL ?? '/api';
 
 /**
@@ -28,16 +28,7 @@ const Login = () => {
   const pendingUser = useRef(null);
 
   const doLogin = async (emailToLogin, passwordToUse) => {
-    const res = await fetch(`${N8N_WEBHOOK}/crm-login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: emailToLogin.toLowerCase().trim(), password: passwordToUse }),
-    });
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
-    }
-    return res.json();
+    return n8nPost('crm-login', { email: emailToLogin.toLowerCase().trim(), password: passwordToUse });
   };
 
   const doLoginApi = async (emailToLogin, passwordToUse) => {

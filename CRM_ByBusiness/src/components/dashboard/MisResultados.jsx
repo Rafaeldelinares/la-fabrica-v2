@@ -4,6 +4,7 @@ import Stat from '../../shared/ui/Stat';
 import Card from '../../shared/ui/Card';
 import EmptyState from '../../shared/ui/EmptyState';
 import { BarChart2, TrendingUp, Phone, Clock } from 'lucide-react';
+import { n8nGet } from '../../shared/hooks/useN8n';
 
 const RESULTADOS = [
   { key: 'ventas_hoy',       label: 'VENTAS',       color: 'text-emerald-400' },
@@ -17,13 +18,13 @@ const RESULTADOS = [
 const MisResultados = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
-    fetch(`${import.meta.env.VITE_N8N_URL}/crm-resultados-operador?operador_id=${user.id}`)
-      .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    n8nGet('crm-resultados-operador', { operador_id: user.id })
       .then(data => { if (data?.ok) setStats(data.stats); })
       .catch(() => {})
       .finally(() => setLoading(false));

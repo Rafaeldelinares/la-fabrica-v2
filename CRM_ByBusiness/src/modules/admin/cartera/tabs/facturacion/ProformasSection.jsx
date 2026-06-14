@@ -5,6 +5,7 @@ import {
   CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw, Pencil, X, Receipt,
 } from 'lucide-react';
 import ModalNuevaProforma from './ModalNuevaProforma';
+import { n8nGet, n8nPost } from '../../../../../shared/hooks/useN8n';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -178,8 +179,8 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
     Promise.all([
-      fetch(`${n8nUrl}/crm-proformas?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
-      fetch(`${n8nUrl}/crm-71-get-contratos-digitales?cliente_id=${cliente.id}`).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); }),
+      n8nGet('crm-proformas', { cliente_id: cliente.id }, { baseUrl: n8nUrl }),
+      n8nGet('crm-71-get-contratos-digitales', { cliente_id: cliente.id }, { baseUrl: n8nUrl }),
     ])
       .then(([dp, dc]) => {
         setProformas(dp.proformas || []);
@@ -194,20 +195,11 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   const accion = async (endpoint, body, key) => {
     setBusy(key);
     try {
-      const r = await fetch(`${n8nUrl}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!r.ok) {
-        const text = await r.text();
-        throw new Error(`HTTP ${r.status}: ${text || 'Error del servidor'}`);
-      }
-      const d = await r.json();
+      const d = await n8nPost(endpoint, body, { baseUrl: n8nUrl });
       if (d.ok) cargar();
       else setError(d.message || d.error || `Error en ${endpoint}`);
-    } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al ejecutar la acción' : 'Error al ejecutar la acción');
+    } catch {
+      setError('Error de conexión al ejecutar la acción');
     } finally {
       setBusy(null);
     }

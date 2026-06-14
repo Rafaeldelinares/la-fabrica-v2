@@ -5,6 +5,7 @@ import { FileText, Plus } from 'lucide-react';
 import DatePickerField from '../../../../shared/ui/DatePickerField';
 import { fmtFecha } from '../../../../utils/dates';
 import ContratoDigitalSection from './ContratoDigitalSection';
+import { n8nGet, n8nPost } from '../../../../shared/hooks/useN8n';
 
 const ESTADOS_CONTRATO = ['activo', 'pausado', 'cancelado'];
 
@@ -31,8 +32,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
 
   const cargarContratos = useCallback(() => {
     setErrorCarga(null);
-    fetch(`${n8nUrl}/crm-contratos-cliente?cliente_id=${cliente.id}`)
-      .then(res => res.json())
+    n8nGet('crm-contratos-cliente', { cliente_id: cliente.id }, { baseUrl: n8nUrl })
       .then(data => setContratos(data.ok ? data.contratos : []))
       .catch(err => { if (import.meta.env.DEV) console.error('[TabContratos] cargar:', err); setContratos([]); setErrorCarga('Error al cargar contratos'); });
   }, [cliente.id, n8nUrl]);
@@ -42,15 +42,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
   const handleCambiarEstado = (contrato, nuevoEstado) => {
     if (contrato.estado === nuevoEstado) return;
     setCambiandoEstado(contrato.id);
-    fetch(`${n8nUrl}/crm-contrato-actualizar`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contrato_id: contrato.id, estado: nuevoEstado }),
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
+    n8nPost('crm-contrato-actualizar', { contrato_id: contrato.id, estado: nuevoEstado }, { baseUrl: n8nUrl })
       .then(d => {
         if (d.ok) {
           cargarContratos();
@@ -73,22 +65,13 @@ const TabContratos = ({ cliente, n8nUrl }) => {
     const fechaFin = new Date(fechaInicio);
     fechaFin.setMonth(fechaFin.getMonth() + parseInt(nuevoForm.meses || 12));
     try {
-      const response = await fetch(`${n8nUrl}/crm-contrato-crear`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          cliente_id:      cliente.id,
-          tipo_servicio:   nuevoForm.tipo_servicio,
-          importe_mensual: parseFloat(nuevoForm.importe_mensual) || null,
-          fecha_inicio:    nuevoForm.fecha_inicio,
-          fecha_fin:       fechaFin.toISOString().slice(0, 10),
-        }),
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text || 'Error del servidor'}`);
-      }
-      const data = await response.json();
+      const data = await n8nPost('crm-contrato-crear', {
+        cliente_id:      cliente.id,
+        tipo_servicio:   nuevoForm.tipo_servicio,
+        importe_mensual: parseFloat(nuevoForm.importe_mensual) || null,
+        fecha_inicio:    nuevoForm.fecha_inicio,
+        fecha_fin:       fechaFin.toISOString().slice(0, 10),
+      }, { baseUrl: n8nUrl });
       if (data.ok) {
         setNuevoOpen(false);
         setNuevoForm({ tipo_servicio: '', importe_mensual: '', fecha_inicio: '', meses: '12' });
@@ -96,7 +79,7 @@ const TabContratos = ({ cliente, n8nUrl }) => {
       } else {
         setErrorGuardar(data.message || 'Error al guardar el contrato');
       }
-    } catch (err) { if (import.meta.env.DEV) console.error('[TabContratos] nuevoContrato:', err); setErrorGuardar(err instanceof Error && err.message.startsWith('HTTP') ? 'Error al guardar el contrato — comprueba la conexión' : 'Error al guardar el contrato'); } finally { setGuardandoNuevo(false); }
+    } catch (err) { if (import.meta.env.DEV) console.error('[TabContratos] nuevoContrato:', err); setErrorGuardar('Error al guardar el contrato'); } finally { setGuardandoNuevo(false); }
   };
 
   if (contratos === null) return (

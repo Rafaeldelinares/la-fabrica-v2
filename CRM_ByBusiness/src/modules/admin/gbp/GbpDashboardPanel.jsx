@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, Star, MessageSquare, FileText, RefreshCw } from 'lucide-react';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 /** Tarjeta de KPI individual con icono, valor y subtítulo opcional. */
 const Stat = ({ label, value, icon: Icon, color = 'text-white', sub = null }) => (
@@ -21,18 +22,16 @@ const Stat = ({ label, value, icon: Icon, color = 'text-white', sub = null }) =>
 const GbpDashboardPanel = () => {
   const [kpis,  setKpis]  = useState(null);
   const [error, setError] = useState(null);
-  const base = import.meta.env.VITE_N8N_URL;
 
   const cargar = () => {
     setKpis(null);
     setError(null);
-    fetch(`${base}/crm-gbp-kpis`)
-      .then(res => res.json())
+    n8nGet('crm-gbp-kpis')
       .then(data => { if (data.ok) setKpis(data.kpis); else setKpis({}); })
       .catch(() => { setKpis({}); setError('Error al cargar KPIs de GBP'); });
   };
 
-  useEffect(cargar, []);
+  useEffect(cargar, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   if (kpis === null) return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

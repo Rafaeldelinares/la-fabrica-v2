@@ -3,8 +3,6 @@ import PropTypes from 'prop-types';
 import { X, Target, DollarSign, Calendar, ToggleLeft, ToggleRight, CheckCircle } from 'lucide-react';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 
-const N8N = import.meta.env.VITE_N8N_URL;
-
 /**
  * CampanaDrawer — Modal compacto para crear o editar una campaña.
  * SIMPLIFICADO: Solo usa campo 'activo' (true/false)
@@ -48,7 +46,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
         activo: campana.activo !== false,
       });
     }
-  }, [campana, modoCreacion]);
+  }, [campana, modoCreacion, scope]);
 
   const handleChange = (field) => (e) => {
     const value = e.target.type === 'checkbox' 
@@ -82,7 +80,7 @@ const CampanaDrawer = ({ campana, modoCreacion, onClose, onSave }) => {
         setMensaje('');
         onClose();
       }, 1500);
-    } catch (err) {
+    } catch {
       setError('Error al guardar');
     } finally {
       setLoading(false);

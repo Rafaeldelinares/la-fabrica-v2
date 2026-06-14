@@ -4,9 +4,7 @@ import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { Building2, Mail, Send, History, FileSpreadsheet, FileText, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
-
-const N8N = import.meta.env.VITE_N8N_URL;
-if (!N8N) throw new Error('VITE_N8N_URL no está configurado');
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const GestoriaPanel = () => {
   const [config, setConfig] = useState(null);
@@ -25,18 +23,10 @@ const GestoriaPanel = () => {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [rConfig, rEnvios, rPend] = await Promise.all([
-        fetch(`${N8N}/crm-gestor-config`),
-        fetch(`${N8N}/crm-gestor-envios`),
-        fetch(`${N8N}/crm-gestor-pendientes?desde=${rango.desde}&hasta=${rango.hasta}`)
-      ]);
-
-      if (!rConfig.ok) throw new Error(`HTTP ${rConfig.status}`);
-      if (!rEnvios.ok) throw new Error(`HTTP ${rEnvios.status}`);
-      if (!rPend.ok)   throw new Error(`HTTP ${rPend.status}`);
-
       const [resConfig, resEnvios, resPend] = await Promise.all([
-        rConfig.json(), rEnvios.json(), rPend.json()
+        n8nGet('crm-gestor-config'),
+        n8nGet('crm-gestor-envios'),
+        n8nGet('crm-gestor-pendientes', { desde: rango.desde, hasta: rango.hasta })
       ]);
 
       if (!resConfig.ok) throw new Error(resConfig.error || 'Error del servidor');
@@ -65,13 +55,7 @@ const GestoriaPanel = () => {
     const data = Object.fromEntries(formData);
     
     try {
-      const res = await fetch(`${N8N}/crm-gestor-config-update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const resData = await res.json();
+      const resData = await n8nPost('crm-gestor-config-update', data);
       if (!resData.ok) throw new Error(resData.error || 'Error del servidor');
       loadAll();
     } catch (err) {
@@ -87,17 +71,11 @@ const GestoriaPanel = () => {
 
     setEnvioBusy(true);
     try {
-      const res = await fetch(`${N8N}/crm-gestor-enviar-lote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          desde: rango.desde,
-          hasta: rango.hasta,
-          facturas_ids: pendientes.map(f => f.id)
-        })
+      const data = await n8nPost('crm-gestor-enviar-lote', {
+        desde: rango.desde,
+        hasta: rango.hasta,
+        facturas_ids: pendientes.map(f => f.id)
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
       if (!data.ok) throw new Error(data.error || 'Error del servidor');
       loadAll();
     } catch (err) {

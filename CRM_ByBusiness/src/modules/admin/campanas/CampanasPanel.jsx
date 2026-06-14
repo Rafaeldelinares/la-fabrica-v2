@@ -27,9 +27,9 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import CampanaDrawer from './CampanaDrawer';
 import AsignarOperadoresModal from './AsignarOperadoresModal';
 import GeneradorCampanasPanel from './GeneradorCampanasPanel';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const PAGE_SIZE = 10;
-const N8N = import.meta.env.VITE_N8N_URL;
 
 /**
  * CampanasPanel — Panel de gestión de campañas de llamadas.
@@ -83,24 +83,7 @@ const CampanasPanel = () => {
 
     try {
       // Cargar campanas
-      const campanasRes = await fetch(`${N8N}/crm-campanas`);
-      if (!campanasRes.ok) throw new Error(`crm-campanas HTTP ${campanasRes.status}`);
-      
-      // Verificar si la respuesta tiene contenido antes de parsear JSON
-      const text = await campanasRes.text();
-      
-      let campanasData;
-      if (!text || text.trim() === '') {
-        // Respuesta vacía - no hay campañas
-        campanasData = [];
-      } else {
-        try {
-          campanasData = JSON.parse(text);
-        } catch (parseErr) {
-          if (import.meta.env.DEV) console.warn('Respuesta no-JSON de crm-campanas:', parseErr.message);
-          campanasData = [];
-        }
-      }
+      const campanasData = await n8nGet('crm-campanas');
 
       if (Array.isArray(campanasData)) {
         setCampanas(campanasData);
@@ -111,9 +94,7 @@ const CampanasPanel = () => {
       }
 
       // Cargar operadores
-      const operadoresRes = await fetch(`${N8N}/crm-usuarios-get`);
-      if (!operadoresRes.ok) throw new Error(`crm-usuarios-get HTTP ${operadoresRes.status}`);
-      const operadoresData = await operadoresRes.json();
+      const operadoresData = await n8nGet('crm-usuarios-get');
 
       if (operadoresData.ok) {
         setOperadores(operadoresData.usuarios.filter(u =>
@@ -133,12 +114,7 @@ const CampanasPanel = () => {
 
   const cargarEstadisticas = async () => {
     try {
-      const res = await fetch(`${N8N}/crm-estadisticas-campanas`);
-      if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        throw new Error(`HTTP ${res.status} — ${errBody || 'sin cuerpo'}`);
-      }
-      const data = await res.json();
+      const data = await n8nGet('crm-estadisticas-campanas');
       
       if (data.ok && Array.isArray(data.estadisticas)) {
         const statsMap = {};
@@ -224,21 +200,7 @@ const CampanasPanel = () => {
 
     setEliminando(true);
     try {
-      // El workflow CRM_CAMPANAS_ELIMINAR está configurado como POST, no DELETE.
-      // Hacer fetch con text() primero para evitar crash si el body viene vacío.
-      const res = await fetch(`${N8N}/crm-campanas-eliminar`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: campanaSeleccionada.id })
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : { ok: true };
+      const data = await n8nPost('crm-campanas-eliminar', { id: campanaSeleccionada.id });
 
       if (data.ok) {
         await cargarDatos();
@@ -259,24 +221,9 @@ const CampanasPanel = () => {
 
   const onGuardarCampana = async (datos) => {
     try {
-      const url = modoCreacion 
-        ? `${N8N}/crm-campanas-crear`
-        : `${N8N}/crm-campana-update-fix`;
+      const path = modoCreacion ? 'crm-campanas-crear' : 'crm-campana-update-fix';
       
-      const method = modoCreacion ? 'POST' : 'PUT';
-      
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(datos)
-      });
-      
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text || 'Error del servidor'}`);
-      }
-      
-      const data = await res.json();
+      const data = await n8nPost(path, datos);
       
       if (data.ok) {
         await cargarDatos();

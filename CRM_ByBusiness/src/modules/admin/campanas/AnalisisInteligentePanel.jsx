@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { Brain, CheckCircle, XCircle, Users, Globe, Target, RefreshCw, AlertCircle, Sparkles, ChevronLeft, ChevronRight, MapPin, Layers, Filter } from 'lucide-react';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nPost } from '../../../shared/hooks/useN8n';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -33,13 +32,13 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
 
   useEffect(() => {
     cargarAnalisis();
-  }, [incluirWeb, filtroTipo]);
+  }, [incluirWeb, filtroTipo, cargarAnalisis]);
 
   useEffect(() => {
     setPaginaActual(1);
   }, [filtroTipo]);
 
-  const cargarAnalisis = async () => {
+  const cargarAnalisis = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -48,19 +47,10 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
     setError('');
 
     try {
-      const res = await fetch(`${N8N}/crm-analisis-inteligente`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          incluir_web: incluirWeb,
-          tipo: filtroTipo
-        })
+      const data = await n8nPost('crm-analisis-inteligente', {
+        incluir_web: incluirWeb,
+        tipo: filtroTipo
       });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
 
       if (data.success && Array.isArray(data.propuestas)) {
         setPropuestas(data.propuestas);
@@ -74,7 +64,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [incluirWeb, filtroTipo]);
 
   // Generar clave única estable para cada propuesta
   const getPropuestaKey = (propuesta) => `${propuesta.tipo}-${propuesta.nombre}-${propuesta.target}`;
@@ -84,21 +74,13 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
     setErrorCrear('');
     setCreandoIds(prev => new Set(prev).add(propuestaKey));
     try {
-      const res = await fetch(`${N8N}/crm-crear-campana-con-leads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre: propuesta.nombre,
-          descripcion: propuesta.descripcion,
-          es_simulacion: scope.getFilterValue(),
-          user_id: userId || 1,
-          filtros: propuesta.filtros
-        })
+      const data = await n8nPost('crm-crear-campana-con-leads', {
+        nombre: propuesta.nombre,
+        descripcion: propuesta.descripcion,
+        es_simulacion: scope.getFilterValue(),
+        user_id: userId || 1,
+        filtros: propuesta.filtros
       });
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      const data = await res.json();
 
       if (data.ok) {
         setPropuestasAprobadas([...propuestasAprobadas, propuestaKey]);

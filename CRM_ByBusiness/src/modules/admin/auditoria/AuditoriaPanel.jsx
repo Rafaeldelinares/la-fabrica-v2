@@ -4,6 +4,7 @@ import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { ClipboardList, RefreshCw, Phone, PhoneOff, PhoneMissed, Calendar, TrendingUp } from 'lucide-react';
 import { fmtFechaHora } from '../../../utils/dates';
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 /** Formatea una duración en segundos como cadena legible (p.ej. "2m 30s"). */
 const fmtDuracion = (segundos) => {
@@ -72,14 +73,12 @@ const AuditoriaPanel = () => {
 
   const cargar = () => {
     setLlamadas(null);
-    const base = import.meta.env.VITE_N8N_URL;
-    fetch(`${base}/crm-auditoria-llamadas`)
-      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    n8nGet('crm-auditoria-llamadas')
       .then(d => { if (d.ok) setLlamadas(d.llamadas || []); })
       .catch(() => setLlamadas([]));
   };
 
-  useEffect(cargar, []);
+  useEffect(cargar, []); // eslint-disable-line react-hooks/set-state-in-effect
 
   const operadores = llamadas
     ? [...new Set(llamadas.map(l => l.operador_nombre).filter(Boolean))]

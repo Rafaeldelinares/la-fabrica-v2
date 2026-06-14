@@ -7,8 +7,7 @@ import ProformasPanel from './ProformasPanel';
 import ClienteDrawer from '../cartera/ClienteDrawer';
 import { Users, RefreshCw, FileText, ClipboardList } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-
-const N8N = import.meta.env.VITE_N8N_URL;
+import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const TABS = [
   { id: 'clientes',     label: 'CLIENTES',     icon: Users },
@@ -37,8 +36,7 @@ const FacturacionPanel = () => {
 
   /** Fetch puntual del cliente por id y abre el ClienteDrawer. */
   const abrirCliente = useCallback((clienteId) => {
-    fetch(`${N8N}/crm-cartera-get?cliente_id=${clienteId}`)
-      .then(res => res.json())
+    n8nGet('crm-cartera-get', { cliente_id: clienteId })
       .then(data => { if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]); })
       .catch(err => console.error('[FacturacionPanel] Error abriendo cliente:', err));
   }, []);
@@ -95,6 +93,7 @@ const FacturacionPanel = () => {
 };
 
 /** Prop compartida entre los tres paneles hijos para abrir la ficha de un cliente. */
-export const abrirClientePropType = PropTypes.func.isRequired;
+// eslint-disable-next-line react-refresh/only-export-components
+export const _abrirClientePropType = PropTypes.func.isRequired;
 
 export default FacturacionPanel;
