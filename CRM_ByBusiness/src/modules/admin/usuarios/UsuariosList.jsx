@@ -52,7 +52,7 @@ const DelegacionModal = ({ usuario, modo, adminsActivos, onConfirm, onCancel }) 
   useEffect(() => {
     setCargando(true);
     setErrorCarga(null);
-    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })
+    n8nPost('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })
       .then(resData => {
         const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setGestiones(gs);
@@ -230,7 +230,7 @@ const ReactivarModal = ({ usuario, onConfirm, onCancel }) => {
   useEffect(() => {
     setCargando(true);
     setErrorCarga(null);
-    n8nGet('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })
+    n8nPost('crm-ausencia-gestiones', { operador_id: usuario.id }, { baseUrl: N8N_GESTIONES_URL })
       .then(resData => {
         const gs = Array.isArray(resData.gestiones) ? resData.gestiones : [];
         setDelegaciones(gs);
