@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, Suspense, lazy } from 'react';
 import PropTypes from 'prop-types';
 import ClientesPanel from './ClientesPanel';
 import RenovacionesPanel from './RenovacionesPanel';
 import FacturasPanel from './FacturasPanel';
 import ProformasPanel from './ProformasPanel';
-import ClienteDrawer from '../cartera/ClienteDrawer';
+// Lazy — ClienteDrawer is 216 kB; only loads when user clicks a client
+const ClienteDrawer = lazy(() => import('../cartera/ClienteDrawer'));
 import { Users, RefreshCw, FileText, ClipboardList } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { n8nGet } from '../../../shared/hooks/useN8n';
@@ -79,12 +80,14 @@ const FacturacionPanel = () => {
              onClick={() => setClienteDrawer(null)}>
           <div className="w-[90vw] max-w-[1080px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl"
                onClick={e => e.stopPropagation()}>
-            <ClienteDrawer
-              cliente={clienteDrawer}
-              gestorId={user?.id}
-              onClose={() => setClienteDrawer(null)}
-              onGestorChanged={() => { setClienteDrawer(null); setReloadKey(k => k + 1); }}
-            />
+            <Suspense fallback={<div className="h-full bg-slate-900/50 animate-pulse" />}>
+              <ClienteDrawer
+                cliente={clienteDrawer}
+                gestorId={user?.id}
+                onClose={() => setClienteDrawer(null)}
+                onGestorChanged={() => { setClienteDrawer(null); setReloadKey(k => k + 1); }}
+              />
+            </Suspense>
           </div>
         </div>
       )}
