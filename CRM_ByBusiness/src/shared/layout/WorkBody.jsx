@@ -2,11 +2,17 @@ import React, { Suspense, lazy } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../modules/auth/AuthContext';
 import Sidebar from './Sidebar';
-// Eager — default views, must render immediately
-import DashboardPanel from '../../modules/admin/dashboard/DashboardPanel';
-import OperatorDashboard from '../../components/dashboard/OperatorDashboard';
 
-// Lazy — loaded only when the user navigates to that tab
+// Lazy — all panels loaded on demand to keep initial bundle small.
+// Previously 4 panels (DashboardPanel, OperatorDashboard, AgendaGlobalPanel,
+// CarteraPanel, CampanasPanel) were eagerly imported. Converted to lazy to
+// split the 602 kB initial bundle into route-level chunks.
+const DashboardPanel    = lazy(() => import('../../modules/admin/dashboard/DashboardPanel'));
+const OperatorDashboard = lazy(() => import('../../components/dashboard/OperatorDashboard'));
+const AgendaGlobalPanel = lazy(() => import('../../modules/admin/agenda/AgendaGlobalPanel'));
+const CarteraPanel      = lazy(() => import('../../modules/admin/cartera/CarteraPanel'));
+const CampanasPanel     = lazy(() => import('../../modules/admin/campanas/CampanasPanel'));
+
 const UsuariosList      = lazy(() => import('../../modules/admin/usuarios/UsuariosList'));
 const WhatsAppPanel     = lazy(() => import('../../components/dashboard/WhatsAppPanel'));
 const LeadsPanel        = lazy(() => import('../../modules/admin/leads/LeadsPanel'));
@@ -14,13 +20,10 @@ const LeadsLandingPanel = lazy(() => import('../../modules/admin/leads/LeadsLand
 const CandidatosPanel   = lazy(() => import('../../modules/admin/candidatos/CandidatosPanel'));
 const VentasPanel       = lazy(() => import('../../modules/admin/ventas/VentasPanel'));
 const FacturacionPanel  = lazy(() => import('../../modules/admin/facturacion/FacturacionPanel'));
-import AgendaGlobalPanel from '../../modules/admin/agenda/AgendaGlobalPanel';
 const AuditoriaPanel    = lazy(() => import('../../modules/admin/auditoria/AuditoriaPanel'));
 const EntrenamientoPanel = lazy(() => import('../../modules/entrenamiento/EntrenamientoPanel'));
 const SupervisorPanel   = lazy(() => import('../../modules/entrenamiento/SupervisorPanel'));
 const GbpPanel          = lazy(() => import('../../modules/admin/gbp/GbpPanel'));
-import CarteraPanel from '../../modules/admin/cartera/CarteraPanel';
-import CampanasPanel from '../../modules/admin/campanas/CampanasPanel';
 const GestoriaPanel     = lazy(() => import('../../modules/admin/facturacion/GestoriaPanel'));
 
 /** Skeleton Navy Industrial mostrado mientras un panel lazy está cargando. */
