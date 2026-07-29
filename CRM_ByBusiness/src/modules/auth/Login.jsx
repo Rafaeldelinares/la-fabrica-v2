@@ -3,6 +3,7 @@ import { ShieldCheck, Terminal } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import CredentialsForm from './CredentialsForm';
 import Setup2FAScreen from './Setup2FAScreen';
+import SetupObligatorio2FAScreen from './SetupObligatorio2FAScreen';
 import Verify2FAScreen from './Verify2FAScreen';
 import { n8nPost } from '../../shared/hooks/useN8n';
 
@@ -75,7 +76,10 @@ const Login = () => {
       }
       if (data.ok && data.usuario) {
         pendingUser.current = data.usuario;
-        if (!data.usuario.totp_habilitado) {
+        // Opción B: totp_obligatorio → el usuario debe configurar su propio 2FA
+        if (data.usuario.totp_obligatorio && (!data.usuario.totp_habilitado || !data.usuario.totp_secret)) {
+          setPhase('SETUP_OBLIGATORIO_2FA');
+        } else if (!data.usuario.totp_habilitado) {
           login(data.usuario);
         } else if (!data.usuario.totp_configurado) {
           setPhase('SETUP_2FA');
@@ -126,6 +130,7 @@ const Login = () => {
   const phaseTitle = {
     CREDENTIALS: 'ACCESO RESTRINGIDO',
     SETUP_2FA: 'ACTIVAR AUTENTICADOR',
+    SETUP_OBLIGATORIO_2FA: 'CONFIGURACIÓN OBLIGATORIA',
     VERIFY_2FA: 'VERIFICACIÓN MFA',
   }[phase];
 
@@ -170,6 +175,13 @@ const Login = () => {
 
           {phase === 'SETUP_2FA' && pendingUser.current && (
             <Setup2FAScreen
+              usuario={pendingUser.current}
+              onSuccess={handle2FASuccess}
+            />
+          )}
+
+          {phase === 'SETUP_OBLIGATORIO_2FA' && pendingUser.current && (
+            <SetupObligatorio2FAScreen
               usuario={pendingUser.current}
               onSuccess={handle2FASuccess}
             />
