@@ -27,6 +27,7 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import CampanaDrawer from './CampanaDrawer';
 import AsignarOperadoresModal from './AsignarOperadoresModal';
 import GeneradorCampanasPanel from './GeneradorCampanasPanel';
+import CrearDesdeBusquedaModal from './CrearDesdeBusquedaModal';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 const PAGE_SIZE = 10;
@@ -59,6 +60,7 @@ const CampanasPanel = () => {
   const [modoCreacion, setModoCreacion] = useState(false);
   const [eliminando, setEliminando] = useState(false);
   const [mostrarGenerador, setMostrarGenerador] = useState(false);
+  const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const mensajeTimeoutRef = useRef(null);
 
@@ -348,11 +350,19 @@ const CampanasPanel = () => {
           </button>
 
           <button
+            onClick={() => setMostrarBusqueda(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-sm bg-cyan-900/30 border border-cyan-800 text-cyan-400 text-[10px] font-bold uppercase tracking-widest hover:bg-cyan-900/50 transition-colors"
+            title="Buscar leads por categoria, provincia, etc. y crear campana"
+          >
+            <Search size={12} /> Crear desde Busqueda
+          </button>
+
+          <button
             onClick={onCrearCampana}
             className="flex items-center gap-2 px-4 py-2 bg-[#D00000] hover:bg-[#D00000]/80 text-white rounded-sm text-xs font-medium uppercase tracking-wider transition-colors"
           >
             <Plus size={14} />
-            Nueva Campaña
+            Nueva Campana
           </button>
         </div>
       </div>
@@ -587,6 +597,18 @@ const CampanasPanel = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Modal Crear desde Busqueda */}
+      {mostrarBusqueda && (
+        <CrearDesdeBusquedaModal
+          onCerrar={() => setMostrarBusqueda(false)}
+          onSuccess={(res) => {
+            setMostrarBusqueda(false);
+            cargarDatos();
+            console.info('[CRM] Campana creada desde busqueda:', res);
+          }}
+        />
       )}
 
       {/* Modal de confirmación de eliminación */}

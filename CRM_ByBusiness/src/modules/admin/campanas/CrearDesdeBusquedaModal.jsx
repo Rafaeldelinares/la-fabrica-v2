@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Search, Loader, AlertCircle, Target, Check } from 'lucide-react';
 import { n8nPost } from '../../../shared/hooks/useN8n';
-
 /**
  * CrearDesdeBusquedaModal — Modal para crear una campaña a partir de un
  * query sobre la tabla de leads. El admin pone los filtros, ve un preview
