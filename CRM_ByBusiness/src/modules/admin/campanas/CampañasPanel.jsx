@@ -26,6 +26,7 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import CampanaDrawer from './CampanaDrawer';
 import AsignarOperadoresModal from './AsignarOperadoresModal';
 import GeneradorCampanasPanel from './GeneradorCampanasPanel';
+import CrearDesdeBusquedaModal from './CrearDesdeBusquedaModal';
 import CampanaEstadoBadge from './CampanaEstadoBadge';
 import ProgresoBar from './ProgresoBar';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
@@ -58,6 +59,7 @@ const CampañasPanel = () => {
   const [mostrarEliminar, setMostrarEliminar] = useState(false);
   const [modoCreacion, setModoCreacion] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [mostrarGenerador, setMostrarGenerador] = useState(false);
 
   // Cargar datos iniciales
@@ -331,6 +333,14 @@ const CampañasPanel = () => {
           </button>
 
           <button
+            onClick={() => setMostrarBusqueda(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-sm bg-cyan-900/30 border border-cyan-800 text-cyan-400 text-[10px] font-bold uppercase tracking-wider hover:bg-cyan-900/50 transition-colors"
+            title="Buscar leads por categoría, provincia, etc. y crear campaña"
+          >
+            <Search size={12} /> Crear desde Búsqueda
+          </button>
+
+          <button
             onClick={onCrearCampana}
             className="flex items-center gap-2 px-4 py-2 bg-[#D00000] hover:bg-[#D00000]/80 text-white rounded-sm text-xs font-medium uppercase tracking-wider transition-colors"
           >
@@ -558,6 +568,19 @@ const CampañasPanel = () => {
             />
           </div>
         </div>
+      )}
+
+      {/* Modal Crear desde Búsqueda */}
+      {mostrarBusqueda && (
+        <CrearDesdeBusquedaModal
+          onCerrar={() => setMostrarBusqueda(false)}
+          onSuccess={(res) => {
+            setMostrarBusqueda(false);
+            cargarDatos();
+            // El modal hace su propio feedback. Log para debugging si querés.
+            console.info('[CRM] Campaña creada desde búsqueda:', res);
+          }}
+        />
       )}
 
       {/* Modal de confirmación de eliminación */}
