@@ -3,7 +3,7 @@
 This document describes the full architecture of the CRM ByBusiness application, including the
 frontend, n8n workflows, authentication service, and infrastructure.
 
-Last updated: 2026-06-15
+Last updated: 2026-06-21
 
 ---
 
@@ -381,3 +381,78 @@ The 602 kB bundle triggers Vite's > 500 kB warning. Solution: dynamic import for
 
 ### Critical User Credentials (for testing)
 - Admin: rafaeldelinares@gmail.com / RafAdmin2026!CRM (id 1, totp_habilitado=false)
+
+---
+
+## Leads data flow (2026-06-21)
+
+Cómo viaja un lead desde que se scrapea hasta que aparece en LEADS LANDING del admin:
+
+```
+[Scraper nano/heavy/maps]
+        ↓ POST /webhook/scraper/go
+[operaciones.leads]   ← fuente única de leads
+   columnas: id, nombre_comercial, telefono, email, estado, prioridad,
+             campana_id, operador_id, origen, created_at, updated_at,
+             contacto_nombre, contacto_email, intentos_no_contesta,
+             freeze_hasta, freeze_razon
+        ↓ cada 30s
+[CRM_DISTRIBUIDOR_CAMPANAS] (id LjcIjmCBKuWUxOSZ)
+   input:  { operator_id, mode, campana_id? }
+   output: { ok, lead: {...} }
+        ↓ operator.click("Tomar Lead")
+[Operador.delinaresrafa → OperatorDashboard]
+   handleAsignarLead(lead)
+        ↓ operator.click("VENTA")
+[CRM_REGISTRAR_RESULTADO] (id 6x0x8DCOBzZf62K6)
+   Switch(7 ramas) → Update Lead Vendido → Insert Cliente
+        ↓ UPDATE leads SET estado='vendido' WHERE id=?
+[Trigger operaciones.fn_lead_vendido_to_cliente]
+   → INSERT clientes.clientes (ON CONFLICT lead_id DO UPDATE)
+   → INSERT crm_bybusiness.ventas
+   → INSERT public.timeline_global (evento='venta')
+        ↓ admin refresh
+[CRM_LEADS_LANDING_FINAL] (id yAtQ6wt8YtFwQLvr)
+   SELECT ... WHERE (l.origen IN ('landing_digital','captacion_web') OR c.id IS NOT NULL)
+   → 37 leads (9 captación + 28 vendidos)
+```
+
+### Decisión: dos paneles (LEADS LANDING vs GESTIÓN DE LEADS)
+
+Ver [LEADS_REPARTO_DECISION.md](./LEADS_REPARTO_DECISION.md) para el detalle completo.
+
+Resumen:
+- **LEADS LANDING** = captación web + leads con cliente vinculado (ventas reales)
+- **GESTIÓN DE LEADS** = pool de leads sin tocar (almacen_masivo, scraper_bajo)
+
+### Workflows del flujo de leads (IDs)
+
+| Workflow | ID | Uso |
+|----------|-----|-----|
+| `CRM_DISTRIBUIDOR_CAMPANAS` | `LjcIjmCBKuWUxOSZ` | Asignar lead a operador (pool o campaña) |
+| `CRM_REGISTRAR_RESULTADO` | `6x0x8DCOBzZf62K6` | 7 botones de resultado (rama VENTA crea cliente) |
+| `CRM_AGENDA_V2` | `dqj7YNrXBLZvyt86` | Agenda unificada (4 fuentes) |
+| `CRM_LEADS_LANDING_FINAL` | `yAtQ6wt8YtFwQLvr` | Pre-clientes y ventas (admin) |
+| `CRM_GESTION_LEADS_GET` | `5DuC7I7jenCBmzv9` | Pool de gestión (admin) |
+| `CRM_80_ENVIAR_INFO_LEAD` | `HZUqJD2I5WMt0k67` | SMTP via Postfix |
+| `CRM_49_CLIENTE_CREAR` | `lrvCPPXkpz4Tv8Dw` | Ingresar cliente manual (modal) |
+| `CRM_USUARIOS_OBLIGAR_2FA` | `TVTaOj30rO2uP8Ga` | Marca `totp_obligatorio=true` |
+| `CRM_USUARIOS_DESOBLIGAR_2FA` | `300t0LVfPMSDcGai` | Marca `totp_obligatorio=false` |
+| `CRM_USUARIOS_VERIFICAR_2FA` | `d6Mpx3Vm1QPEdkwq` | Verifica código TOTP + marca `totp_configurado=true` |
+
+### Operador delinesrafa
+
+Ver [OPERADOR_DELINESRAFA_FLOW.md](./OPERADOR_DELINESRAFA_FLOW.md) para el detalle paso a paso.
+
+- Email: `delinaresrafa@gmail.com`
+- User id: 48 en `auth.usuarios`, role `operador`
+- 2FA: **Opción B** — el admin marca `totp_obligatorio=true` desde el panel
+  usuarios; el operador configura su propio secret en el próximo login
+  (`SetupOblatorio2FAScreen`). El admin nunca ve el secret.
+- bcryptjs path en n8n container: `/usr/local/lib/node_modules/n8n/node_modules/.pnpm/bcryptjs@2.4.3/node_modules/bcryptjs`
+
+### Fix nginx 1-year cache
+
+Ver [NGINX_CACHE_FIX.md](./NGINX_CACHE_FIX.md). Cambio: `.js` y `.css` →
+`no-cache, expires 0`; imágenes/woff2 siguen 1y.
+
