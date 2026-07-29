@@ -66,7 +66,7 @@ export const GUION_ROSA = {
       id: 'precio',
       titulo: 'Precio y condiciones',
       texto:
-        'Todo por un ÚNICO pago de 289 € + IVA = 349,69 €, para estar durante 18 MESES en la primera página ' +
+        'Todo por un ÚNICO pago de 319 € + IVA = 385,99 €, para estar durante 18 MESES en la primera página ' +
         'de Google de forma fija y permanente (sin CPC).',
       color: 'amber',
     },
