@@ -86,24 +86,30 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   }, [userId, esSimulacion])
 
   // Obtener siguiente lead (distribuidor de campanas)
+  // El workflow crm-distribuidor-campanas devuelve {ok, lead, total, ...}
+  // donde lead es un objeto único (no array). Esto se llama desde OperatorDashboard
+  // handleAsignarLead para asignar un lead nuevo al operador.
   const obtenerSiguienteLead = useCallback(async () => {
     if (!userId) return
     try {
-      const rows = await n8nPost('crm-distribuidor-campanas', { operador_id: userId, es_simulacion: isTraining })
-      if (Array.isArray(rows) && rows.length > 0) {
-        const lead = rows[0]
+      const res = await n8nPost('crm-distribuidor-campanas', { operador_id: userId, mode: 'one' })
+      // Normalizar respuesta: puede venir como {ok, lead, total} o como array de un elemento
+      const lead = Array.isArray(res) ? res[0] : res?.lead
+      if (lead && (lead.id || lead.lead_id)) {
         setLlamadaActiva(lead)
-        setLlamadaActivaId(lead.id ?? lead.llamada_activa_id ?? null)
-        if (isTraining) {
-          setTrainingLeads(rows)
+        setLlamadaActivaId(lead.llamada_activa_id ?? lead.id ?? null)
+        if (isTraining && Array.isArray(res)) {
+          setTrainingLeads(res)
         }
-      } else {
-        setLlamadaActiva(null)
-        setLlamadaActivaId(null)
+        return lead
       }
+      setLlamadaActiva(null)
+      setLlamadaActivaId(null)
+      return null
     } catch (err) {
       console.error('Error obteniendo siguiente lead:', err)
       setError('Error al obtener el siguiente lead')
+      return null
     }
   }, [userId, isTraining])
 

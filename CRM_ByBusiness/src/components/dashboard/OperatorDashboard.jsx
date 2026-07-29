@@ -7,6 +7,7 @@ import OperatorSkeleton from './OperatorSkeleton';
 import Zone1Filters from './zones/Zone1Filters';
 import Zone2Content from './zones/Zone2Content';
 import Zone3Sidebar from './zones/Zone3Sidebar';
+import CampanasPanel from './CampanasPanel';
 import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
 
 // Función no-op estable para modo training (evita recreación en cada render)
@@ -45,6 +46,9 @@ const OperatorDashboard = ({
   const [callbacksHoy, setCallbacksHoy] = useState([]);
   const [leadsDisponibles, setLeadsDisponibles] = useState(0);
   const [loadingCampanas, setLoadingCampanas] = useState(false);
+  // Estado para el panel de campañas (modal/drawer)
+  const [campanas, setCampanas] = useState([]);
+  const [showCampanasPanel, setShowCampanasPanel] = useState(false);
 
   // Usar custom hook para data fetching consolidado (SOLO en modo real)
   // En modo training, los datos vienen del TrainingModeWrapper via cloneElement
@@ -73,15 +77,16 @@ const OperatorDashboard = ({
       setErrorRed(''); // Limpiar errores previos
       
       try {
-        // Cargar campañas activas
-        const campanasData = await n8nGet('crm-campanas-activas', { operador_id: user.id, es_simulacion: isTraining });
-        if (campanasData.ok) {
-          if (campanasData.campanas?.length > 0 && !campanaSeleccionada) {
-            setCampanaSeleccionada(campanasData.campanas[0].id);
-          }
-        } else {
-          // Security-hardened webhook: no assignments or forbidden → clear state, show error
-          setErrorRed('No tienes campañas asignadas. Contacta al administrador.');
+        // Cargar campañas (endpoint crm-campanas devuelve array directo).
+        // Guardamos TODAS las campañas activas para mostrarlas en un panel
+        // (Zone 1 no las lista — las muestra como badge con resumen).
+        const campanasData = await n8nGet('crm-campanas', { es_simulacion: isTraining });
+        const allCampanas = Array.isArray(campanasData) ? campanasData : (campanasData.campanas || []);
+        // Filtrar solo activas
+        const campanasActivas = allCampanas.filter(c => c.activo === true && c.estado === 'activa');
+        setCampanas(campanasActivas);
+        if (campanasActivas.length > 0 && !campanaSeleccionada) {
+          setCampanaSeleccionada(campanasActivas[0].id);
         }
 
         // Cargar callbacks HOY
@@ -131,18 +136,24 @@ const OperatorDashboard = ({
       setNotas('');
       return;
     }
+    // Modo real: usar obtenerSiguienteLead del hook que llama a crm-distribuidor-campanas
+    // (crm-llamada-activa es para RECUPERAR la llamada en curso, no para asignar una nueva).
     try {
-      const data = await n8nGet('crm-llamada-activa', { operador_id: user?.id });
-      if (data?.ok && data.lead) {
-        setLead(data.lead);
-        setLlamadaId(data.llamada_id);
+      const lead = await operatorData.obtenerSiguienteLead();
+      if (lead) {
+        setLead(lead);
+        setLlamadaId(lead.llamada_activa_id ?? lead.id ?? null);
         setStartTime(Date.now());
         setNotas('');
+        setErrorRed('');
+      } else {
+        setErrorRed('No hay leads disponibles en este momento. Intenta en unos segundos.');
       }
-    } catch {
-      setErrorRed("Error de red al obtener lead. Inténtalo de nuevo.");
+    } catch (err) {
+      console.error('[handleAsignarLead]', err);
+      setErrorRed('Error de red al obtener lead. Inténtalo de nuevo.');
     }
-  }, [isTraining, trainingLeads, sessionLeads, user?.id]);
+  }, [isTraining, trainingLeads, sessionLeads, operatorData]);
 
   const handleResultado = useCallback((resultado, detalles = {}) => {
     if (!resultado) return;
@@ -175,9 +186,11 @@ const OperatorDashboard = ({
     const payload = {
       operador_id: user?.id,
       lead_id: lead?.id,
+      llamada_activa_id: llamadaId,
       resultado,
       notas: notas || '',
-      duracion: Math.floor((Date.now() - startTime) / 1000),
+      duracion_seg: Math.floor((Date.now() - startTime) / 1000),
+      es_simulacion: isTraining,
       ...detalles,
     };
     n8nPost('crm-registrar-resultado', payload)
@@ -200,9 +213,11 @@ const OperatorDashboard = ({
     const cerrarPayload = {
       operador_id: user?.id,
       lead_id: lead?.id,
+      llamada_activa_id: llamadaId,
       resultado: 'enviar_info',
       notas: nota || `Email enviado a: ${emailDestino} (${tipoInfo})`,
-      duracion: Math.floor((Date.now() - startTime) / 1000),
+      duracion_seg: Math.floor((Date.now() - startTime) / 1000),
+      es_simulacion: isTraining,
     };
 
     n8nPost('crm-registrar-resultado', cerrarPayload)
@@ -284,6 +299,17 @@ const OperatorDashboard = ({
     if (dataError) setErrorRed(dataError);
   }, [dataError]);
 
+  // Sincronizar el lead activo local con operatorData.llamadaActiva del hook.
+  // Cuando el hook carga una llamada activa (ej. tras refresh de página),
+  // la mostramos automáticamente en Zone2.
+  useEffect(() => {
+    if (operatorData?.llamadaActiva && !lead) {
+      setLead(operatorData.llamadaActiva);
+      setLlamadaId(operatorData.llamadaActivaId);
+      setStartTime(Date.now());
+    }
+  }, [operatorData?.llamadaActiva, operatorData?.llamadaActivaId, lead]);
+
   // Mostrar skeleton durante carga inicial
   if (dataLoading && !lead && sessionLeads.length === 0) {
     return <OperatorSkeleton />
@@ -309,6 +335,9 @@ const OperatorDashboard = ({
         // Props para modo real (solo presente)
         leadsDisponibles={leadsDisponibles}
         loading={loadingCampanas}
+        // Panel de campañas (badge + drawer)
+        campanas={campanas}
+        onOpenCampanas={() => setShowCampanasPanel(true)}
       />
 
       {/* Zona 2 - Lead activo + acción */}
@@ -333,6 +362,28 @@ const OperatorDashboard = ({
         refreshData={refreshData}
         callbacksHoy={callbacksHoy}
         onTomarCallback={handleTomarCallback}
+      />
+
+      {/* Panel drawer de campañas (overlay — no desplaza Zone 1) */}
+      <CampanasPanel
+        open={showCampanasPanel}
+        onClose={() => setShowCampanasPanel(false)}
+        campanas={campanas}
+        userId={user?.id}
+        onAsignarExito={(lead) => {
+          setLead(lead);
+          setLlamadaId(lead.llamada_activa_id ?? lead.id ?? null);
+          setStartTime(Date.now());
+          setNotas('');
+          setErrorRed('');
+        }}
+        onError={(msg) => {
+          if (msg === 'no_leads') {
+            setErrorRed('No hay leads disponibles en este momento. Intenta en unos segundos.');
+          } else {
+            setErrorRed(`Error: ${msg}`);
+          }
+        }}
       />
     </div>
   );
