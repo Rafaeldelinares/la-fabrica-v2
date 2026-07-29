@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { Users, UserPlus, Edit2, Trash2, Save, X, RefreshCw, Eye, EyeOff,
-  PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff, UserX, ChevronRight, Clock } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
-import * as OTPAuth from 'otpauth';
+  PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff, ShieldAlert, UserX, ChevronRight, Clock } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
 import HorarioModal from './HorarioModal';
@@ -303,76 +301,6 @@ ReactivarModal.propTypes = {
 };
 
 /**
- * Modal de verificación TOTP para confirmar que el usuario escaneó el QR de 2FA.
- * Bloquea el cierre hasta que el código de 6 dígitos sea validado con éxito.
- * @param {{ qrModal: Object, onVerificado: Function, onError: Function }} props
- */
-const Modal2FA = ({ qrModal, onVerificado, onError }) => {
-  const [codigo, setCodigo]       = useState('');
-  const [verificando, setVerificando] = useState(false);
-  const [errorLocal, setErrorLocal]   = useState('');
-
-  const verificar = async () => {
-    if (codigo.length !== 6) return;
-    setVerificando(true);
-    setErrorLocal('');
-    try {
-      const data = await n8nPost('crm-verificar-2fa', { usuario_id: qrModal.usuarioId, codigo });
-      if (data.ok) { onVerificado(); }
-      else { setErrorLocal('Código incorrecto, inténtalo de nuevo'); setCodigo(''); }
-    } catch { setErrorLocal('Error de conexión'); }
-    finally { setVerificando(false); }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-80 flex flex-col items-center gap-4">
-        <div className="flex items-center w-full">
-          <span className="text-xs font-black uppercase tracking-widest text-white flex items-center gap-1">
-            <ShieldCheck size={14} className="text-emerald-400" /> Activar 2FA — {qrModal.nombre}
-          </span>
-        </div>
-        <p className="text-[10px] text-slate-400 text-center">
-          Escanea el QR con tu app autenticadora y después introduce el código de 6 dígitos para confirmar.
-        </p>
-        <div className="p-3 bg-white rounded-sm">
-          <QRCodeSVG
-            value={new OTPAuth.TOTP({ issuer: 'ByBusiness', label: qrModal.email, algorithm: 'SHA1', digits: 6, period: 30, secret: OTPAuth.Secret.fromBase32(qrModal.secret) }).toString()}
-            size={160} level="M"
-          />
-        </div>
-        <p className="text-[9px] text-slate-600 font-mono text-center break-all">{qrModal.secret}</p>
-        <input
-          type="text" inputMode="numeric" pattern="[0-9]*" maxLength={6} autoFocus
-          value={codigo}
-          onChange={e => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6))}
-          onKeyDown={e => e.key === 'Enter' && verificar()}
-          placeholder="000000"
-          className="w-full bg-slate-950 border border-slate-700 rounded-sm px-3 py-2 text-sm font-mono text-white text-center tracking-[0.4em] outline-none focus:border-emerald-500 placeholder:text-slate-700 placeholder:tracking-normal"
-        />
-        {errorLocal && (
-          <p className="text-[10px] text-red-400 font-mono text-center w-full">{errorLocal}</p>
-        )}
-        <button onClick={verificar} disabled={verificando || codigo.length !== 6}
-          className="w-full text-xs font-bold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white py-2 rounded-sm uppercase tracking-wider">
-          {verificando ? 'Verificando...' : 'Verificar y activar'}
-        </button>
-        <button onClick={() => onError('2FA cancelado — el usuario no verificó el código')}
-          className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors">
-          Cancelar configuración
-        </button>
-      </div>
-    </div>
-  );
-};
-
-Modal2FA.propTypes = {
-  qrModal:      PropTypes.shape({ usuarioId: PropTypes.number.isRequired, nombre: PropTypes.string.isRequired, email: PropTypes.string.isRequired, secret: PropTypes.string.isRequired }).isRequired,
-  onVerificado: PropTypes.func.isRequired,
-  onError:      PropTypes.func.isRequired,
-};
-
-/**
  * Panel de administración de usuarios del CRM.
  * Gestiona altas, ediciones, ausencias temporales, reactivaciones y bajas definitivas.
  * Incluye 2FA por usuario y delegación de gestiones en ausencias/bajas.
@@ -392,7 +320,6 @@ const UsuariosList = () => {
   const [modalAusencia, setModalAusencia] = useState(null);
   const [modalBaja, setModalBaja]         = useState(null);
   const [modalReactivar, setModalReactivar] = useState(null);
-  const [qrModal, setQrModal]             = useState(null);
   const [modalHorario, setModalHorario]   = useState(null);
 
   useEffect(() => () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); }, []);
@@ -500,13 +427,23 @@ const UsuariosList = () => {
     }
   };
 
-  const activar2fa = async (usuario) => {
+  const obligar2fa = async (id) => {
     try {
-      const data = await n8nPost('crm-activar-2fa', { id: usuario.id });
-      if (!data.ok) { setError(data.message || 'No se pudo iniciar la activación de 2FA'); return; }
-      setQrModal({ usuarioId: usuario.id, nombre: usuario.nombre, email: usuario.email, secret: data.totp_secret, verificado: false });
+      const data = await n8nPost('crm-obligar-2fa', { id });
+      if (!data.ok) { setError(data.message || 'No se pudo marcar 2FA como obligatorio'); return; }
+      cargar();
     } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al activar 2FA — comprueba la conexión' : 'Error al activar 2FA');
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al marcar 2FA obligatorio — comprueba la conexión' : 'Error al marcar 2FA obligatorio');
+    }
+  };
+
+  const desobligar2fa = async (id) => {
+    try {
+      const data = await n8nPost('crm-desobligar-2fa', { id });
+      if (!data.ok) { setError(data.message || 'No se pudo quitar la obligación de 2FA'); return; }
+      cargar();
+    } catch (err) {
+      setError(err instanceof Error && err.message.startsWith('n8n') ? 'Error al quitar 2FA obligatorio — comprueba la conexión' : 'Error al quitar 2FA obligatorio');
     }
   };
 
@@ -549,7 +486,7 @@ const UsuariosList = () => {
           onGuardado={() => setModalHorario(null)}
         />
       )}
-      {qrModal && <Modal2FA qrModal={qrModal} onVerificado={() => { setQrModal(null); cargar(); }} onError={(msg) => { setQrModal(null); setError(msg); }} />}
+
 
       {/* Header */}
       <div className="flex justify-between items-center">
@@ -721,20 +658,34 @@ const UsuariosList = () => {
                           </button>
                         )}
 
-                        {/* 2FA — solo activos */}
-                        {!isInactivo && (
-                          usr.totp_habilitado ? (
-                            <button onClick={() => desactivar2fa(usr.id)} title="Desactivar 2FA"
-                              className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
-                              <ShieldCheck size={13} />
-                            </button>
-                          ) : (
-                            <button onClick={() => activar2fa(usr)} title="Activar 2FA"
-                              className="p-1.5 hover:bg-slate-700 rounded-sm text-slate-500 hover:text-emerald-400 transition-colors">
+                        {/* 2FA — icono único con 3 estados */}
+                        {!isInactivo && (() => {
+                          // Estado 1: 2FA activo → verde, click desactiva
+                          if (usr.totp_configurado) {
+                            return (
+                              <button onClick={() => desactivar2fa(usr.id)} title="2FA activo — click para desactivar"
+                                className="p-1.5 hover:bg-slate-700 rounded-sm text-emerald-400 transition-colors">
+                                <ShieldCheck size={13} />
+                              </button>
+                            );
+                          }
+                          // Estado 2: obligatorio pero no configurado → ámbar, click desobliga
+                          if (usr.totp_obligatorio) {
+                            return (
+                              <button onClick={() => desobligar2fa(usr.id)} title="Obligatorio — click para quitar obligación"
+                                className="p-1.5 hover:bg-slate-700 rounded-sm text-amber-400 transition-colors">
+                                <ShieldAlert size={13} />
+                              </button>
+                            );
+                          }
+                          // Estado 3: no obligatorio, no 2FA → gris, click obliga
+                          return (
+                            <button onClick={() => obligar2fa(usr.id)} title="Obligar 2FA — el usuario deberá configurarlo en su próximo login"
+                              className="p-1.5 hover:bg-slate-700 rounded-sm text-slate-500 hover:text-amber-400 transition-colors">
                               <ShieldOff size={13} />
                             </button>
-                          )
-                        )}
+                          );
+                        })()}
 
                         {/* Suspender — activos no ausentes (hover only) */}
                         {!isInactivo && !isAusente && (
