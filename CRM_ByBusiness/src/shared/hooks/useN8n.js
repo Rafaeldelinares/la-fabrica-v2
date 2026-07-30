@@ -58,7 +58,11 @@ export async function n8nFetch(path, options = {}) {
         const body = await res.text().catch(() => '');
         throw new Error(`n8n ${res.status}: ${body || res.statusText}`);
       }
-      return res.json();
+      // Si el body está vacío, devolver null en vez de tirar SyntaxError en res.json().
+      // Casos: workflows que responden 200 sin datos (ej. crm-llamada-activa sin llamada activa).
+      const text = await res.text();
+      if (!text) return null;
+      return JSON.parse(text);
     } catch (err) {
       lastError = err;
       if (err.name === 'AbortError') break; // timeout — no reintentar

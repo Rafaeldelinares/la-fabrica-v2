@@ -82,6 +82,7 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
     </div>
   </div>
 )}
+            {activeTab === 'LEADS_GESTON' && <LeadsLandingPanel />}
             {activeTab === 'LEADS_MGMT' && <LeadsPanel />}
             {activeTab === 'LEADS_LANDING' && <LeadsLandingPanel />}
             {activeTab === 'CANDIDATOS' && <CandidatosPanel />}

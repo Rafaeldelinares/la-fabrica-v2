@@ -45,6 +45,8 @@ export const AuthProvider = ({ children }) => {
       // No persistir totp_secret en localStorage: el secret es de setup, no de sesión
       // (después del setup, solo el backend lo necesita; el frontend no)
       totp_habilitado: userData.totp_habilitado,
+      totp_configurado: userData.totp_configurado,
+      totp_obligatorio: userData.totp_obligatorio,
       es_simulacion: userData.es_simulacion ?? false,
     };
     setUser(userObj);
