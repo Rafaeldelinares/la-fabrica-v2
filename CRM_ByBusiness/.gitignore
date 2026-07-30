@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# OpenCode tooling (regenerable, no parte del proyecto)
+.atl/
+.codegraph/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
