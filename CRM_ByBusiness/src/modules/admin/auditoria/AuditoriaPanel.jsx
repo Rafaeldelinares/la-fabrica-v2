@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -69,7 +70,6 @@ const KpiChip = ({ label, value, color = 'text-white' }) => (
 /** Panel de auditoría de llamadas: historial filtrable por operador y resultado con KPIs de conversión. */
 const AuditoriaPanel = () => {
   const rbac = useRbac();
-  const [llamadas, setLlamadas] = useState(null);
   const [filtroOp, setFiltroOp] = useState('');
   const [filtroRes, setFiltroRes] = useState('');
 
@@ -85,14 +85,14 @@ const AuditoriaPanel = () => {
     );
   }
 
-  const cargar = () => {
-    setLlamadas(null);
-    n8nGet('crm-auditoria-llamadas')
-      .then(d => { if (d.ok) setLlamadas(d.llamadas || []); })
-      .catch(() => setLlamadas([]));
-  };
+  // React Query: auditoría de llamadas
+  const { data: auditoriaData, isLoading, refetch } = useQuery({
+    queryKey: ['auditoria-llamadas'],
+    queryFn: () => n8nGet('crm-auditoria-llamadas'),
+    staleTime: 30_000,
+  });
 
-  useEffect(cargar, []); // eslint-disable-line react-hooks/set-state-in-effect
+  const llamadas = auditoriaData?.ok ? (auditoriaData.llamadas || []) : null;
 
   const operadores = llamadas
     ? [...new Set(llamadas.map(l => l.operador_nombre).filter(Boolean))]
@@ -151,7 +151,7 @@ const AuditoriaPanel = () => {
             </select>
           )}
           <button
-            onClick={cargar}
+            onClick={() => refetch()}
             className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-white transition-colors font-mono uppercase px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm"
           >
             <RefreshCw size={11} /> Actualizar
@@ -172,7 +172,7 @@ const AuditoriaPanel = () => {
 
       {/* Tabla */}
       <Card className="flex flex-col bg-slate-900 border-slate-800 !p-0 overflow-hidden flex-1">
-        {llamadas === null ? (
+        {isLoading ? (
           <div className="flex-1 flex items-center justify-center py-20 animate-pulse">
             <div className="flex flex-col gap-3 items-center">
               <div className="h-4 w-48 bg-slate-800 rounded-sm" />
