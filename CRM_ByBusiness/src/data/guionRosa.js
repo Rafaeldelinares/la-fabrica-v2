@@ -10,11 +10,16 @@
  *   {{nombre_responsable}} → capturado en vivo por el operador (fallback: "don/doña")
  *   {{scoring}}            → valoración Google del lead (fallback: "—")
  *   {{nombre_comercial}}   → nombre del negocio (fallback: "su empresa")
+ *
+ * Placeholder dinámico {{diagnostico_detalle}} (no aparece en el texto
+ * del template; se reemplaza por `interpolarGuionRosa` con un bloque
+ * construido a partir de `rating`, `num_reseñas` y `reputacion_at`
+ * para reflejar la frescura del dato y dar una imagen profesional).
  */
 
 export const GUION_ROSA = {
   nombre: 'Rosa (By Business)',
-  version: '2026-06-13',
+  version: '2026-07-31',
 
   pasos: [
     {
@@ -45,8 +50,8 @@ export const GUION_ROSA = {
       id: 'diagnostico',
       titulo: 'Diagnóstico',
       texto:
-        'Una vez verificada la ficha de su empresa — {{nombre_comercial}} — vemos que su valoración actual ' +
-        'es de {{scoring}} estrellas y, en este caso, es necesario generar un flujo de valoraciones positivas ' +
+        'Una vez verificada la ficha de su empresa — {{nombre_comercial}} — vemos que {{diagnostico_detalle}} ' +
+        'y, en este caso, es necesario generar un flujo de valoraciones positivas ' +
         'para conseguir la puntuación más alta y, además, optimizar el perfil para que sea visto por más clientes.',
       color: 'amber',
     },
@@ -98,6 +103,52 @@ export const GUION_ROSA = {
 };
 
 /**
+ * Construye el bloque dinámico del paso "Diagnóstico" a partir del rating,
+ * el número de reseñas y la última fecha de actualización. El objetivo es
+ * darle al operador un mensaje creíble y profesional: si el dato está
+ * fresco, mostramos estrellas + reseñas + fecha; si está desactualizado o
+ * ausente, reconocemos el caso con un mensaje que no rompe el flujo.
+ *
+ * Devuelve un fragmento listo para insertir dentro de la frase
+ * "...vemos que {{diagnostico_detalle}} y, en este caso...".
+ *
+ * @param {Object} lead Lead activo. Puede traer `rating`, `num_reseñas`,
+ *                       `reputacion_at`, `data_freshness`.
+ * @returns {string} Bloque de diagnóstico.
+ */
+function construirDiagnosticoDetalle(lead = {}) {
+  const ratingNum = parseFloat(lead?.rating ?? lead?.scoring);
+  const reseñas = parseInt(lead?.num_reseñas ?? lead?.num_resenas, 10);
+  const freshness = lead?.data_freshness;
+
+  const ratingTexto = Number.isFinite(ratingNum) && ratingNum > 0
+    ? ratingNum.toFixed(1).replace(/\.0$/, '')
+    : null;
+  const reseñasTexto = Number.isFinite(reseñas) && reseñas > 0
+    ? reseñas.toLocaleString('es-ES')
+    : null;
+
+  const fecha = lead?.reputacion_at ? new Date(lead.reputacion_at) : null;
+  const fechaTexto = fecha && !Number.isNaN(fecha.getTime())
+    ? fecha.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })
+    : null;
+
+  if (freshness === 'fresco' && ratingTexto && reseñasTexto && fechaTexto) {
+    return `su valoración actual es de ${ratingTexto} estrellas (${reseñasTexto} reseñas, actualizado el ${fechaTexto})`;
+  }
+  if (ratingTexto && reseñasTexto) {
+    return `su valoración actual es de ${ratingTexto} estrellas (${reseñasTexto} reseñas)`;
+  }
+  if (ratingTexto) {
+    return `su valoración actual es de ${ratingTexto} estrellas`;
+  }
+  if (freshness === 'sin_dato' || freshness === 'stale') {
+    return 'estamos actualizando la información de su ficha para darle una valoración precisa';
+  }
+  return 'su valoración actual es de — estrellas';
+}
+
+/**
  * Interpola los placeholders del guion con los datos del lead + operador.
  * Si falta un dato, usa un fallback razonable para que el operador no vea
  * texto en blanco o placeholders crudos.
@@ -116,6 +167,7 @@ export function interpolarGuionRosa(lead = {}, user = {}) {
     ? String(parseFloat(lead.scoring) || lead.scoring)
     : '—';
   const nombreComercial = lead?.nombre_comercial || 'su empresa';
+  const diagnosticoDetalle = construirDiagnosticoDetalle(lead);
 
   return GUION_ROSA.pasos.map(paso => {
     let texto = paso.texto;
@@ -123,6 +175,7 @@ export function interpolarGuionRosa(lead = {}, user = {}) {
     texto = lugar(texto, 'nombre_responsable', responsable);
     texto = lugar(texto, 'scoring', scoring);
     texto = lugar(texto, 'nombre_comercial', nombreComercial);
+    texto = lugar(texto, 'diagnostico_detalle', diagnosticoDetalle);
     return { ...paso, texto };
   });
 }

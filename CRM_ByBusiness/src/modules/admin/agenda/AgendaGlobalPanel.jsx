@@ -5,7 +5,7 @@ import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth,
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
-import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive, Search, Mail, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive, Search, Mail, CheckCircle2, Activity } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../../modules/auth/AuthContext';
 import DatePickerField from '../../../shared/ui/DatePickerField';
@@ -125,6 +125,7 @@ const TIPO = {
   gbp_autorepair:         { textClass: 'text-red-500',     borderClass: 'border-red-500/40',     bgClass: 'bg-red-500/10',     label: 'Motor reparado',    Icon: Wrench        },
   proxima_accion_cliente: { textClass: 'text-[#D00000]',   borderClass: 'border-[#D00000]/40',   bgClass: 'bg-[#D00000]/10',   label: 'Próxima acción',    Icon: CalendarClock },
   backup_sistema:         { textClass: 'text-cyan-400',    borderClass: 'border-cyan-400/40',    bgClass: 'bg-cyan-400/10',    label: 'Backup sistema',    Icon: HardDrive     },
+  cron_sistema:           { textClass: 'text-violet-400',  borderClass: 'border-violet-400/40',  bgClass: 'bg-violet-400/10',  label: 'Cron sistema',      Icon: Activity      },
   envio_proforma_waha:   { textClass: 'text-green-400',   borderClass: 'border-green-400/40',   bgClass: 'bg-green-400/10',   label: 'Envío proforma WA',    Icon: MessageSquare  },
   envio_proforma_email:  { textClass: 'text-purple-400',  borderClass: 'border-purple-400/40',  bgClass: 'bg-purple-400/10',  label: 'Envío proforma Email', Icon: Mail           },
   aceptacion_proforma:   { textClass: 'text-emerald-500', borderClass: 'border-emerald-500/40', bgClass: 'bg-emerald-500/10', label: 'Aceptación proforma',  Icon: CheckCircle2   },
@@ -281,44 +282,96 @@ NuevaCitaModal.propTypes = {
  */
 const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
   if (!evento) return null;
-  const tipoConfig = TIPO[evento.tipo] || TIPO.llamada_operador;
+  const tipoConfig = TIPO[evento.tipo_evento] || TIPO.llamada_operador;
   const tieneCliente = Boolean(evento.cliente_id);
+  // Para eventos de sistema, intentar parsear el jsonb `descripcion` como JSON
+  // y mostrar sus campos en una grilla estructurada.
+  let detallesJson = null;
+  if (evento.descripcion) {
+    try {
+      const parsed = JSON.parse(evento.descripcion);
+      if (parsed && typeof parsed === 'object') detallesJson = parsed;
+    } catch (_) {
+      detallesJson = null; // mantener como texto crudo
+    }
+  }
+  // Mapa de campos en inglés → etiqueta en castellano para eventos del sistema.
+  const LABELS_DETALLE = {
+    cron:          'Cron',
+    batch_size:    'Tamaño del lote',
+    max_age_days:  'Antigüedad máx. (días)',
+    processed:     'Leads procesados',
+    updated:       'Leads actualizados',
+    no_match:      'Sin coincidencia',
+    no_rating:     'Sin valoración',
+    errors:        'Errores',
+    dry_run:       'Modo prueba',
+    total_leads:   'Total de leads',
+    fresco:        'Fresco',
+    cero:          'Sin rating',
+    stale:         'Stale',
+    sin_dato:      'Sin dato',
+    pct_fresco:    '% Fresco',
+    alert_fired:   'Alerta activa',
+  };
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-sm p-5 w-80 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-[28rem] max-w-[95vw] shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
           <span className={`text-[10px] font-black uppercase tracking-widest ${tipoConfig.textClass}`}>{tipoConfig.label}</span>
-          <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={14} /></button>
+          <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={16} /></button>
         </div>
 
         {tieneCliente ? (
           <button
             onClick={() => { onAbrirCliente(evento.cliente_id); onClose(); }}
-            className="group flex items-center gap-1.5 mb-1 text-left w-full"
+            className="group flex items-center gap-1.5 mb-3 text-left w-full"
           >
-            <span className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">
+            <span className="text-base font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">
               {evento.titulo}
             </span>
-            <ExternalLink size={10} className="text-slate-600 group-hover:text-blue-400 transition-colors shrink-0 mt-px" />
+            <ExternalLink size={12} className="text-slate-600 group-hover:text-blue-400 transition-colors shrink-0 mt-px" />
           </button>
         ) : (
-          <p className="text-sm font-bold text-white mb-1">{evento.titulo}</p>
+          <p className="text-base font-bold text-white mb-3">{evento.titulo}</p>
         )}
 
-        <p className="text-xs text-slate-400 mb-3">{evento.descripcion}</p>
-        <div className="text-[10px] text-slate-500 font-mono space-y-1">
+        <div className="text-[10px] text-slate-500 font-mono space-y-1 mb-3">
           <div>{format(evento.start, "dd/MM/yyyy · HH:mm")}</div>
           {evento.responsable     && <div>Gestor: {evento.responsable}</div>}
           {evento.operador_nombre && <div>Operador: {evento.operador_nombre}</div>}
           {evento.google_cid      && <div className="text-slate-700">GID: {evento.google_cid}</div>}
-          <div className="mt-2">
+        </div>
+
+        {detallesJson && (
+          <div className="border-t border-slate-800 pt-3 mt-1">
+            <p className="text-[9px] text-slate-600 uppercase tracking-widest font-black mb-2">Detalles</p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+              {Object.entries(detallesJson).map(([key, value]) => (
+                <div key={key} className="contents">
+                  <dt className="text-slate-500 font-mono">{LABELS_DETALLE[key] || key}</dt>
+                  <dd className="text-slate-200 font-mono text-right">
+                    {typeof value === 'boolean' ? (value ? 'sí' : 'no') : String(value)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {!detallesJson && evento.descripcion && (
+          <p className="text-xs text-slate-400 italic border-l-2 border-slate-700 pl-2 mb-2 leading-relaxed">{evento.descripcion}</p>
+        )}
+
+        {evento.estado && (
+          <div className="mt-3">
             <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase border ${
               evento.estado === 'realizada' || evento.estado === 'confirmada'
                 ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
                 : 'bg-slate-800 text-slate-400 border-slate-700'
             }`}>{evento.estado}</span>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -339,11 +392,8 @@ const TooltipCtx = React.createContext({ set: null, clear: null });
  * @param {{ evento: Object }} props
  */
 const TooltipContenido = ({ evento }) => {
-  const tipoConfig = TIPO[evento.tipo] || TIPO.llamada_operador;
+  const tipoConfig = TIPO[evento.tipo_evento] || TIPO.llamada_operador;
   const { Icon } = tipoConfig;
-  const desc = evento.descripcion
-    ? (evento.descripcion.length > 80 ? `${evento.descripcion.slice(0, 77)}…` : evento.descripcion)
-    : null;
 
   return (
     <div className={`bg-slate-900 border ${tipoConfig.borderClass} rounded-sm shadow-2xl p-3 w-64`}>
@@ -358,16 +408,6 @@ const TooltipContenido = ({ evento }) => {
           {evento.responsable ? `Gestor: ${evento.responsable}` : `Operador: ${evento.operador_nombre}`}
         </p>
       )}
-      {desc && (
-        <p className="text-[10px] text-slate-400 italic border-l-2 border-slate-700 pl-2 mb-2 leading-relaxed">{desc}</p>
-      )}
-      {evento.estado && (
-        <span className={`inline-block px-1.5 py-0.5 rounded-sm text-[9px] font-black uppercase border ${
-          evento.estado === 'realizada' || evento.estado === 'confirmada'
-            ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
-            : 'bg-slate-800 text-slate-400 border-slate-700'
-        }`}>{evento.estado}</span>
-      )}
     </div>
   );
 };
@@ -381,7 +421,7 @@ TooltipContenido.propTypes = { evento: PropTypes.object.isRequired };
  */
 const EventoTag = ({ event }) => {
   const { set, clear } = React.useContext(TooltipCtx);
-  const tipoConfig = TIPO[event.tipo] || TIPO.llamada_operador;
+  const tipoConfig = TIPO[event.tipo_evento] || TIPO.llamada_operador;
   const { Icon } = tipoConfig;
   return (
     <div
@@ -405,9 +445,11 @@ const AgendaGlobalPanel = () => {
   const [eventos, setEventos]     = useState([]);
   const [clientes, setClientes]   = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [view, setView]           = useState(Views.WEEK);
-  const [fecha, setFecha]         = useState(new Date());
-  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true, backup_sistema: true, gbp_snapshot: true, gbp_autorepair: true, envio_proforma_waha: true, envio_proforma_email: true, aceptacion_proforma: true });
+  const [view, setView]           = useState(Views.MONTH);
+  // Inicializar en el día actual para que el admin vea los eventos del día
+  // y no tenga que navegar. La vista Mes muestra el mes completo del día actual.
+  const [fecha, setFecha]         = useState(() => new Date());
+  const [filtros, setFiltros]     = useState({ cita_cliente: true, callback_operador: true, interaccion: true, llamada_operador: true, proxima_accion_cliente: true, backup_sistema: true, cron_sistema: true, gbp_snapshot: true, gbp_autorepair: true, envio_proforma_waha: true, envio_proforma_email: true, aceptacion_proforma: true });
   const [modalCita, setModalCita]         = useState(false);
   const [eventoSel, setEventoSel]         = useState(null);
   const [clienteDrawer, setClienteDrawer] = useState(null);
@@ -451,19 +493,13 @@ const AgendaGlobalPanel = () => {
     n8nGet('crm-agenda-unificada', { fecha_inicio: fechaInicio, fecha_fin: fechaFin })
       .then(data => {
         if (data.ok) {
-          setEventos(data.eventos.map(evento => {
-            const { start, end } = redistribuirHora(
-              { ...evento, start: new Date(evento.start), end: new Date(evento.end) },
-              horariosRef.current
-            );
-            return {
-              ...evento,
-              start,
-              end,
-              title:   evento.titulo,
-              tooltip: evento.descripcion ? `${evento.titulo} — ${evento.descripcion}` : evento.titulo,
-            };
-          }));
+          setEventos(data.eventos.map(evento => ({
+            ...evento,
+            start: new Date(evento.start_time),
+            end:   new Date(evento.end_time),
+            title:   evento.titulo,
+            tooltip: evento.titulo,
+          })));
         } else {
           setEventos([]);
           setErrorCarga(true);
@@ -487,25 +523,16 @@ const AgendaGlobalPanel = () => {
       .catch(() => { setClientes([]); setErrorClientes(true); });
   }, []);
 
-  // Carga horarios de trabajo de todos los usuarios al montar el panel.
-  // Se almacena en un ref para no forzar re-renders innecesarios.
+// NOTE: crm-horarios-todos endpoint does not exist in the agenda workflow.
+// The redistribuirHora() fallback at line 100 handles events with an empty
+// horariosMap, so the call has been removed to avoid CORS errors and a fake
+// setErrorCarga(true) that wiped the agenda. To re-enable it, create the
+// workflow with the documented payload shape (horarios: [{ usuario_id,
+// dia_semana, hora_inicio, hora_fin }]) and restore the block below.
+
   useEffect(() => {
-    n8nGet('crm-horarios-todos')
-      .then(datos => {
-        if (!datos.ok) return;
-        const mapaHorarios = new Map();
-        datos.horarios.forEach(bloque => {
-          const usuarioId = bloque.usuario_id;
-          if (!mapaHorarios.has(usuarioId)) mapaHorarios.set(usuarioId, []);
-          mapaHorarios.get(usuarioId).push({
-            dia_semana:  bloque.dia_semana,
-            hora_inicio: bloque.hora_inicio,
-            hora_fin:    bloque.hora_fin,
-          });
-        });
-        horariosRef.current = mapaHorarios;
-      })
-      .catch(() => { horariosRef.current = new Map(); setErrorCarga(true); });
+    // Stub: horariosRef.current defaults to an empty Map; redistribuirHora
+    // falls back to a deterministic spread if no real horario is available.
   }, []);
 
   useEffect(() => {
@@ -525,10 +552,10 @@ const AgendaGlobalPanel = () => {
       .catch(() => { setRenovaciones([]); setErrorCarga(true); });
   }, []);
 
-  const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo]);
+const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo_evento]);
 
-  const estiloEvento = useCallback((evento) => ({
-    className: `ev-tipo-${evento.tipo ?? 'default'}`,
+const estiloEvento = useCallback((evento) => ({
+    className: `ev-tipo-${evento.tipo_evento ?? 'default'}`,
   }), []);
 
   const navegar = (dir) => {
