@@ -40,6 +40,13 @@
 - Deploy Escaparate ES: `rsync -az --delete escaparate-es/dist/ root@72.60.191.179:/var/www/escaparate-es/`
 - ⚠️ RUTAS /var/www/ia-bybusiness.com/ y /var/www/ia-bybusiness.es/ EXISTEN pero nginx NO las sirve — no usar para deploy
 - Webhook 404 fix: `docker restart fabrica-n8n-1` + deactivate/activate ciclo
+- ⚠️ Bug n8n 2.11.0 — Task Broker GRANT_TOKEN_TTL: el JS Task Runner falla con 403 por TTL de 15s en el grant token
+  - Patch: `GRANT_TOKEN_TTL = 15` → `GRANT_TOKEN_TTL = 86400` en `dist/task-runners/task-broker/auth/task-broker-auth.service.js`
+  - Solución: imagen custom `fabrica/n8n:2.11.0-patched` con el patch horneado en tiempo de build (no requiere wrapper en runtime)
+  - Dockerfile en `/opt/fabrica/n8n-custom/Dockerfile` — build local, save/load/scp a VPS
+  - Compose: `/opt/fabrica/n8n-custom/docker-compose.yml` — usa `image: fabrica/n8n:2.11.0-patched` sin entrypoint override
+  - Fallback (emergencia): `/opt/fabrica/n8n-custom/docker-compose.fallback.yml` — usa imagen base + entrypoint wrapper
+  - El directorio `/opt/fabrica/n8n-patches/` en VPS fue eliminado (2026-06-11) — el patch ya no necesita runtime patching
 
 ## REGISTRY DE SERVICIOS (DB local fabrica — postgres-fabrica MCP)
 
@@ -88,6 +95,11 @@ FROM infraestructura.servicios_endpoints ORDER BY entorno, tipo;
 - Estado: Backend funcional, frontend en desarrollo
 - Vistas: Torre de Control (Admin, 6 módulos) | Modo Túnel (Operador, 4 módulos)
 - n8n distribuye leads cada 30s (3 prioridades)
+- **Contactabilidad**: threshold temporal de 90 días (2026-06-12) en lugar de 30 días
+  - Afecta: `crm.asignar_lead` (función DB) + `CRM_KPI_DASHBOARD_V2` (workflow LH7nUGlnkhNBEtHo)
+  - Causa: scrapers (nano/heavy/maps) DOWN desde ~2026-05-09, reputacion_at stale
+  - Plan: volver a 30 días una vez que scrapers estén restaurados y backfill complete
+  - Backfill: workflow `CRM_BACKFILL_REPUTACION` (ID: oHx70G0lZdY5SexB, POST /webhook/crm-backfill-reputacion)
 
 ### Monitor Reputación V2
 - Estado: ✅ PRODUCCIÓN COMPLETA (2026-03-01)
