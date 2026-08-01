@@ -321,6 +321,18 @@ operaciones.campanas_envios (canal='whatsapp')
 - **Consecuencias**: ✅ Task Runner funciona, ❌ diverge de upstream.
 - **Reversa**: media — cuando n8n arregle upstream.
 
+### ADR-008: TanStack Query v5 para gestión de estado server
+- **Contexto**: El patrón manual `useEffect + useState + fetch` producía manejo inconsistente de estados loading/error, duplicación de lógica de cache, y riesgo de race conditions en mutaciones.
+- **Decisión**: TanStack Query v5 (`@tanstack/react-query`) como capa de datos del servidor. Instancia centralizada en `src/shared/query/queryClient.js` con provider en `App.jsx`. Hooks `useN8nQuery`/`useN8nMutation` de `useN8n.js` abstraen el acceso a webhooks n8n.
+- **Consecuencias**:
+  - ✅ UX consistente: estados loading/error/empty manejados por React Query
+  - ✅ Cache automático con `staleTime` configurable por query
+  - ✅ Mutaciones con rollback optimista y cache invalidation
+  - ✅ deduplicación de requests simultáneos
+  - ❌ Bundle +12KB (aceptable: TanStack Query v5 tree-shakes bien)
+  - ❌ Learning curve para devs unfamiliar con React Query
+- **Reversa**: media — la abstracción está bien encapsulada (`useN8nQuery`/`useN8nMutation`). Si se necesitara cambiar a SWR o RTK Query, el impacto es local a `useN8n.js` y los componentes que lo usan.
+
 ---
 
 ## 7. Performance y escala
