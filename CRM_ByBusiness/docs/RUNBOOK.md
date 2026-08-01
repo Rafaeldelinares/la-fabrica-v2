@@ -292,3 +292,61 @@ Para cada sesión nueva, crear un archivo `verification/YYYY-MM-DD-<topic>.md` y
 - **Sección 11 agregada**: workflow de commits local con workaround para GGA hook (provider `opencode` corrompe index).
 - **Regresión detectada y corregida**: `Sidebar.jsx` tenía `isOpen: PropTypes.isRequired` (válido solo como chain), HEAD tenía `PropTypes.bool.isRequired`. Fixed en commit 6ad58a4.
 - **Sección 11 actualizada**: GGA ahora usa `lmstudio:qwen2.5-coder-7b-instruct` (puerto 11434). No hace falta `--no-verify`. Workflow de commits vuelve a la normalidad. Provider `opencode` queda descartado por el bug de snapshot/index corruption.
+
+---
+
+## 12. CI/CD
+
+### Workflows
+
+| Workflow | Archivo | Trigger | Qué hace |
+|---|---|---|---|
+| **CI** | `.github/workflows/ci.yml` | PR/push a `main` | lint, lint:scope, build, unit tests (vitest) |
+| **E2E** | `.github/workflows/e2e.yml` | PR/push a `main`, manual | Playwright E2E (12 specs) |
+| **Deploy** | `.github/workflows/deploy.yml` | push a `main`, manual | build + rsync a VPS producción |
+
+Los tres archivos viven en `.github/workflows/` del monorepo.
+
+### Secrets necesarios (GitHub)
+
+Configurar en **Settings → Secrets and variables → Actions** del repo:
+
+| Secret | Descripción |
+|---|---|
+| `VPS_SSH_KEY` | Clave SSH privada con acceso root al VPS |
+| `VPS_HOST` | IP del VPS (ej: `72.60.191.179`) |
+| `N8N_API_KEY` | (Futuro) API key de n8n para deploys de workflows |
+
+### Cómo agregar un secret
+
+1. Ir a `https://github.com/Rafaeldelinares/la-fabrica-v2/settings/secrets/actions`
+2. Click **New repository secret**
+3. Agregar `VPS_SSH_KEY` (copiar desde `~/.ssh/id_rsa` local)
+4. Agregar `VPS_HOST` con el valor `72.60.191.179`
+
+### Deploy manual
+
+1. Ir a tab **Actions**
+2. Seleccionar workflow **Deploy**
+3. Click **Run workflow**
+
+### Cómo debuguear un workflow que falla
+
+1. Ir a **Actions** → seleccionar el run fallido → clickear el job fallido
+2. Leer los logs expandiendo cada step
+3. Descargar artifacts (playwright-report, test-results) desde la sección **Artifacts**
+4. Corregir localmente, commitear, y clickear **Re-run all jobs**
+
+### Proteger la branch main
+
+1. **Settings → Branches → Add rule**
+2. Branch name pattern: `main`
+3. Habilitar:
+   - ✅ Require a pull request before merging
+   - ✅ Require status checks to pass before merging
+   - Agregar checks requeridos: `lint-and-build`, `unit-tests`, `e2e`
+   - ✅ Do not allow bypassing the above settings
+
+### Documentación detallada
+
+Ver `.github/workflows/README.md` — incluye tabla de comandos locales equivalentes, cómo ver reportes de Playwright, y cómo cambiar `needs: []` por `needs: [lint-and-build, unit-tests]` en deploy si se quiere gating automático.
