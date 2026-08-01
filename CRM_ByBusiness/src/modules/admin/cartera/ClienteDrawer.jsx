@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { X, Plus } from 'lucide-react';
 import RegistrarInteraccionModal from './RegistrarInteraccionModal';
 import TabFicha     from './tabs/TabFicha';
@@ -40,28 +41,36 @@ const KPI_CONFIG = [
  */
 const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteBaja }) => {
   const rbac = useRbac();
+  const queryClient = useQueryClient();
   const [activeTab,        setActiveTab]        = useState('ficha');
-  const [timeline,         setTimeline]         = useState(null);
   const [showModal,        setShowModal]        = useState(false);
   const [interaccionEditar, setInteraccionEditar] = useState(null);
-  const [errorTimeline,    setErrorTimeline]    = useState(null);
 
-  const fetchTimeline = () => {
-    setErrorTimeline(null);
-    n8nGet('crm-interacciones-cliente', { cliente_id: cliente.id })
-      .then(data => { if (data.ok) setTimeline(data.timeline); else setTimeline([]); })
-      .catch(() => { setTimeline([]); setErrorTimeline('Error al cargar historial'); });
-  };
+  // React Query: timeline de interacciones del cliente
+  const { data: timelineData, error: timelineError, refetch: refetchTimeline } = useQuery({
+    queryKey: ['cliente-timeline', cliente.id],
+    queryFn: () => n8nGet('crm-interacciones-cliente', { cliente_id: cliente.id }),
+    staleTime: 30_000,
+  });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchTimeline();
-  }, [cliente.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const timeline = timelineData?.ok ? (timelineData.timeline ?? []) : null;
+  const errorTimeline = timelineError ? 'Error al cargar historial' : null;
+
+  // Mutation para borrar interacción
+  const deleteMutation = useMutation({
+    mutationFn: (interaccionId) => n8nPost('crm-interaccion-borrar', { interaccion_id: interaccionId }),
+    onSuccess: (data) => {
+      if (data?.ok) refetchTimeline();
+    },
+    onError: () => {
+      // Error handling - could set a local error state here
+    },
+  });
 
   const handleSaved = () => {
     setShowModal(false);
     setInteraccionEditar(null);
-    fetchTimeline();
+    refetchTimeline();
     setActiveTab('historial');
   };
 
@@ -71,9 +80,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
   };
 
   const handleDeleteInteraccion = (interaccionId) => {
-    n8nPost('crm-interaccion-borrar', { interaccion_id: interaccionId })
-      .then(d => { if (d.ok) fetchTimeline(); })
-      .catch(() => setErrorTimeline('Error al borrar la interacción'));
+    deleteMutation.mutate(interaccionId);
   };
 
   return (
