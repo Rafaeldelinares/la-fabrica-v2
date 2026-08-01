@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Badge from '../../../shared/ui/Badge';
 import { MessageSquare, User } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
@@ -24,9 +25,9 @@ const getPrioridadClasses = (prioridad) => {
  * @param {boolean} props.canEdit  - Si el usuario puede cambiar estado del lead
  */
 const LeadRow = ({ lead, gestores, canEdit }) => {
+    const queryClient = useQueryClient();
     const [estado, setEstado]               = useState(lead.estado);
     const [gestorId, setGestorId]           = useState(lead.operador_id ?? '');
-    const [guardando, setGuardando]         = useState(false);
     const [errFila, setErrFila]             = useState('');
     const [notaAbierta, setNotaAbierta]     = useState(false);
     const [nota, setNota]                   = useState('');
@@ -43,55 +44,79 @@ const LeadRow = ({ lead, gestores, canEdit }) => {
         errTimerRef.current = setTimeout(() => setErrFila(''), 3000);
     };
 
-    const actualizarLead = async (campo, valor) => {
-        // Guardar valores previos para rollback si la API falla
-        const estadoPrevio = estado;
-        const gestorPrevio = gestorId;
-        setGuardando(true);
-        try {
+    // Mutation for lead updates (estado, operador_id)
+    const updateMutation = useMutation({
+        mutationFn: ({ campo, valor }) => {
             const body = { id: lead.id, [campo]: valor };
-            const data = await n8nPost('crm-update-lead', body);
-            if (!data.ok) {
-                // Rollback: el backend rechazo el cambio, no mentimos al usuario
-                setEstado(estadoPrevio);
-                setGestorId(gestorPrevio);
-                mostrarError(data.message || 'Error al guardar — intenta de nuevo');
-            }
-        } catch {
-            // Error de red o HTTP no-2xx: rollback
-            setEstado(estadoPrevio);
-            setGestorId(gestorPrevio);
+            return n8nPost('crm-update-lead', body);
+        },
+        onMutate: async ({ campo, valor }) => {
+            // Cancel any outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['leads'] });
+            // Snapshot previous value for rollback
+            const estadoPrevio = estado;
+            const gestorPrevio = gestorId;
+            // Optimistically update local state
+            if (campo === 'estado') setEstado(valor);
+            if (campo === 'operador_id') setGestorId(valor ? String(valor) : '');
+            return { estadoPrevio, gestorPrevio };
+        },
+        onError: (_err, _vars, context) => {
+            // Rollback on error
+            if (context?.estadoPrevio !== undefined) setEstado(context.estadoPrevio);
+            if (context?.gestorPrevio !== undefined) setGestorId(context.gestorPrevio);
             mostrarError('Error de conexion al guardar');
-        } finally {
-            setGuardando(false);
-        }
-    };
+        },
+        onSuccess: (data) => {
+            if (!data?.ok) {
+                mostrarError(data?.message || 'Error al guardar — intenta de nuevo');
+            } else {
+                // Invalidate leads query to refetch with fresh data
+                queryClient.invalidateQueries({ queryKey: ['leads'] });
+            }
+        },
+    });
 
     const onEstadoChange = (e) => {
-        setEstado(e.target.value);
-        actualizarLead('estado', e.target.value);
+        const nuevoEstado = e.target.value;
+        setEstado(nuevoEstado);
+        updateMutation.mutate({ campo: 'estado', valor: nuevoEstado });
     };
 
     const onGestorChange = (e) => {
         const val = e.target.value;
         setGestorId(val);
-        actualizarLead('operador_id', val ? Number(val) : null);
+        updateMutation.mutate({ campo: 'operador_id', valor: val ? Number(val) : null });
     };
+
+    // Mutation for saving notes
+    const notaMutation = useMutation({
+        mutationFn: ({ nota: notaTexto }) => {
+            return n8nPost('crm-lead-nota', { lead_id: lead.id, nota: notaTexto });
+        },
+        onSuccess: (data) => {
+            if (data?.ok) {
+                setNota('');
+                setNotaAbierta(false);
+            } else {
+                mostrarError('Error al guardar nota');
+            }
+        },
+        onError: () => {
+            mostrarError('Error de conexion al guardar nota');
+        },
+        onSettled: () => {
+            setGuardandoNota(false);
+        },
+    });
 
     const guardarNota = async () => {
         if (!nota.trim()) return;
         setGuardandoNota(true);
-        try {
-            const data = await n8nPost('crm-lead-nota', { lead_id: lead.id, nota: nota.trim() });
-            if (data.ok) { setNota(''); setNotaAbierta(false); }
-            else mostrarError('Error al guardar nota');
-        } catch {
-            mostrarError('Error de conexion al guardar nota');
-        } finally {
-            setGuardandoNota(false);
-        }
+        notaMutation.mutate({ nota: nota.trim() });
     };
 
+    const guardando = updateMutation.isPending;
     const selectCls = `bg-slate-900 border border-slate-700 rounded-sm text-[10px] text-slate-200 px-2 py-1
         outline-none focus:border-[#D00000] font-mono uppercase ${guardando ? 'opacity-50 cursor-not-allowed' : ''}`;
 

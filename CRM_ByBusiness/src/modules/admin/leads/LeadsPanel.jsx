@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -24,10 +25,6 @@ const LeadsPanel = () => {
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
     const [filtroCampana, setFiltroCampana]     = useState('');
-    const [leads, setLeads]                     = useState(null);
-    const [total, setTotal]                     = useState(0);
-    const [gestores, setGestores]               = useState([]);
-    const [error, setError]                     = useState('');
     const [pagina, setPagina]                   = useState(1);
     const [mostrarGenerador, setMostrarGenerador] = useState(false);
     const [mostrarAnalisis, setMostrarAnalisis]   = useState(false);
@@ -35,23 +32,24 @@ const LeadsPanel = () => {
     const [filtrosGenerador, setFiltrosGenerador] = useState([]);
     const [_datosAnalisis, setDatosAnalisis]       = useState(null);
 
-    const cargarOperadores = useCallback(() => {
-        n8nGet('crm-operadores-activos')
-            .then(data => { if (data.ok) setGestores(data.operadores); })
-            .catch(() => { setGestores([]); setError('Error al cargar gestores — comprueba la conexion'); });
-    }, []);
+    // React Query: leads list with 1min staleTime
+    const { data: leadsData, isLoading: leadsLoading, error: leadsError, refetch: refetchLeads } = useQuery({
+        queryKey: ['leads', scope.getFilterValue()],
+        queryFn: () => n8nGet('crm-leads-admin', { es_simulacion: scope.getFilterValue(), limit: '20000' }),
+        staleTime: 60_000, // 1 minute
+    });
 
-    const cargarLeads = useCallback(() => {
-        setLeads(null);
-        n8nGet('crm-leads-admin', { es_simulacion: scope.getFilterValue(), limit: '20000' })
-            .then(data => {
-                if (data.ok) { setLeads(data.leads); setTotal(data.total); setError(''); }
-                else { setLeads([]); setError('Error al cargar leads — respuesta inesperada del servidor'); }
-            })
-            .catch(() => { setLeads([]); setError('Error al cargar leads — comprueba la conexion'); });
-    }, [scope]);
+    // React Query: operadores activos
+    const { data: operadoresData } = useQuery({
+        queryKey: ['operadores-activos'],
+        queryFn: () => n8nGet('crm-operadores-activos'),
+        staleTime: 60_000,
+    });
 
-    useEffect(() => { cargarLeads(); cargarOperadores(); }, [cargarLeads, cargarOperadores]); // eslint-disable-line react-hooks/set-state-in-effect
+    const leads = leadsData?.leads ?? null;
+    const total = leadsData?.total ?? 0;
+    const gestores = operadoresData?.ok ? (operadoresData.operadores ?? []) : [];
+    const error = leadsError ? 'Error al cargar leads — comprueba la conexion' : (leadsData?.ok === false ? 'Error al cargar leads — respuesta inesperada del servidor' : '');
 
     const leadsFiltrados = (leads ?? []).filter(lead =>
         (!filtroEstado    || lead.estado    === filtroEstado) &&
@@ -104,7 +102,7 @@ const LeadsPanel = () => {
                         <Zap size={12} /> GENERADOR
                     </button>
                     <button
-                        onClick={cargarLeads}
+                        onClick={() => refetchLeads()}
                         className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-colors"
                         title="Recargar"
                     >
@@ -137,7 +135,7 @@ const LeadsPanel = () => {
             </div>
 
             {rbac.can('leads.assign') && (
-              <AsignameUnLead onAssigned={cargarLeads} />
+              <AsignameUnLead onAssigned={() => refetchLeads()} />
             )}
 
             {mostrarAnalisis && !mostrarGenerador && (
@@ -171,7 +169,7 @@ const LeadsPanel = () => {
                             onCerrar={() => {
                                 setMostrarGenerador(false);
                                 setFiltrosGenerador([]);
-                                cargarLeads();
+                                refetchLeads();
                             }}
                         />
                     </div>
@@ -180,13 +178,13 @@ const LeadsPanel = () => {
 
             {mostrarAnalisisInteligente && (
                 <AnalisisInteligentePanel
-                    onCerrar={() => { setMostrarAnalisisInteligente(false); cargarLeads(); }}
-                    onAprobarPropuesta={() => cargarLeads()}
+                    onCerrar={() => { setMostrarAnalisisInteligente(false); refetchLeads(); }}
+                    onAprobarPropuesta={() => refetchLeads()}
                 />
             )}
 
             <Card className="flex flex-col flex-1 bg-slate-900 border-slate-800 !p-0 overflow-hidden">
-                {leads === null ? (
+                {leadsLoading ? (
                     <div className="flex-1 flex items-center justify-center py-20 animate-pulse">
                         <div className="flex flex-col gap-3 items-center">
                             <div className="h-4 w-48 bg-slate-800 rounded-sm" />
