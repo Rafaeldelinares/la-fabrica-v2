@@ -217,36 +217,63 @@ Para cada sesión nueva, crear un archivo `verification/YYYY-MM-DD-<topic>.md` y
 
 ---
 
-## 11. Workflow de commits local (GGA workaround)
+## 11. Workflow de commits local (GGA)
 
-**Problema conocido (2026-08-01)**: el hook `pre-commit` de GGA (Gentleman Guardian Angel), cuando se ejecuta con provider `opencode`, **corrompe el index del repo** después de pasar la review. Síntoma: `git commit` falla con `error: invalid object ... for '.atl/.skill-registry.cache.json'` y el index queda con 400+ archivos stageados con SHAs rotos.
+**Estado actual (2026-08-01)**: GGA funcionando con **provider local `lmstudio:qwen2.5-coder-7b-instruct`**. No hace falta `--no-verify` en commits. Los commits pasan normal y Qwen revisa local.
 
-**Causa raíz**: opencode v1.18.10 crea un snapshot git interno (`/home/rafael/.local/share/opencode/snapshot/...`) para tracking de archivos, y esa operación deja el index del repo principal en estado inconsistente. No es el agente IA — es el binario mismo. Confirmado con test controlado (sin GGA corriendo, el commit pasa limpio).
+### Configuración
 
-**Workarounds disponibles** (en orden de preferencia):
+- **`/opt/fabrica/.gga`**: `PROVIDER="lmstudio:qwen2.5-coder-7b-instruct"` (commiteado en `fbbfef7`)
+- **`/opt/fabrica/.git/hooks/pre-commit`**: debe exportar `LMSTUDIO_HOST="http://localhost:11434/v1"` antes de llamar a `gga run`. Como los hooks no se trackean, este cambio es **local** y hay que verificarlo en cada máquina nueva:
+  ```bash
+  cat /opt/fabrica/.git/hooks/pre-commit
+  # Debe incluir: export LMSTUDIO_HOST="http://localhost:11434/v1"
+  ```
+  Si falta, agregarlo:
+  ```bash
+  cat > /opt/fabrica/.git/hooks/pre-commit <<'HOOK'
+  #!/usr/bin/env bash
+  export PATH="/home/rafael/.local/bin:$PATH"
+  unset ANTHROPIC_API_KEY
+  export LMSTUDIO_HOST="http://localhost:11434/v1"
+  gga run || exit 1
+  HOOK
+  chmod +x /opt/fabrica/.git/hooks/pre-commit
+  ```
 
-1. **`--no-verify` en cada commit** (la que usamos hoy):
-   ```bash
-   git reset HEAD -- .         # limpia el index si está corrupto
-   git add <archivos>
-   git commit --no-verify -F - <<'EOF'
-   <mensaje del commit>
+### Requisitos
 
-   Co-Authored-By: MiniMax-M3 <noreply@minimax.io>
-   EOF
-   ```
-   La review de código de GGA sigue disponible ejecutando `gga run` manualmente cuando se quiera.
+- **LMStudio corriendo** en `localhost:11434` (con `lms server start` o desde la GUI). Verificar con:
+  ```bash
+  /home/rafael/.lmstudio/bin/lms status   # debe decir "Server: ON (port: 11434)"
+  ```
+- **Modelo cargado**: `qwen2.5-coder-7b-instruct` (4.68 GB, optimizado para code review). Cargar con:
+  ```bash
+  /home/rafael/.lmstudio/bin/lms load qwen2.5-coder-7b-instruct
+  ```
 
-2. **Cambiar provider de GGA a `lmstudio`** (Qwen local, evita opencode):
-   ```bash
-   # En /opt/fabrica/.gga:
-   PROVIDER="lmstudio:MiniMaxLM"   # o el modelo Qwen disponible
-   ```
-   No probado — requiere tener `lmstudio` corriendo en `:1234`.
+### Si algo falla
 
-3. **Desinstalar el hook** (revierte a review manual):
-   ```bash
-   gga uninstall
+1. **`Provider execution failed`**: LMStudio está caído o el modelo no está cargado. Reiniciar LMStudio y recargar el modelo.
+2. **Review muy lenta / timeout 180s**: subir `TIMEOUT="600"` en `.gga` o usar `qwen3.5-9b` (más rápido, menos preciso para código).
+3. **Querés saltar GGA puntualmente**: `git commit --no-verify` (sigue funcionando).
+4. **Desinstalar el hook completamente**: `gga uninstall`.
+
+### Histórico
+
+- Antes (2026-08-01): `opencode` provider → corruppía index → `--no-verify` workaround.
+- Ahora: `lmstudio:qwen2.5-coder-7b-instruct` → flujo limpio.
+
+### Por qué no otros providers (lecciones)
+
+| Provider | Por qué no |
+|---|---|
+| `claude` | OAuth expirado (consolidamos a MiniMax + opencode-go) |
+| `opencode` | Bug snapshot/index corruption en v1.18.10 |
+| `opencode:opencode-go/kimi-k2.5` | OAuth de opencode-go vencido |
+| `minimax` con `sk-cp-...` | Error 1004 — key de opencode-coding-plan, no de `api.minimax.io` |
+| `minimax` con `sk-nKSH-...` | Error 1004 — key de opencode-go, no de `api.minimax.io` |
+| `lmstudio` | ✅ Funciona |
    ```
 
 **Aplicar hasta que**: opencode arregle el bug de interacción snapshot/index. Hay un issue abierto en `Gentleman-Programming/opencode` (buscar por "snapshot index corruption" — pendiente de verificar).
@@ -264,3 +291,4 @@ Para cada sesión nueva, crear un archivo `verification/YYYY-MM-DD-<topic>.md` y
 - Bug-B: nuevo UNION ALL leg en `CRM_AGENDA_V2` que lee `operaciones.campanas_envios`. Toggle `envio_proforma_waha` ahora con 74 eventos, `aceptacion_proforma` con 8.
 - **Sección 11 agregada**: workflow de commits local con workaround para GGA hook (provider `opencode` corrompe index).
 - **Regresión detectada y corregida**: `Sidebar.jsx` tenía `isOpen: PropTypes.isRequired` (válido solo como chain), HEAD tenía `PropTypes.bool.isRequired`. Fixed en commit 6ad58a4.
+- **Sección 11 actualizada**: GGA ahora usa `lmstudio:qwen2.5-coder-7b-instruct` (puerto 11434). No hace falta `--no-verify`. Workflow de commits vuelve a la normalidad. Provider `opencode` queda descartado por el bug de snapshot/index corruption.
