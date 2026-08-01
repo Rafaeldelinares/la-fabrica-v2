@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -12,6 +12,7 @@ import DatePickerField from '../../../shared/ui/DatePickerField';
 import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
 import SlotPicker from './SlotPicker';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 /** Tipos de evento operador — se distribuyen 10:00–20:00 si llegan a las 00:00. */
@@ -442,9 +443,6 @@ const CALENDAR_COMPONENTS = { event: EventoTag };
 /** Panel de agenda unificada (admin): visualiza todos los eventos del equipo con filtros por tipo. */
 const AgendaGlobalPanel = () => {
   const { user } = useAuth();
-  const [eventos, setEventos]     = useState([]);
-  const [clientes, setClientes]   = useState([]);
-  const [loading, setLoading]     = useState(true);
   const [view, setView]           = useState(Views.MONTH);
   // Inicializar en el día actual para que el admin vea los eventos del día
   // y no tenga que navegar. La vista Mes muestra el mes completo del día actual.
@@ -454,9 +452,6 @@ const AgendaGlobalPanel = () => {
   const [eventoSel, setEventoSel]         = useState(null);
   const [clienteDrawer, setClienteDrawer] = useState(null);
   const [tooltipEvento, setTooltipEvento] = useState(null);
-  const [errorCarga, setErrorCarga]       = useState(false);
-  const [errorClientes, setErrorClientes] = useState(false);
-  const [renovaciones, setRenovaciones]   = useState([]);
   const tooltipWrapperRef                 = useRef(null);
   /**
    * Caché de horarios de trabajo: Map<usuario_id, Array<{dia_semana, hora_inicio, hora_fin}>>.
@@ -464,14 +459,80 @@ const AgendaGlobalPanel = () => {
    */
   const horariosRef = useRef(new Map());
 
+  // React Query: agenda unificada (2min staleTime)
+  const { data: agendaData, isLoading: loadingAgenda, error: errorAgenda, refetch: refetchAgenda } = useQuery({
+    queryKey: ['agenda', fecha],
+    queryFn: () => {
+      const fechaInicio = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
+      const fechaFin    = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
+      return n8nGet('crm-agenda-unificada', { fecha_inicio: fechaInicio, fecha_fin: fechaFin });
+    },
+    staleTime: 120_000, // 2 minutes
+  });
+
+  // React Query: clientes para selector de nueva cita
+  const { data: clientesData, isLoading: loadingClientes, error: errorClientes } = useQuery({
+    queryKey: ['clientes'],
+    queryFn: () => n8nGet('crm-clientes'),
+    staleTime: 60_000, // 1 minute
+  });
+
+  // React Query: cartera para renovaciones
+  const { data: carteraData } = useQuery({
+    queryKey: ['cartera-renovaciones'],
+    queryFn: () => n8nGet('crm-cartera-get'),
+    staleTime: 60_000,
+  });
+
+  // React Query: detalle de cliente para abrir desde agenda
+  const [clienteDetalleId, setClienteDetalleId] = useState(null);
+  const { data: clienteDetalleData } = useQuery({
+    queryKey: ['cliente-detalle', clienteDetalleId],
+    queryFn: () => n8nGet('crm-cartera-get', { cliente_id: clienteDetalleId }),
+    enabled: Boolean(clienteDetalleId),
+    staleTime: 30_000,
+  });
+
+  // Derived state from queries
+  const eventos = agendaData?.ok ? (agendaData.eventos || []).map(evento => ({
+    ...evento,
+    start: new Date(evento.start_time),
+    end:   new Date(evento.end_time),
+    title:   evento.titulo,
+    tooltip: evento.titulo,
+  })) : [];
+
+  const clientes = clientesData?.ok ? (clientesData.clientes || []) : [];
+
+  const renovaciones = useMemo(() => {
+    if (!carteraData?.ok) return [];
+    const clientes = carteraData.clientes || [];
+    const ahora              = new Date();
+    const fechaLimite60Dias  = new Date(Date.now() + 60 * 86400000);
+    return clientes
+      .filter(cliente => cliente.proxima_renovacion
+        && new Date(cliente.proxima_renovacion) >= ahora
+        && new Date(cliente.proxima_renovacion) <= fechaLimite60Dias)
+      .sort((a, b) => new Date(a.proxima_renovacion) - new Date(b.proxima_renovacion));
+  }, [carteraData]);
+
+  const loading = loadingAgenda;
+  const errorCarga = errorAgenda;
+  const errorClientesFlag = errorClientes;
+
   const abrirClienteDesdeAgenda = useCallback((clienteId) => {
-    n8nGet('crm-cartera-get', { cliente_id: clienteId })
-      .then(data => {
-        if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]);
-        else setErrorCarga(true);
-      })
-      .catch(() => { setClienteDrawer(null); setErrorCarga(true); });
-  }, []);
+    setClienteDetalleId(clienteId);
+    if (clienteDetalleData?.ok && clienteDetalleData.clientes?.length) {
+      setClienteDrawer(clienteDetalleData.clientes[0]);
+    }
+  }, [clienteDetalleData]);
+
+  // When clienteDetalleData changes and we have data, set the drawer
+  React.useEffect(() => {
+    if (clienteDetalleData?.ok && clienteDetalleData.clientes?.length) {
+      setClienteDrawer(clienteDetalleData.clientes[0]);
+    }
+  }, [clienteDetalleData]);
 
   const tooltipHandlers = useMemo(() => ({
     set: (evento, x, y) => {
@@ -482,77 +543,9 @@ const AgendaGlobalPanel = () => {
       setTooltipEvento(evento);
     },
     clear: () => setTooltipEvento(null),
-   
   }), []);
 
-  const cargar = useCallback(() => {
-    setLoading(true);
-    setErrorCarga(false);
-    const fechaInicio = format(startOfMonth(subMonths(fecha, 1)), "yyyy-MM-dd'T'00:00:00");
-    const fechaFin    = format(endOfMonth(addMonths(fecha, 1)),   "yyyy-MM-dd'T'23:59:59");
-    n8nGet('crm-agenda-unificada', { fecha_inicio: fechaInicio, fecha_fin: fechaFin })
-      .then(data => {
-        if (data.ok) {
-          setEventos(data.eventos.map(evento => ({
-            ...evento,
-            start: new Date(evento.start_time),
-            end:   new Date(evento.end_time),
-            title:   evento.titulo,
-            tooltip: evento.titulo,
-          })));
-        } else {
-          setEventos([]);
-          setErrorCarga(true);
-        }
-      })
-      .catch(() => { setEventos([]); setErrorCarga(true); })
-      .finally(() => setLoading(false));
-  }, [fecha]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    cargar();
-  }, [cargar]);
-
-  useEffect(() => {
-    n8nGet('crm-clientes')
-      .then(data => {
-        if (data.ok) setClientes(data.clientes);
-        else { setClientes([]); setErrorClientes(true); }
-      })
-      .catch(() => { setClientes([]); setErrorClientes(true); });
-  }, []);
-
-// NOTE: crm-horarios-todos endpoint does not exist in the agenda workflow.
-// The redistribuirHora() fallback at line 100 handles events with an empty
-// horariosMap, so the call has been removed to avoid CORS errors and a fake
-// setErrorCarga(true) that wiped the agenda. To re-enable it, create the
-// workflow with the documented payload shape (horarios: [{ usuario_id,
-// dia_semana, hora_inicio, hora_fin }]) and restore the block below.
-
-  useEffect(() => {
-    // Stub: horariosRef.current defaults to an empty Map; redistribuirHora
-    // falls back to a deterministic spread if no real horario is available.
-  }, []);
-
-  useEffect(() => {
-    n8nGet('crm-cartera-get')
-      .then(data => {
-        const clientes = data.ok ? (data.clientes || []) : [];
-        const ahora              = new Date();
-        const fechaLimite60Dias  = new Date(Date.now() + 60 * 86400000);
-        setRenovaciones(
-          clientes
-            .filter(cliente => cliente.proxima_renovacion
-              && new Date(cliente.proxima_renovacion) >= ahora
-              && new Date(cliente.proxima_renovacion) <= fechaLimite60Dias)
-            .sort((a, b) => new Date(a.proxima_renovacion) - new Date(b.proxima_renovacion))
-        );
-      })
-      .catch(() => { setRenovaciones([]); setErrorCarga(true); });
-  }, []);
-
-const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo_evento]);
+  const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo_evento]);
 
 const estiloEvento = useCallback((evento) => ({
     className: `ev-tipo-${evento.tipo_evento ?? 'default'}`,
@@ -633,7 +626,7 @@ const estiloEvento = useCallback((evento) => ({
             Error al cargar la agenda — comprueba la conexión con n8n
           </div>
         )}
-        {errorClientes && (
+        {errorClientesFlag && (
           <div className="mb-2 px-3 py-2 bg-red-900/20 border border-red-900/40 rounded-sm text-[10px] text-red-400 font-mono uppercase tracking-widest">
             Error al cargar clientes — el selector de nueva cita puede estar vacío
           </div>
@@ -716,7 +709,7 @@ const estiloEvento = useCallback((evento) => ({
           clientes={clientes}
           gestorId={user?.id}
           onClose={() => setModalCita(false)}
-          onCreated={cargar}
+          onCreated={refetchAgenda}
         />
       )}
 
