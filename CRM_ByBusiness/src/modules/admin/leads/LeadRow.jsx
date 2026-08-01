@@ -21,9 +21,9 @@ const getPrioridadClasses = (prioridad) => {
  * LeadRow — Fila de lead con cambio de estado, asignacion de gestor y nota rapida inline.
  * @param {object}  props.lead     - Datos del lead
  * @param {Array}   props.gestores - Lista de usuarios disponibles
- * @param {boolean} props.isAdmin  - Si es admin, muestra boton Ver cliente en vendido
+ * @param {boolean} props.canEdit  - Si el usuario puede cambiar estado del lead
  */
-const LeadRow = ({ lead, gestores, isAdmin }) => {
+const LeadRow = ({ lead, gestores, canEdit }) => {
     const [estado, setEstado]               = useState(lead.estado);
     const [gestorId, setGestorId]           = useState(lead.operador_id ?? '');
     const [guardando, setGuardando]         = useState(false);
@@ -95,7 +95,7 @@ const LeadRow = ({ lead, gestores, isAdmin }) => {
     const selectCls = `bg-slate-900 border border-slate-700 rounded-sm text-[10px] text-slate-200 px-2 py-1
         outline-none focus:border-[#D00000] font-mono uppercase ${guardando ? 'opacity-50 cursor-not-allowed' : ''}`;
 
-    const puedeVerCliente = isAdmin && lead.estado === 'vendido' && lead.cliente_id;
+    const puedeVerCliente = canEdit && lead.estado === 'vendido' && lead.cliente_id;
 
     return (
         <>
@@ -229,6 +229,7 @@ LeadRow.propTypes = {
         nombre: PropTypes.string.isRequired,
     })).isRequired,
     isAdmin: PropTypes.bool,
+    canEdit: PropTypes.bool,
 };
 
 export default LeadRow;

@@ -11,6 +11,7 @@ import AnalisisInteligentePanel from '../campanas/AnalisisInteligentePanel';
 import { useAuth } from '../../auth/AuthContext';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 import { n8nGet } from '../../../shared/hooks/useN8n';
+import { useRbac } from '../../../shared/auth/useRbac';
 
 const PAGE_SIZE = 15;
 
@@ -18,6 +19,7 @@ const PAGE_SIZE = 15;
 const LeadsPanel = () => {
     const { user } = useAuth();
     const scope = useTrainingScope();
+    const rbac = useRbac();
 
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
@@ -134,7 +136,9 @@ const LeadsPanel = () => {
                 </div>
             </div>
 
-            <AsignameUnLead onAssigned={cargarLeads} />
+            {rbac.can('leads.assign') && (
+              <AsignameUnLead onAssigned={cargarLeads} />
+            )}
 
             {mostrarAnalisis && !mostrarGenerador && (
                 <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
@@ -214,7 +218,7 @@ const LeadsPanel = () => {
                                 </thead>
                                 <tbody>
                                     {leadsPagina.map(lead => (
-                                        <LeadRow key={lead.id} lead={lead} gestores={gestores} isAdmin={user?.role === 'admin'} />
+                                        <LeadRow key={lead.id} lead={lead} gestores={gestores} canEdit={rbac.can('leads.update.status')} />
                                     ))}
                                 </tbody>
                             </table>

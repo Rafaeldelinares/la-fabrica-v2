@@ -9,6 +9,7 @@ import TabGbp            from './tabs/TabGbp';
 import TabTarjetaDigital from './tabs/TabTarjetaDigital';
 import { fmtDias } from '../../../utils/dates';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
+import { useRbac } from '../../../shared/auth/useRbac';
 
 const SEMAFORO = {
   verde: 'bg-emerald-500',
@@ -38,6 +39,7 @@ const KPI_CONFIG = [
  * @param {{ cliente: object, gestorId: string|number, onClose: Function, onGestorChanged: Function, onClienteBaja: Function }} props
  */
 const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteBaja }) => {
+  const rbac = useRbac();
   const [activeTab,        setActiveTab]        = useState('ficha');
   const [timeline,         setTimeline]         = useState(null);
   const [showModal,        setShowModal]        = useState(false);
@@ -107,14 +109,16 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
         </div>
 
         {/* Botón registrar interacción */}
-        <div className="px-5 py-3 border-b border-slate-800 shrink-0">
-          <button
-            onClick={() => { setInteraccionEditar(null); setShowModal(true); }}
-            className="flex items-center gap-2 w-full justify-center px-4 py-2 bg-[#D00000]/10 hover:bg-[#D00000]/20 border border-[#D00000]/30 hover:border-[#D00000]/60 text-[#D00000] text-xs font-mono uppercase tracking-widest rounded-sm transition-colors"
-          >
-            <Plus size={13} /> Registrar interacción
-          </button>
-        </div>
+        {rbac.can('clientes.update') && (
+          <div className="px-5 py-3 border-b border-slate-800 shrink-0">
+            <button
+              onClick={() => { setInteraccionEditar(null); setShowModal(true); }}
+              className="flex items-center gap-2 w-full justify-center px-4 py-2 bg-[#D00000]/10 hover:bg-[#D00000]/20 border border-[#D00000]/30 hover:border-[#D00000]/60 text-[#D00000] text-xs font-mono uppercase tracking-widest rounded-sm transition-colors"
+            >
+              <Plus size={13} /> Registrar interacción
+            </button>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-slate-800 shrink-0">
