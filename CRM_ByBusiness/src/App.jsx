@@ -8,14 +8,12 @@
  *  - N8nStatusBanner      → banner persistente si n8n no responde
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './modules/auth/AuthContext';
 import { ToastProvider } from './shared/context/ToastContext';
+import { QueryProvider } from './shared/query/QueryProvider';
 import { n8nHealthCheck } from './shared/hooks/useN8n';
 import Dashboard from './Dashboard';
 import Login from './modules/auth/Login';
-
-const queryClient = new QueryClient();
 
 /** Intervalo entre comprobaciones de estado de n8n (2 minutos). */
 const HEARTBEAT_MS = 2 * 60 * 1_000;
@@ -68,14 +66,14 @@ const AppContent = () => {
  */
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryProvider>
       <AuthProvider>
         <ToastProvider>
           <N8nStatusBanner />
           <AppContent />
         </ToastProvider>
       </AuthProvider>
-    </QueryClientProvider>
+    </QueryProvider>
   );
 }
 
