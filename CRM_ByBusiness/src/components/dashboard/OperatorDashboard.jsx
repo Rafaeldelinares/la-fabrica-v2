@@ -7,8 +7,9 @@ import OperatorSkeleton from './OperatorSkeleton';
 import Zone1Filters from './zones/Zone1Filters';
 import Zone2Content from './zones/Zone2Content';
 import Zone3Sidebar from './zones/Zone3Sidebar';
-import CampanasPanel from './CampanasPanel';
+import CampanasPanel from '../../modules/admin/campanas/CampanasPanel';
 import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
+import { useRbac } from '../../shared/auth/useRbac';
 
 // Función no-op estable para modo training (evita recreación en cada render)
 const noop = () => {};
@@ -31,6 +32,7 @@ const OperatorDashboard = ({
 }) => {
   const { user } = useAuth();
   const isTraining = user?.role === 'en_practicas';
+  const rbac = useRbac();
 
   const [localidad, setLocalidad] = useState('');
   const [tipoNegocio, setTipoNegocio] = useState('Todos');

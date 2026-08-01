@@ -5,6 +5,7 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import { ClipboardList, RefreshCw, Phone, PhoneOff, PhoneMissed, Calendar, TrendingUp } from 'lucide-react';
 import { fmtFechaHora } from '../../../utils/dates';
 import { n8nGet } from '../../../shared/hooks/useN8n';
+import { useRbac } from '../../../shared/auth/useRbac';
 
 /** Formatea una duración en segundos como cadena legible (p.ej. "2m 30s"). */
 const fmtDuracion = (segundos) => {
@@ -67,9 +68,22 @@ const KpiChip = ({ label, value, color = 'text-white' }) => (
 
 /** Panel de auditoría de llamadas: historial filtrable por operador y resultado con KPIs de conversión. */
 const AuditoriaPanel = () => {
+  const rbac = useRbac();
   const [llamadas, setLlamadas] = useState(null);
   const [filtroOp, setFiltroOp] = useState('');
   const [filtroRes, setFiltroRes] = useState('');
+
+  // Guard: solo accesible si el usuario tiene permiso de reportes.
+  if (!rbac.can('reportes.read')) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center">
+          <h2 className="text-lg font-bold text-white mb-2">Acceso restringido</h2>
+          <p className="text-sm text-slate-400">No tienes permiso para ver este panel.</p>
+        </div>
+      </div>
+    );
+  }
 
   const cargar = () => {
     setLlamadas(null);
