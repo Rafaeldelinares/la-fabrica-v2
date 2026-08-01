@@ -1,81 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
+import { LayoutDashboard, Calendar, Briefcase, Target, Database, TrendingUp, MapPin, Receipt, Building2, UserCheck, Users, GraduationCap, ShieldCheck, PhoneCall, ChevronUp, ChevronDown, X } from 'lucide-react';
 import { useAuth } from '../../modules/auth/AuthContext';
-import {
-  LayoutDashboard,
-  Users,
-  Database,
-  ShieldCheck,
-  PhoneCall,
-  BarChart2,
-  Calendar,
-  UserCheck,
-  TrendingUp,
-  Receipt,
-  GraduationCap,
-  MapPin,
-  Briefcase,
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  X,
-  Target
-} from 'lucide-react';
+import { can } from '../auth/rbac';
 
 /**
  * Sidebar principal de navegación del CRM.
- * Muestra menú diferente según el rol del usuario (admin u operador).
- * @param {Object} props
- * @param {boolean} props.isOpen - Si el sidebar está abierto (mobile)
+ * Filtra items según los permisos RBAC del usuario:
+ *   - admin ve todo.
+ *   - supervisor ve leads/clientes/ventas/agenda en modo lectura.
+ *   - operador ve solo leads/ventas/agenda propios.
+ *   - en_practicas ve el menú de operador con trainingScope.
+ *
+ * Cada item del menú declara un permiso `requires`. Si el usuario no lo tiene,
+ * el item se oculta.
+ *
+ * @param {Object}   props
+ * @param {boolean}  props.isOpen - Si el sidebar está abierto (mobile)
  * @param {Function} props.onClose - Handler para cerrar el sidebar
- * @param {string} props.activeTab - Tab actualmente seleccionado
+ * @param {string}   props.activeTab - Tab actualmente seleccionado
  * @param {Function} props.setActiveTab - Handler para cambiar de tab
- * @returns {JSX.Element}
  */
 const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
   const { user } = useAuth();
-  const role = user?.role || 'operador';
 
-  // Control de secciones expandidas
   const [expanded, setExpanded] = useState('NEGOCIO');
 
+  // Items declarativos con permiso requerido. Filtrados por RBAC al render.
   const categories = [
     {
       id: 'MAIN',
       name: 'General',
       items: [
-        { name: 'Dashboard', icon: <LayoutDashboard size={18} />, id: 'DASHBOARD_EXE' },
-        { name: 'Agenda',    icon: <Calendar size={18} />,        id: 'AGENDA_GLOB' },
+        { name: 'Dashboard', icon: <LayoutDashboard size={18} />, id: 'DASHBOARD_EXE', requires: null },
+        { name: 'Agenda',    icon: <Calendar size={18} />,        id: 'AGENDA_GLOB',    requires: 'agenda.read.all' },
       ]
     },
     {
       id: 'NEGOCIO',
       name: 'Negocio / Cartera',
       items: [
-        { name: 'Clientes',         icon: <Briefcase size={18} />,       id: 'CARTERA' },
-        { name: 'Campañas',         icon: <Target size={18} />,          id: 'CAMPAÑAS' },
-        { name: 'Gestión Leads',    icon: <Database size={18} />,        id: 'LEADS_MGMT' },
-        { name: 'Leads Landing',    icon: <Database size={18} />,        id: 'LEADS_LANDING' },
-        { name: 'Ventas',           icon: <TrendingUp size={18} />,      id: 'VENTAS' },
-        { name: 'Google Business',  icon: <MapPin size={18} />,          id: 'GBP_MGMT' },
+        { name: 'Clientes',         icon: <Briefcase size={18} />,       id: 'CARTERA',         requires: 'clientes.read.all' },
+        { name: 'Campañas',         icon: <Target size={18} />,          id: 'CAMPAÑAS',        requires: 'leads.read.all' },
+        { name: 'Gestión Leads',    icon: <Database size={18} />,        id: 'LEADS_MGMT',      requires: 'leads.read.all' },
+        { name: 'Leads Landing',    icon: <Database size={18} />,        id: 'LEADS_LANDING',   requires: 'leads.read.all' },
+        { name: 'Ventas',           icon: <TrendingUp size={18} />,      id: 'VENTAS',          requires: 'ventas.read.all' },
+        { name: 'Google Business',  icon: <MapPin size={18} />,          id: 'GBP_MGMT',        requires: 'leads.read.all' },
       ]
     },
     {
       id: 'FINANZAS',
       name: 'Finanzas',
       items: [
-        { name: 'Facturación',      icon: <Receipt size={18} />,         id: 'FACTURACION' },
-        { name: 'Gestoría',         icon: <Building2 size={18} />,       id: 'GESTORIA' },
+        { name: 'Facturación',      icon: <Receipt size={18} />,         id: 'FACTURACION',     requires: 'clientes.read.all' },
+        { name: 'Gestoría',         icon: <Building2 size={18} />,       id: 'GESTORIA',        requires: 'clientes.read.all' },
       ]
     },
     {
       id: 'SISTEMA',
       name: 'Sistema / Equipo',
       items: [
-        { name: 'Candidatos RRHH',  icon: <UserCheck size={18} />,       id: 'CANDIDATOS' },
-        { name: 'Usuarios',         icon: <Users size={18} />,           id: 'USUARIOS' },
-        { name: 'Entrenamiento',    icon: <GraduationCap size={18} />,   id: 'ENTRENAMIENTO' },
-        { name: 'Auditoría',        icon: <ShieldCheck size={18} />,     id: 'AUDITORIA' },
+        { name: 'Candidatos RRHH',  icon: <UserCheck size={18} />,       id: 'CANDIDATOS',      requires: 'admin.users.manage' },
+        { name: 'Usuarios',         icon: <Users size={18} />,           id: 'USUARIOS',        requires: 'admin.users.manage' },
+        { name: 'Entrenamiento',    icon: <GraduationCap size={18} />,   id: 'ENTRENAMIENTO',   requires: 'admin.users.manage' },
+        { name: 'Auditoría',        icon: <ShieldCheck size={18} />,     id: 'AUDITORIA',       requires: 'reportes.read' },
       ]
     }
   ];
@@ -106,6 +94,16 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
     </button>
   );
 
+  // Filtrar items por permiso. Items con `requires: null` siempre se muestran.
+  const visibleCategories = useMemo(() => {
+    return categories.map(cat => ({
+      ...cat,
+      items: cat.items.filter(item => !item.requires || can(user, item.requires))
+    })).filter(cat => cat.items.length > 0);
+  }, [user]);
+
+  const isOperador = user?.role === 'operador' || user?.role === 'en_practicas';
+
   return (
     <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#020617] border-r border-slate-800 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:relative md:translate-x-0`}>
       <div className="flex flex-col h-full overflow-hidden">
@@ -119,8 +117,10 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
-          {role === 'admin' ? (
-            categories.map(cat => (
+          {isOperador ? (
+            operatorMenu.map(renderItem)
+          ) : (
+            visibleCategories.map(cat => (
               <div key={cat.id} className="mb-2">
                 <button
                   onClick={() => toggle(cat.id)}
@@ -136,8 +136,6 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
                 )}
               </div>
             ))
-          ) : (
-            operatorMenu.map(renderItem)
           )}
         </nav>
 
@@ -158,4 +156,3 @@ Sidebar.propTypes = {
 };
 
 export default Sidebar;
-
