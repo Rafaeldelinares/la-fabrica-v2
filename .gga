@@ -1,5 +1,5 @@
 # Gentleman Guardian Angel - La Fábrica IA
-PROVIDER="claude"
+PROVIDER="lmstudio:qwen2.5-coder-7b-instruct"
 
 # Cubrir todos los lenguajes de La Fábrica
 FILE_PATTERNS="*.go,*.js,*.jsx,*.tsx,*.ts,*.php,*.sql,*.sh"
