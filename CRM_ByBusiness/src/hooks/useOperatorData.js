@@ -1,168 +1,233 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { n8nGet, n8nPost } from '../shared/hooks/useN8n'
+import { useN8nQuery, useN8nMutation } from '../shared/hooks/useN8n'
 
+/**
+ * Custom hook for operator data — refactored from useEffect+n8nGet to useN8nQuery.
+ * Preserves the exact return shape of the original hook for backward compatibility.
+ *
+ * Internally composes 5 independent useN8nQuery calls:
+ *   - callback-programadas
+ *   - llamada-activa
+ *   - resultados-operador (stats)
+ *   - campanas
+ *   - agenda-unificada (historial por leadId)
+ *
+ * And 1 useN8nMutation:
+ *   - registrar-resultado
+ *
+ * @param {string|null} userId
+ * @param {boolean} isTraining
+ * @param {string|null} leadId
+ */
 const useOperatorData = (userId, isTraining, leadId = null) => {
   const esSimulacion = isTraining ? 'true' : 'false'
+  const queryClient = useQueryClient()
 
-  const [llamadaActiva, setLlamadaActiva] = useState(null)
-  const [llamadaActivaId, setLlamadaActivaId] = useState(null)
-  const [historial, setHistorial] = useState([])
-  const [stats, setStats] = useState(null)
-  const [campanas, setCampanas] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  // ─── Query keys ────────────────────────────────────────────────────────────
+  const keys = {
+    programadas: ['operator-callbacks', userId, esSimulacion],
+    llamadaActiva: ['operator-llamada-activa', userId, esSimulacion],
+    stats: ['operator-stats', userId, esSimulacion],
+    campanas: ['operator-campanas', esSimulacion],
+    historial: ['operator-historial', userId, leadId, esSimulacion],
+  }
 
-  // Compatibilidad con componentes que usan trainingLeads / sesionId
-  const [trainingLeads, setTrainingLeads] = useState([])
-  const [sesionId, setSesionId] = useState(() => Date.now().toString())
+  // ─── Query 1: callbacks programadas ───────────────────────────────────────
+  const {
+    data: rowsProgramadas = [],
+    isLoading: isLoadingProgramadas,
+    isError: isErrorProgramadas,
+    error: errorProgramadas,
+  } = useN8nQuery(keys.programadas, 'crm-callbacks-operador', {
+    params: { operador_id: String(userId ?? ''), es_simulacion: esSimulacion },
+    enabled: Boolean(userId),
+    staleTime: 30_000,
+  })
 
-  const [programadas, setProgramadas] = useState([])
+  const programadas = Array.isArray(rowsProgramadas) ? rowsProgramadas : []
 
-  // Cargar callbacks/programadas del operador
-  const fetchProgramadas = useCallback(async () => {
-    if (!userId) return
-    try {
-      const rows = await n8nGet('crm-callbacks-operador', { operador_id: userId, es_simulacion: esSimulacion })
-      setProgramadas(Array.isArray(rows) ? rows : [])
-    } catch (err) {
-      console.error('Error cargando programadas:', err)
-      setProgramadas([])
-    }
-  }, [userId, esSimulacion])
+  // ─── Query 2: llamada activa ───────────────────────────────────────────────
+  const {
+    data: rowsLlamadaActiva = [],
+    isLoading: isLoadingLlamadaActiva,
+    isError: isErrorLlamadaActiva,
+    error: errorLlamadaActiva,
+  } = useN8nQuery(keys.llamadaActiva, 'crm-llamada-activa', {
+    params: { operador_id: String(userId ?? ''), es_simulacion: esSimulacion },
+    enabled: Boolean(userId),
+    staleTime: 15_000,
+  })
 
-  // Cargar llamada activa
-  const cargarLlamadaActiva = useCallback(async () => {
-    if (!userId) return
-    try {
-      const rows = await n8nGet('crm-llamada-activa', { operador_id: userId, es_simulacion: esSimulacion })
-      if (Array.isArray(rows) && rows.length > 0) {
-        setLlamadaActiva(rows[0])
-        setLlamadaActivaId(rows[0].llamada_activa_id ?? rows[0].id ?? null)
-      } else {
-        setLlamadaActiva(null)
-        setLlamadaActivaId(null)
-      }
-    } catch (err) {
-      console.error('Error cargando llamada activa:', err)
-      setError('Error cargando llamada activa')
-    }
-  }, [userId, esSimulacion])
+  const rawLlamadaActiva =
+    Array.isArray(rowsLlamadaActiva) && rowsLlamadaActiva.length > 0
+      ? rowsLlamadaActiva[0]
+      : null
+  const llamadaActiva = rawLlamadaActiva ?? null
+  const llamadaActivaId = rawLlamadaActiva
+    ? rawLlamadaActiva.llamada_activa_id ?? rawLlamadaActiva.id ?? null
+    : null
 
-  // Cargar stats del operador
-  const refreshStats = useCallback(async () => {
-    if (!userId) return
-    try {
-      const data = await n8nGet('crm-resultados-operador', { operador_id: userId, es_simulacion: esSimulacion })
-      // El endpoint devuelve {ok: true, stats: {...}} o directamente el objeto stats
-      const statsData = data?.stats || (data?.ok === undefined ? data : null)
-      setStats(statsData)
-    } catch (err) {
-      console.error('Error cargando stats:', err)
-      setError('Error cargando estadísticas del operador')
-      setStats(null)
-    }
-  }, [userId, esSimulacion])
+  // ─── Query 3: stats del operador ──────────────────────────────────────────
+  const {
+    data: rawStats,
+    isLoading: isLoadingStats,
+    isError: isErrorStats,
+    error: errorStats,
+  } = useN8nQuery(keys.stats, 'crm-resultados-operador', {
+    params: { operador_id: String(userId ?? ''), es_simulacion: esSimulacion },
+    enabled: Boolean(userId),
+    staleTime: 30_000,
+  })
 
-  // Cargar campañas
-  const refreshCampanas = useCallback(async () => {
-    try {
-      const rows = await n8nGet('crm-campanas', { es_simulacion: esSimulacion })
-      setCampanas(Array.isArray(rows) ? rows : [])
-    } catch (err) {
-      console.error('Error cargando campañas:', err)
-    }
-  }, [esSimulacion])
+  // Normalize: endpoint returns {ok: true, stats: {...}} or the stats object directly
+  const stats =
+    rawStats?.stats ?? (rawStats?.ok === undefined ? rawStats : null)
 
-  // Cargar historial/agenda de un lead
-  const refreshHistorial = useCallback(async (lid) => {
-    if (!lid || !userId) return
-    try {
-      const rows = await n8nGet('crm-agenda-unificada', { operador_id: userId, lead_id: lid, es_simulacion: esSimulacion })
-      setHistorial(Array.isArray(rows) ? rows : [])
-    } catch (err) {
-      console.error('Error cargando historial lead:', err)
-      // No crítico — no setear error global
-    }
-  }, [userId, esSimulacion])
+  // ─── Query 4: campañas ────────────────────────────────────────────────────
+  const {
+    data: rowsCampanas = [],
+    isLoading: isLoadingCampanas,
+    isError: isErrorCampanas,
+  } = useN8nQuery(keys.campanas, 'crm-campanas', {
+    params: { es_simulacion: esSimulacion },
+    staleTime: 60_000,
+  })
 
-  // Obtener siguiente lead (distribuidor de campanas)
-  // El workflow crm-distribuidor-campanas devuelve {ok, lead, total, ...}
-  // donde lead es un objeto único (no array). Esto se llama desde OperatorDashboard
-  // handleAsignarLead para asignar un lead nuevo al operador.
+  const campanas = Array.isArray(rowsCampanas) ? rowsCampanas : []
+
+  // ─── Query 5: historial/agenda por lead ───────────────────────────────────
+  const {
+    data: rowsHistorial = [],
+    isLoading: isLoadingHistorial,
+    isError: isErrorHistorial,
+    error: errorHistorial,
+    refetch: refetchHistorialFn,
+  } = useN8nQuery(keys.historial, 'crm-agenda-unificada', {
+    params: {
+      operador_id: String(userId ?? ''),
+      lead_id: String(leadId ?? ''),
+      es_simulacion: esSimulacion,
+    },
+    enabled: Boolean(userId && leadId),
+    staleTime: 30_000,
+  })
+
+  const historial = Array.isArray(rowsHistorial) ? rowsHistorial : []
+
+  // ─── Combined loading (true on first fetch, false once all resolved) ────────
+  const loading =
+    isLoadingProgramadas ||
+    isLoadingLlamadaActiva ||
+    isLoadingStats ||
+    isLoadingCampanas ||
+    (Boolean(leadId) && isLoadingHistorial)
+
+  // ─── Combined error (first non-null error from any query) ───────────────────
+  const error =
+    isErrorLlamadaActiva
+      ? errorLlamadaActiva
+      : isErrorStats
+        ? errorStats
+        : isErrorHistorial
+          ? errorHistorial
+          : isErrorProgramadas
+            ? errorProgramadas
+            : isErrorCampanas
+              ? 'Error cargando campañas'
+              : null
+
+  // ─── Compatibilidad: trainingLeads / sesionId ──────────────────────────────
+  const [trainingLeads, setTrainingLeads] = [ [], () => {} ]
+  const [sesionId, setSesionId] = [
+    String(Date.now()),
+    () => {},
+  ]
+
+  // ─── Mutation: registrar resultado ─────────────────────────────────────────
+  const mutation = useN8nMutation('crm-registrar-resultado')
+
+  const registrarResultado = useCallback(
+    async (datos) => {
+      await mutation.mutateAsync({ ...datos, es_simulacion: isTraining })
+      // After registering a result, clear the active call and refresh stats
+      queryClient.setQueryData(keys.llamadaActiva, null)
+      queryClient.invalidateQueries({ queryKey: keys.stats })
+    },
+    [mutation, queryClient, isTraining, keys.stats, keys.llamadaActiva],
+  )
+
+  // ─── Refresh helpers ───────────────────────────────────────────────────────
+  const refetchProgramadas = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: keys.programadas })
+  }, [queryClient, keys.programadas])
+
+  const refreshStats = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: keys.stats })
+  }, [queryClient, keys.stats])
+
+  const refreshCampanas = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: keys.campanas })
+  }, [queryClient, keys.campanas])
+
+  const refreshHistorial = useCallback(() => {
+    return refetchHistorialFn()
+  }, [refetchHistorialFn])
+
+  /**
+   * Full refresh — invalidates all operator queries and returns a Promise.
+   * Preserves the Promise-returning contract of the original refreshData.
+   */
+  const refreshData = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: keys.programadas }),
+      queryClient.invalidateQueries({ queryKey: keys.llamadaActiva }),
+      queryClient.invalidateQueries({ queryKey: keys.stats }),
+      queryClient.invalidateQueries({ queryKey: keys.campanas }),
+      leadId
+        ? queryClient.invalidateQueries({ queryKey: keys.historial })
+        : Promise.resolve(),
+    ])
+  }, [queryClient, keys, leadId])
+
+  // ─── obtenerSiguienteLead — uses n8nPost directly (not a useN8nQuery) ─────
   const obtenerSiguienteLead = useCallback(async () => {
-    if (!userId) return
+    if (!userId) return null
     try {
-      const res = await n8nPost('crm-distribuidor-campanas', { operador_id: userId, mode: 'one' })
-      // Normalizar respuesta: puede venir como {ok, lead, total} o como array de un elemento
+      const res = await n8nPost('crm-distribuidor-campanas', {
+        operador_id: userId,
+        mode: 'one',
+      })
       const lead = Array.isArray(res) ? res[0] : res?.lead
       if (lead && (lead.id || lead.lead_id)) {
-        setLlamadaActiva(lead)
-        setLlamadaActivaId(lead.llamada_activa_id ?? lead.id ?? null)
+        // Update the query cache so hook state reflects the new active lead
+        queryClient.setQueryData(keys.llamadaActiva, [lead])
         if (isTraining && Array.isArray(res)) {
           setTrainingLeads(res)
         }
         return lead
       }
-      setLlamadaActiva(null)
-      setLlamadaActivaId(null)
+      // No lead available — clear the active call in cache
+      queryClient.setQueryData(keys.llamadaActiva, null)
       return null
-    } catch (err) {
-      console.error('Error obteniendo siguiente lead:', err)
-      setError('Error al obtener el siguiente lead')
+    } catch {
       return null
     }
-  }, [userId, isTraining])
+  }, [userId, isTraining, queryClient, keys.llamadaActiva])
 
-  // Registrar resultado de una llamada
-  const registrarResultado = useCallback(async (datos) => {
-    try {
-      await n8nPost('crm-registrar-resultado', { ...datos, es_simulacion: isTraining })
-      setLlamadaActiva(null)
-      setLlamadaActivaId(null)
-      await refreshStats()
-    } catch (err) {
-      console.error('Error registrando resultado:', err)
-      setError('Error al registrar el resultado de la llamada')
-    }
-  }, [isTraining, refreshStats])
+  // ─── Derived: callbacks de hoy ─────────────────────────────────────────────
+  const callbacksHoy = programadas.filter((p) => {
+    const fecha = new Date(p.fecha_programada)
+    const ahora = new Date()
+    return fecha <= ahora && (p.tipo === 'callback' || p.tipo === 'responsable')
+  })
 
-  // Carga inicial
-  useEffect(() => {
-    if (!userId) return
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true)
-    setError(null)
-    Promise.all([
-      cargarLlamadaActiva(),
-      refreshStats(),
-      refreshCampanas(),
-      fetchProgramadas()
-    ]).finally(() => setLoading(false))
-  }, [userId, cargarLlamadaActiva, refreshStats, refreshCampanas, fetchProgramadas])
+  const compromisosFuturos = programadas.filter(
+    (p) => new Date(p.fecha_programada) > new Date(),
+  )
 
-  // Recargar historial cuando cambia leadId
-  useEffect(() => {
-    if (!leadId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setHistorial([])
-      return
-    }
-    refreshHistorial(leadId)
-  }, [leadId, refreshHistorial])
-
-  // refreshData como alias de carga completa (compatibilidad).
-  // CRITICAL: debe retornar Promise para que callers puedan
-  // encadenar .then() / await refreshData() correctamente.
-  const refreshData = useCallback(async () => {
-    await Promise.all([
-      cargarLlamadaActiva(),
-      refreshStats(),
-      refreshCampanas(),
-      fetchProgramadas()
-    ]);
-    if (leadId) await refreshHistorial(leadId);
-  }, [cargarLlamadaActiva, refreshStats, refreshCampanas, fetchProgramadas, refreshHistorial, leadId])
-
+  // ─── Return — exact same shape as original ─────────────────────────────────
   return {
     // Estado principal
     llamadaActiva,
@@ -189,15 +254,11 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
 
     // Programadas / callbacks
     programadas,
-    callbacksHoy: programadas.filter(p => {
-      const fecha = new Date(p.fecha_programada)
-      const ahora = new Date()
-      return fecha <= ahora && (p.tipo === 'callback' || p.tipo === 'responsable')
-    }),
-    compromisosFuturos: programadas.filter(p => new Date(p.fecha_programada) > new Date()),
-    refreshProgramadas: fetchProgramadas,
+    callbacksHoy,
+    compromisosFuturos,
+    refreshProgramadas,
 
-    trainingStats: stats
+    trainingStats: stats,
   }
 }
 
