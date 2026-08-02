@@ -35,7 +35,7 @@ export default defineConfig({
     },
     {
       name: 'crm',
-      testMatch: ['e2e/s01-stale-phase-label-cleanup.spec.js', 'e2e/s02-admin-error-boundaries.spec.js', 'e2e/s03-dev-eventos-shim.spec.js', 'e2e/s04-operator-live-kpis.spec.js', 'e2e/s05-lead-callbacks.spec.js', 'e2e/s06-react-query-operator-data.spec.js', 'e2e/s07-lead-freeze-list.spec.js', 'e2e/s08-admin-audit-trail.spec.js'],
+      testMatch: ['e2e/s01-stale-phase-label-cleanup.spec.js', 'e2e/s02-admin-error-boundaries.spec.js', 'e2e/s03-dev-eventos-shim.spec.js', 'e2e/s04-operator-live-kpis.spec.js', 'e2e/s05-lead-callbacks.spec.js', 'e2e/s06-react-query-operator-data.spec.js', 'e2e/s07-lead-freeze-list.spec.js', 'e2e/s08-admin-audit-trail.spec.js', 'e2e/s09-backup-operations.spec.js'],
       use: {
         baseURL: 'http://localhost:5174',
         ...devices['Desktop Chrome'],
