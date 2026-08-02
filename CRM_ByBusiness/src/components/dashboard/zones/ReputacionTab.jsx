@@ -1,10 +1,12 @@
 import React from 'react';
-import { Star, AlertTriangle, RefreshCw, Clock, User, TrendingUp } from 'lucide-react';
+import { Star, AlertTriangle, RefreshCw, Clock, TrendingUp } from 'lucide-react';
 import { useN8nQuery } from '../../../shared/hooks/useN8n';
 import Skeleton from '../../../shared/ui/Skeleton';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { reportError } from '../../../shared/errors/reportError';
 import { fmtFechaHora } from '../../../utils/dates';
+import { extractReputacionData, isEngineUnavailable } from './reputacionHelpers';
+import { ReviewCard } from './ReviewCard';
 
 /**
  * ReputacionTab — displays live reputation data for a Google Business Profile.
@@ -21,23 +23,18 @@ const ReputacionTab = ({ placeId }) => {
     { params: { place_id: placeId }, staleTime: 60_000 }
   );
 
-  const score = data?.score;
-  const stars = data?.stars;
-  const reviewCount = data?.review_count;
-  const reviews = data?.reviews || [];
-  const alertState = data?.alert_state === true;
-  const refreshedAt = data?.refreshed_at;
-  const isUnavailable = isError || data?.error === 'engine_unreachable' || data?.error === 'no_response';
+  const { score, stars, reviewCount, reviews, alertState, refreshedAt } = extractReputacionData(data);
+  const unavailable = isEngineUnavailable(isError, data);
 
   const reportedRef = React.useRef(false);
   React.useEffect(() => {
-    if (isUnavailable && !reportedRef.current) {
+    if (unavailable && !reportedRef.current) {
       reportedRef.current = true;
       reportError(new Error('Monitor Reputación engine unreachable'), {
         componentStack: 'ReputacionTab', zoneId: 'Zone2-REPUTACION',
       });
     }
-  }, [isUnavailable]);
+  }, [unavailable]);
 
   if (!placeId) {
     return (
@@ -96,7 +93,7 @@ const ReputacionTab = ({ placeId }) => {
       )}
 
       {/* Unavailable */}
-      {!isLoading && isUnavailable && (
+      {!isLoading && unavailable && (
         <div className="py-8">
           <EmptyState icon={Star} title="Reputación temporalmente no disponible"
             description="No se pudo obtener los datos de reputación. Intenta de nuevo más tarde." />
@@ -104,7 +101,7 @@ const ReputacionTab = ({ placeId }) => {
       )}
 
       {/* Reputation Content */}
-      {!isLoading && !isUnavailable && (
+      {!isLoading && !unavailable && (
         <div className="flex flex-col gap-3">
           {/* Score row */}
           <div className="flex items-center gap-4 px-4 py-4 bg-slate-900 border border-slate-800 rounded-sm">
@@ -137,32 +134,6 @@ const ReputacionTab = ({ placeId }) => {
           )}
         </div>
       )}
-    </div>
-  );
-};
-
-const ReviewCard = ({ review }) => {
-  const { author, text, rating, date } = review;
-  return (
-    <div className="flex flex-col gap-1.5 px-4 py-3 bg-slate-900 border border-slate-800 rounded-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <User size={10} className="text-slate-500" />
-          <span className="text-xs font-medium text-slate-300">{author || 'Anónimo'}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {rating != null && (
-            <div className="flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map(val => (
-                <Star key={val} size={8}
-                  className={val <= rating ? 'text-amber-400 fill-amber-400' : 'text-slate-600'} />
-              ))}
-            </div>
-          )}
-          {date && <span className="text-[10px] font-mono text-slate-500">{fmtFechaHora(date)}</span>}
-        </div>
-      </div>
-      {text && <p className="text-xs text-slate-400 leading-relaxed line-clamp-2">{text}</p>}
     </div>
   );
 };
