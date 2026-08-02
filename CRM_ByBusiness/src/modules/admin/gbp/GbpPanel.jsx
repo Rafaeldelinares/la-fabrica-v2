@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, LayoutDashboard, List, X, Plus } from 'lucide-react';
-import Badge from '../../shared/ui/Badge';
+import Badge from '../../../shared/ui/Badge';
 import GbpDashboardPanel from './GbpDashboardPanel';
 import GbpFichasPanel from './GbpFichasPanel';
 
