@@ -8,6 +8,7 @@ import Zone1Filters from './zones/Zone1Filters';
 import Zone2Content from './zones/Zone2Content';
 import Zone3Sidebar from './zones/Zone3Sidebar';
 import CampanasPanel from '../../modules/admin/campanas/CampanasPanel';
+import MisKpiStrip from './MisKpiStrip';
 import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
 import { useRbac } from '../../shared/auth/useRbac';
 
@@ -372,7 +373,18 @@ const OperatorDashboard = ({
         />
       </ErrorBoundary>
 
-      {/* Zona 4 - Campañas panel (drawer overlay — no desplaza Zone 1) */}
+      {/* Zona 4 - KPIs en vivo + Campañas panel */}
+      <div className="flex flex-col gap-4 min-w-0">
+        <ErrorBoundary zoneId="Zone4">
+          <MisKpiStrip operatorId={user?.id} />
+        </ErrorBoundary>
+        <button
+          onClick={() => setShowCampanasPanel(true)}
+          className="w-full text-left px-4 py-3 bg-slate-900 border border-slate-800 rounded-sm text-sm text-slate-400 hover:text-white hover:border-slate-600 transition-colors"
+        >
+          Ver Campañas
+        </button>
+      </div>
       <CampanasPanel
         open={showCampanasPanel}
         onClose={() => setShowCampanasPanel(false)}
