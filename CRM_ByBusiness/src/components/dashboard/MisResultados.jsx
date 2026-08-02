@@ -5,6 +5,7 @@ import Card from '../../shared/ui/Card';
 import EmptyState from '../../shared/ui/EmptyState';
 import { BarChart2, TrendingUp, Phone, Clock } from 'lucide-react';
 import { n8nGet } from '../../shared/hooks/useN8n';
+import MisFreezeList from './MisFreezeList';
 
 const RESULTADOS = [
   { key: 'ventas_hoy',       label: 'VENTAS',       color: 'text-emerald-400' },
@@ -112,6 +113,9 @@ const MisResultados = () => {
           })}
         </div>
       </Card>
+
+      {/* Leads Congelados — solo visible si hay leads congelados */}
+      <MisFreezeList operatorId={user?.id} />
 
     </div>
   );
