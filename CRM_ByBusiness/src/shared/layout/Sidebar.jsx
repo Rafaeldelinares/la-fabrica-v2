@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
-import { LayoutDashboard, Calendar, Briefcase, Target, Database, TrendingUp, MapPin, Receipt, Building2, UserCheck, Users, GraduationCap, ShieldCheck, PhoneCall, ChevronUp, ChevronDown, X } from 'lucide-react';
+import { LayoutDashboard, Calendar, Briefcase, Target, Database, TrendingUp, MapPin, Receipt, Building2, UserCheck, Users, GraduationCap, ShieldCheck, PhoneCall, ChevronUp, ChevronDown, X, Activity, Settings } from 'lucide-react';
 import { useAuth } from '../../modules/auth/AuthContext';
 import { can } from '../auth/rbac';
 
@@ -64,6 +64,10 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
         { name: 'Usuarios',         icon: <Users size={18} />,           id: 'USUARIOS',        requires: 'admin.users.manage' },
         { name: 'Entrenamiento',    icon: <GraduationCap size={18} />,   id: 'ENTRENAMIENTO',   requires: 'admin.users.manage' },
         { name: 'Auditoría',        icon: <ShieldCheck size={18} />,     id: 'AUDITORIA',       requires: 'reportes.read' },
+        { name: 'Monitor Scrapers',   icon: <Activity size={18} />,       id: 'MONITOR',         requires: 'admin.system.config' },
+        { name: 'Respaldos',         icon: <Database size={18} />,        id: 'BACKUP',          requires: 'admin.system.config' },
+        { name: 'Auditoría Nueva',   icon: <ShieldCheck size={18} />,     id: 'AUDIT_NEW',       requires: 'reportes.read' },
+        { name: 'Configuración Scrapers', icon: <Settings size={18} />,   id: 'SCRAPER_CONFIG',   requires: 'admin.system.config' },
       ]
     }
   ];

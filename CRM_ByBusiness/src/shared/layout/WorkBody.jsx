@@ -27,6 +27,8 @@ const GbpPanel          = lazy(() => import('../../modules/admin/gbp/GbpPanel'))
 const GestoriaPanel     = lazy(() => import('../../modules/admin/facturacion/GestoriaPanel'));
 const ScraperStatusPanel = lazy(() => import('../../modules/admin/scraper/ScraperStatusPanel'));
 const ScraperConfigPanel = lazy(() => import('../../modules/admin/scraper/ScraperConfigPanel'));
+const BackupPanel = lazy(() => import('../../modules/admin/backup/BackupPanel'));
+const AdminAuditPanel = lazy(() => import('../../modules/admin/auditoria/AdminAuditPanel'));
 
 /** Skeleton Navy Industrial mostrado mientras un panel lazy está cargando. */
 const PanelSkeleton = () => (
@@ -79,6 +81,9 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
             {activeTab === 'CANDIDATOS' && <CandidatosPanel />}
             {activeTab === 'USUARIOS' && <UsuariosList />}
             {activeTab === 'AUDITORIA' && <AuditoriaPanel />}
+            {activeTab === 'BACKUP' && <BackupPanel />}
+            {activeTab === 'AUDIT_NEW' && <AdminAuditPanel />}
+            {activeTab === 'SCRAPER_CONFIG' && <ScraperConfigPanel />}
             {activeTab === 'VENTAS' && <VentasPanel />}
             {activeTab === 'FACTURACION' && <FacturacionPanel />}
             {activeTab === 'GESTORIA' && <GestoriaPanel />}
