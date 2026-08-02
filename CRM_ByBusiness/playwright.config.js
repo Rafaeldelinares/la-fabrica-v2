@@ -35,7 +35,7 @@ export default defineConfig({
     },
     {
       name: 'crm',
-      testMatch: ['e2e/s01-stale-phase-label-cleanup.spec.js', 'e2e/s02-admin-error-boundaries.spec.js'],
+      testMatch: ['e2e/s01-stale-phase-label-cleanup.spec.js', 'e2e/s02-admin-error-boundaries.spec.js', 'e2e/s03-dev-eventos-shim.spec.js'],
       use: {
         baseURL: 'http://localhost:5174',
         ...devices['Desktop Chrome'],
