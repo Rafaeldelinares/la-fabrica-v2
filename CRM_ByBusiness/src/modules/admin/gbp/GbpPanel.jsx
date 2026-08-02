@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, LayoutDashboard, List, X, Plus } from 'lucide-react';
 import Badge from '../../../shared/ui/Badge';
+import ErrorBoundary from '../../../shared/errors/ErrorBoundary';
 import GbpDashboardPanel from './GbpDashboardPanel';
 import GbpFichasPanel from './GbpFichasPanel';
 
@@ -133,10 +134,12 @@ const GbpPanel = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-h-0">
-        {tab === 'DASHBOARD' && <GbpDashboardPanel />}
-        {tab === 'FICHAS'    && <GbpFichasPanel onSelectFicha={handleSelectFicha} />}
-      </div>
+      <ErrorBoundary zoneId="GbpPanel">
+        <div className="flex-1 min-h-0">
+          {tab === 'DASHBOARD' && <GbpDashboardPanel />}
+          {tab === 'FICHAS'    && <GbpFichasPanel onSelectFicha={handleSelectFicha} />}
+        </div>
+      </ErrorBoundary>
     </div>
   );
 };
