@@ -14,6 +14,7 @@ import DatePickerField from '../../../shared/ui/DatePickerField';
 import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
 import SlotPicker from './SlotPicker';
+import FreshnessConfigCard from './FreshnessConfigCard';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
@@ -707,6 +708,14 @@ const estiloEvento = useCallback((evento) => ({
               </button>
             );
           })}
+
+          {/* Freshness config — lead contactability threshold */}
+          <div className="mt-4 shrink-0">
+            <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono font-black mb-2">
+              Sistema
+            </p>
+            <FreshnessConfigCard />
+          </div>
         </div>
       </div>
 
