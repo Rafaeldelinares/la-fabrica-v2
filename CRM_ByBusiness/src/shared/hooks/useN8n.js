@@ -123,13 +123,17 @@ export async function n8nHealthCheck() {
  * @param {string[]} queryKey
  * @param {string}   path
  * @param {object}   [queryOptions]
+ * @param {object}   [queryOptions.params] - query string params passed to n8nGet
+ * @param {function} [queryOptions.queryFn] - optional override for the query function
  */
-export const useN8nQuery = (queryKey, path, queryOptions = {}) =>
-  useQuery({
+export const useN8nQuery = (queryKey, path, queryOptions = {}) => {
+  const { params, queryFn, ...rest } = queryOptions
+  return useQuery({
     queryKey,
-    queryFn: () => n8nGet(path),
-    ...queryOptions,
-  });
+    queryFn: queryFn ?? (() => n8nGet(path, params)),
+    ...rest,
+  })
+}
 
 /**
  * Hook React Query para mutaciones POST a n8n.
