@@ -1,8 +1,9 @@
 import React from 'react'
-import { GraduationCap, Database } from 'lucide-react'
+import { GraduationCap, Database, Info } from 'lucide-react'
 import Button from '../../../shared/ui/Button'
 import Card from '../../../shared/ui/Card'
 import EmptyState from '../../../shared/ui/EmptyState'
+
 
 /**
  * Zona 1: Filtros y lista de gestiones (sidebar izquierdo)
@@ -99,14 +100,34 @@ const Zone1Filters = ({
           </div>
         ) : (
           sessionLeads.map((item, index) => (
-            <Card key={index} className="flex justify-between items-center !p-3 rounded-sm border-slate-800">
-              <span className="text-xs text-slate-200 font-bold uppercase truncate pr-2 tracking-wider">
-                {item.nombre_comercial}
-              </span>
-              <span className={`text-[9px] font-mono ${item.resultado === 'venta' ? 'text-emerald-400' : 'text-slate-500'}`}>
-                {item.resultado?.replace(/_/g, ' ')}
-              </span>
-            </Card>
+            <div key={index} className="relative group">
+              <Card className="flex justify-between items-center !p-3 rounded-sm border-slate-800">
+                <span className="text-xs text-slate-200 font-bold uppercase truncate pr-2 tracking-wider">
+                  {item.nombre_comercial}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[9px] font-mono ${item.resultado === 'venta' ? 'text-emerald-400' : 'text-slate-500'}`}>
+                    {item.resultado?.replace(/_/g, ' ')}
+                  </span>
+                  {item.asignado_por && (
+                    <div className="relative opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                      <div className="absolute bottom-full left-0 mb-1.5 w-52 bg-slate-800 border border-slate-700 rounded-sm p-2 text-[10px] text-slate-300 z-50 shadow-xl pointer-events-none">
+                        <div className="font-bold text-slate-100 mb-1">
+                          Asignado por: {item.asignado_por.campaign || 'Sistema'}
+                        </div>
+                        <div>
+                          Prioridad: <span className="text-white font-mono">{item.asignado_por.prioridad || '—'}</span>
+                        </div>
+                        <div>
+                          Fuente: <span className="text-white font-mono">{item.asignado_por.fuente || '—'}</span>
+                        </div>
+                      </div>
+                      <Info size={10} className="text-blue-400 cursor-help shrink-0" />
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
           ))
         )}
       </div>
