@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Copy, Phone, Star, TrendingUp, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown } from 'lucide-react';
+import { Copy, Phone, Star, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown } from 'lucide-react';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { fmtFechaHora } from '../../../utils/dates';
 import Teleprompter from '../Teleprompter';
+import ReputacionTab from './ReputacionTab';
 import { useAuth } from '../../../modules/auth/AuthContext';
 
 const RESULTADO_CONFIG = {
@@ -424,21 +425,7 @@ const Zone2Content = ({
             )}
 
             {activeTab === 'REPUTACION' && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <TrendingUp size={14} className="text-emerald-400" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-white">Monitor de Reputación</p>
-                </div>
-                <div className="bg-slate-900 border border-slate-800 rounded-sm p-4">
-                  <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-2">Próximamente</p>
-                  <ul className="text-xs text-slate-400 space-y-1">
-                    <li>· Puntuación de reputación en tiempo real</li>
-                    <li>· Análisis de reseñas de Google Maps</li>
-                    <li>· Alertas de reputación crítica</li>
-                    <li>· Comparativa con competencia</li>
-                  </ul>
-                </div>
-              </div>
+              <ReputacionTab placeId={lead?.google_location_id || null} />
             )}
           </div>
 
