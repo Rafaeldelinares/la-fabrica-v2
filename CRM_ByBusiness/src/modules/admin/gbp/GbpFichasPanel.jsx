@@ -4,6 +4,8 @@ import { RefreshCw, Plus, MapPin, Star, AlertCircle } from 'lucide-react';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { fmtFecha } from '../../../utils/dates';
 import { n8nGet } from '../../../shared/hooks/useN8n';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 const ESTADO_COLOR = {
   activa:  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -27,6 +29,10 @@ const RatingStars = ({ value }) => {
  * @param {{ onSelectFicha: Function }} props
  */
 const GbpFichasPanel = ({ onSelectFicha }) => {
+  const { can } = useRbac();
+  if (!can('admin.system.config')) {
+    return <AccessDenied permission="admin.system.config" />;
+  }
   const [fichas,       setFichas]       = useState(null);
   const [filtroEstado, setFiltroEstado] = useState('');
   const [error,        setError]        = useState(null);

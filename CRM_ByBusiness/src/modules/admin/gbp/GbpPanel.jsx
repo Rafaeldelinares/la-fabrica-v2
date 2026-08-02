@@ -5,6 +5,8 @@ import Badge from '../../../shared/ui/Badge';
 import ErrorBoundary from '../../../shared/errors/ErrorBoundary';
 import GbpDashboardPanel from './GbpDashboardPanel';
 import GbpFichasPanel from './GbpFichasPanel';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 const TABS = [
   { id: 'DASHBOARD', label: 'Dashboard', icon: LayoutDashboard },
@@ -91,6 +93,10 @@ AltaFichaInfo.propTypes = {
 
 /** Panel principal de Google Business Profile — tabs Dashboard y Fichas. */
 const GbpPanel = () => {
+  const { can } = useRbac();
+  if (!can('admin.system.config')) {
+    return <AccessDenied permission="admin.system.config" />;
+  }
   const [tab, setTab] = useState('DASHBOARD');
   const [fichaModal, setFichaModal]   = useState(null);
   const [altaModal, setAltaModal]     = useState(false);

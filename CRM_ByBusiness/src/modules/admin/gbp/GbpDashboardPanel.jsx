@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, Star, MessageSquare, FileText, RefreshCw } from 'lucide-react';
 import { n8nGet } from '../../../shared/hooks/useN8n';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 /** Tarjeta de KPI individual con icono, valor y subtítulo opcional. */
 const Stat = ({ label, value, icon: Icon, color = 'text-white', sub = null }) => (
@@ -20,6 +22,10 @@ const Stat = ({ label, value, icon: Icon, color = 'text-white', sub = null }) =>
  * Muestra fichas activas, reseñas pendientes, rating promedio y posts del día.
  */
 const GbpDashboardPanel = () => {
+  const { can } = useRbac();
+  if (!can('admin.system.config')) {
+    return <AccessDenied permission="admin.system.config" />;
+  }
   const [kpis,  setKpis]  = useState(null);
   const [error, setError] = useState(null);
 
