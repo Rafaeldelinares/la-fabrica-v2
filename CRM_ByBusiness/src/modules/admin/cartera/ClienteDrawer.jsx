@@ -11,6 +11,7 @@ import TabTarjetaDigital from './tabs/TabTarjetaDigital';
 import { fmtDias } from '../../../utils/dates';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 const SEMAFORO = {
   verde: 'bg-emerald-500',
@@ -41,6 +42,10 @@ const KPI_CONFIG = [
  */
 const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteBaja }) => {
   const rbac = useRbac();
+  if (!rbac.can('leads.read.all')) {
+    return <AccessDenied permission="leads.read.all" />;
+  }
+  const readOnly = !rbac.can('clientes.update');
   const queryClient = useQueryClient();
   const [activeTab,        setActiveTab]        = useState('ficha');
   const [showModal,        setShowModal]        = useState(false);

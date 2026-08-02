@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthContext';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 import { n8nGet } from '../../../shared/hooks/useN8n';
 import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 const PAGE_SIZE = 15;
 
@@ -21,7 +22,9 @@ const LeadsPanel = () => {
     const { user } = useAuth();
     const scope = useTrainingScope();
     const rbac = useRbac();
-
+    if (!rbac.can('leads.assign')) {
+      return <AccessDenied permission="leads.assign" />;
+    }
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
     const [filtroCampana, setFiltroCampana]     = useState('');
