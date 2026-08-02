@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, LayoutDashboard, List, X, Plus } from 'lucide-react';
+import Badge from '../../shared/ui/Badge';
 import GbpDashboardPanel from './GbpDashboardPanel';
 import GbpFichasPanel from './GbpFichasPanel';
 
@@ -113,9 +114,7 @@ const GbpPanel = () => {
         <div className="flex items-center gap-3">
           <MapPin size={16} className="text-[#D00000]" />
           <h2 className="text-sm font-black text-white uppercase tracking-widest">Google Business</h2>
-          <span className="text-[9px] font-mono text-slate-600 bg-slate-800 border border-slate-700 px-2 py-0.5 rounded-sm uppercase tracking-widest">
-            Fase 9
-          </span>
+          <Badge status="default">Solo lectura</Badge>
         </div>
       </div>
 
