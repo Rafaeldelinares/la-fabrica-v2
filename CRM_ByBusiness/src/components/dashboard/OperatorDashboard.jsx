@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../modules/auth/AuthContext';
 import useOperatorData from '../../hooks/useOperatorData';
 import TrainingModeWrapper from './TrainingModeWrapper';
-import OperatorErrorBoundary from './OperatorErrorBoundary';
+import ErrorBoundary from '../../shared/errors/ErrorBoundary';
 import OperatorSkeleton from './OperatorSkeleton';
 import Zone1Filters from './zones/Zone1Filters';
 import Zone2Content from './zones/Zone2Content';
@@ -317,56 +317,62 @@ const OperatorDashboard = ({
     return <OperatorSkeleton />
   }
 
-  // Renderizar contenido dentro del wrapper de training
+  // Renderizar contenido — cada zona tiene su propio ErrorBoundary para aislamiento
   const dashboardContent = (
     <div className="flex flex-row h-full gap-4 p-4 bg-slate-950 font-sans">
-      
+
       {/* Zona 1 - Filtros y gestión de sesión (PRESENTE) */}
-      <Zone1Filters
-        isTraining={isTraining}
-        localidad={localidad}
-        setLocalidad={setLocalidad}
-        tipoNegocio={tipoNegocio}
-        setTipoNegocio={setTipoNegocio}
-        errorRed={errorRed}
-        setErrorRed={setErrorRed}
-        handleAsignarLead={handleAsignarLead}
-        trainingLeads={trainingLeads}
-        sessionLeads={sessionLeads}
-        trainingLeadsDisponibles={trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length}
-        // Props para modo real (solo presente)
-        leadsDisponibles={leadsDisponibles}
-        loading={loadingCampanas}
-        // Panel de campañas (badge + drawer)
-        campanas={campanas}
-        onOpenCampanas={() => setShowCampanasPanel(true)}
-      />
+      <ErrorBoundary zoneId="Zone1">
+        <Zone1Filters
+          isTraining={isTraining}
+          localidad={localidad}
+          setLocalidad={setLocalidad}
+          tipoNegocio={tipoNegocio}
+          setTipoNegocio={setTipoNegocio}
+          errorRed={errorRed}
+          setErrorRed={setErrorRed}
+          handleAsignarLead={handleAsignarLead}
+          trainingLeads={trainingLeads}
+          sessionLeads={sessionLeads}
+          trainingLeadsDisponibles={trainingLeads.filter(l => !sessionLeads.find(s => s.id === l.id)).length}
+          // Props para modo real (solo presente)
+          leadsDisponibles={leadsDisponibles}
+          loading={loadingCampanas}
+          // Panel de campañas (badge + drawer)
+          campanas={campanas}
+          onOpenCampanas={() => setShowCampanasPanel(true)}
+        />
+      </ErrorBoundary>
 
       {/* Zona 2 - Lead activo + acción */}
-      <Zone2Content
-        leadActivo={lead}
-        llamadaActiva={llamadaId ? { id: llamadaId, inicio: startTime } : null}
-        historialLlamadas={historial}
-        isTraining={isTraining}
-        notas={notas}
-        setNotas={setNotas}
-        elapsedString={elapsedString}
-        onResultado={handleResultado}
-        onEnviarInfo={handleEnviarInfo}
-      />
+      <ErrorBoundary zoneId="Zone2">
+        <Zone2Content
+          leadActivo={lead}
+          llamadaActiva={llamadaId ? { id: llamadaId, inicio: startTime } : null}
+          historialLlamadas={historial}
+          isTraining={isTraining}
+          notas={notas}
+          setNotas={setNotas}
+          elapsedString={elapsedString}
+          onResultado={handleResultado}
+          onEnviarInfo={handleEnviarInfo}
+        />
+      </ErrorBoundary>
 
       {/* Zona 3 - Sidebar (FUTURO: callbacks hoy + programadas + stats) */}
-      <Zone3Sidebar
-        programadas={programadas}
-        sessionLeads={sessionLeads}
-        isTraining={isTraining}
-        trainingStats={trainingStats}
-        refreshData={refreshData}
-        callbacksHoy={callbacksHoy}
-        onTomarCallback={handleTomarCallback}
-      />
+      <ErrorBoundary zoneId="Zone3">
+        <Zone3Sidebar
+          programadas={programadas}
+          sessionLeads={sessionLeads}
+          isTraining={isTraining}
+          trainingStats={trainingStats}
+          refreshData={refreshData}
+          callbacksHoy={callbacksHoy}
+          onTomarCallback={handleTomarCallback}
+        />
+      </ErrorBoundary>
 
-      {/* Panel drawer de campañas (overlay — no desplaza Zone 1) */}
+      {/* Zona 4 - Campañas panel (drawer overlay — no desplaza Zone 1) */}
       <CampanasPanel
         open={showCampanasPanel}
         onClose={() => setShowCampanasPanel(false)}
@@ -390,28 +396,21 @@ const OperatorDashboard = ({
     </div>
   );
 
-  // Envolver todo en Error Boundary
-  const wrappedContent = (
-    <OperatorErrorBoundary>
-      {dashboardContent}
-    </OperatorErrorBoundary>
-  );
-
   // Si está en modo training, usar el wrapper adicional
   if (isTraining) {
     return (
-      <TrainingModeWrapper 
+      <TrainingModeWrapper
         isTraining={isTraining}
         userId={user?.id}
         onError={setErrorRed}
       >
-        {wrappedContent}
+        {dashboardContent}
       </TrainingModeWrapper>
     );
   }
 
   // Modo normal
-  return wrappedContent;
+  return dashboardContent;
 };
 
 export default OperatorDashboard;
