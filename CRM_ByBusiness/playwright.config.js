@@ -3,10 +3,13 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright E2E configuration for CRM ByBusiness.
  * @see https://playwright.dev/docs/test-configuration
+ *
+ * Multi-project setup:
+ * - 'dockhand' project → localhost:3000 (Dockhand running instance)
+ * - 'crm' project → localhost:5174 (Vite dev server via `npm run dev`)
  */
 export default defineConfig({
   testDir: './e2e',
-  baseURL: 'http://localhost:3000',
   timeout: 30000,
   expect: {
     timeout: 5000,
@@ -16,22 +19,33 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
   projects: [
     {
-      name: 'chromium',
+      name: 'dockhand',
+      testMatch: ['e2e/auth.spec.js', 'e2e/agenda.spec.js', 'e2e/rbac.spec.js'],
       use: {
+        baseURL: 'http://localhost:3000',
         ...devices['Desktop Chrome'],
+      },
+      // No webServer needed — Dockhand runs on port 3000 via Docker
+      // and is already running. Playwright connects directly.
+    },
+    {
+      name: 'crm',
+      testMatch: ['e2e/s01-stale-phase-label-cleanup.spec.js'],
+      use: {
+        baseURL: 'http://localhost:5174',
+        ...devices['Desktop Chrome'],
+      },
+      webServer: {
+        command: 'npm run dev',
+        url: 'http://localhost:5174',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120000,
       },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
 });
