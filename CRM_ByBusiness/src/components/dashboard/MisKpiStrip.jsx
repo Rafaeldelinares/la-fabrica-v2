@@ -12,6 +12,23 @@ import Skeleton from '../../shared/ui/Skeleton';
  * @param {number} props.operatorId - ID of the current operator
  * @returns {JSX.Element}
  */
+/**
+ * Extracts KPI data from the n8n response array.
+ * n8n returns: [{json: {calls_hoy, ventas_hoy, duracion_media, tasa_conversion, refreshed_at}}]
+ */
+const extractKpis = (data) => {
+  if (!data || !Array.isArray(data) || data.length === 0) return null;
+  const kpis = data[0]?.json;
+  if (!kpis) return null;
+  return {
+    calls_today: Number(kpis.calls_hoy ?? 0),
+    ventas_hoy: Number(kpis.ventas_hoy ?? 0),
+    tasa_conversion: Number(kpis.tasa_conversion ?? 0),
+    duracion_media: Number(kpis.duracion_media ?? 0),
+    refreshed_at: kpis.refreshed_at,
+  };
+};
+
 const MisKpiStrip = ({ operatorId }) => {
   const { data, isLoading, dataUpdatedAt, isFetching } = useN8nQuery(
     ['kpis-live', operatorId],
@@ -21,6 +38,7 @@ const MisKpiStrip = ({ operatorId }) => {
       refetchInterval: 30_000,
       staleTime: 60_000,
       enabled: Boolean(operatorId),
+      select: extractKpis,
     }
   );
 
