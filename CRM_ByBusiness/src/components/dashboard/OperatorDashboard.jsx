@@ -9,6 +9,7 @@ import Zone2Content from './zones/Zone2Content';
 import Zone3Sidebar from './zones/Zone3Sidebar';
 import CampanasPanel from '../../modules/admin/campanas/CampanasPanel';
 import MisKpiStrip from './MisKpiStrip';
+import MisCallbacksPanel from './MisCallbacksPanel';
 import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
 import { useRbac } from '../../shared/auth/useRbac';
 
@@ -377,6 +378,7 @@ const OperatorDashboard = ({
       <div className="flex flex-col gap-4 min-w-0">
         <ErrorBoundary zoneId="Zone4">
           <MisKpiStrip operatorId={user?.id} />
+          <MisCallbacksPanel operatorId={user?.id} />
         </ErrorBoundary>
         <button
           onClick={() => setShowCampanasPanel(true)}
