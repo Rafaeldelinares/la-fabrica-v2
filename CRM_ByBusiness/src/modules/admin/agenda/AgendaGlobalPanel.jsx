@@ -8,6 +8,8 @@ import './agenda-calendar.css';
 import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive, Search, Mail, CheckCircle2, Activity } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../../modules/auth/AuthContext';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 import DatePickerField from '../../../shared/ui/DatePickerField';
 import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
@@ -443,6 +445,10 @@ const CALENDAR_COMPONENTS = { event: EventoTag };
 /** Panel de agenda unificada (admin): visualiza todos los eventos del equipo con filtros por tipo. */
 const AgendaGlobalPanel = () => {
   const { user } = useAuth();
+  const { can } = useRbac();
+  if (!can('admin.system.config')) {
+    return <AccessDenied permission="admin.system.config" />;
+  }
   const [view, setView]           = useState(Views.MONTH);
   // Inicializar en el día actual para que el admin vea los eventos del día
   // y no tenga que navegar. La vista Mes muestra el mes completo del día actual.

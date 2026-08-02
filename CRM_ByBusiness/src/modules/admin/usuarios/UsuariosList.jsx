@@ -4,6 +4,8 @@ import { Users, UserPlus, Edit2, Trash2, Save, X, RefreshCw, Eye, EyeOff,
   PauseCircle, PlayCircle, AlertTriangle, ShieldCheck, ShieldOff, ShieldAlert, UserX, ChevronRight, Clock } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import { useAuth } from '../../auth/AuthContext';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 import HorarioModal from './HorarioModal';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
@@ -307,6 +309,11 @@ ReactivarModal.propTypes = {
  */
 const UsuariosList = () => {
   const { user } = useAuth();
+  const { can } = useRbac();
+  if (!can('admin.users.manage')) {
+    return <AccessDenied permission="admin.users.manage" />;
+  }
+  const readOnly = !can('admin.users.manage');
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
