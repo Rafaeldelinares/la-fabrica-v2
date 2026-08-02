@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { MapPin, Star, MessageSquare, RefreshCw, AlertCircle, AlertTriangle, CheckCircle, XCircle, TrendingUp, BadgeCheck, Plus, Search, Link, Phone, Globe, Instagram, Facebook } from 'lucide-react';
 import { fmtFecha, fmtMesAno } from '../../../../utils/dates';
-import { n8nGet, n8nPost } from '../../../../shared/hooks/useN8n';
+import { n8nGet, n8nPost, useN8nMutation } from '../../../../shared/hooks/useN8n';
+import { useRbac } from '../../../../shared/auth/useRbac';
 
 /**
  * Barra de sentimiento con etiqueta y porcentaje.
@@ -308,6 +309,7 @@ const URL_TYPE_LABELS = {
  * @param {{ cliente: object }} props
  */
 const TabGbp = ({ cliente }) => {
+  const { can } = useRbac();
   const [fichas,      setFichas]      = useState(null);
   const [selIdx,      setSelIdx]      = useState(0);
   const [historico,   setHistorico]   = useState(null);
@@ -322,6 +324,9 @@ const TabGbp = ({ cliente }) => {
   const [verificando, setVerificando] = useState(false);
   const [errorAction, setErrorAction] = useState(null);
   const [errorCarga,  setErrorCarga]  = useState(null);
+  const [rescrapeConfirm, setRescrapeConfirm] = useState(false);
+  const [rescraping,    setRescraping]    = useState(false);
+  const [rescrapeNotif, setRescrapeNotif] = useState(null);
 
   const fetchFichas = useCallback(() => {
     setErrorCarga(null);
@@ -450,6 +455,33 @@ const TabGbp = ({ cliente }) => {
     } catch { setErrorAction('Error al capturar datos de la URL'); } finally { setCapturando(false); }
   };
 
+  /** Rescrape mutation: fuerza una nueva captura de datos GBP para este negocio. */
+  const rescrapeMutation = useN8nMutation('crm-gbp-rescrape');
+
+  const handleRescrapeConfirm = async () => {
+    if (!cliente.google_cid) return;
+    setRescrapeConfirm(false);
+    setRescraping(true);
+    setRescrapeNotif(null);
+    try {
+      const data = await rescrapeMutation.mutateAsync({
+        place_id: cliente.google_cid,
+        lead_id: cliente.id,
+      });
+      if (data?.success) {
+        setRescrapeNotif({ type: 'success', message: 'Rescrape iniciado correctamente.' });
+        fetchFichas();
+      } else {
+        setRescrapeNotif({ type: 'error', message: data?.error || 'Error al iniciar rescrape.' });
+      }
+    } catch (err) {
+      setRescrapeNotif({ type: 'error', message: err?.message || 'Error al iniciar rescrape.' });
+    } finally {
+      setRescraping(false);
+      setTimeout(() => setRescrapeNotif(null), 4000);
+    }
+  };
+
   /** Paso 2 del flujo añadir: guarda la ficha previamente capturada como ficha del cliente. */
   const handleVerificar = async () => {
     if (!preview) return;
@@ -509,8 +541,46 @@ const TabGbp = ({ cliente }) => {
             <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
             {refreshing ? 'Buscando…' : 'Actualizar'}
           </button>
+          {can('admin.system.config') && (
+            <button onClick={() => setRescrapeConfirm(true)}
+              disabled={!cliente.google_cid || rescraping}
+              title={!cliente.google_cid ? 'Sin place_id — no disponible' : 'Forzar rescrape de este negocio'}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest border border-[#D00000]/30 rounded-sm text-[#D00000]/70 hover:text-[#D00000] hover:border-[#D00000]/60 transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+              <AlertTriangle size={11} />
+              {rescraping ? '…' : 'Forzar rescrape'}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Confirmation dialog */}
+      {rescrapeConfirm && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-[#D00000]/5 border border-[#D00000]/20 rounded-sm">
+          <AlertTriangle size={14} className="text-[#D00000] shrink-0" />
+          <p className="text-[11px] text-slate-300 font-mono flex-1">
+            ¿Forzar rescrape de este negocio?
+          </p>
+          <button onClick={handleRescrapeConfirm}
+            className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded-sm bg-[#D00000]/10 border border-[#D00000]/30 text-[#D00000] hover:bg-[#D00000]/20 transition-colors">
+            Sí
+          </button>
+          <button onClick={() => setRescrapeConfirm(false)}
+            className="px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded-sm border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 transition-colors">
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {/* Rescrape notification */}
+      {rescrapeNotif && (
+        <p className={`text-[10px] font-mono px-3 py-2 rounded-sm border ${
+          rescrapeNotif.type === 'success'
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+            : 'bg-red-500/10 border-red-500/20 text-red-400'
+        }`}>
+          {rescrapeNotif.message}
+        </p>
+      )}
 
       {fichas.length > 0 && (
         <div className="flex gap-2 flex-wrap">
