@@ -21,6 +21,19 @@ export function reportError(error, context = {}) {
     const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_N8N_URL) ||
       'https://n8n.ia-bybusiness.online/webhook';
 
+    // DEV: log structured metadata before attempting POST (tree-shaken in prod by Vite)
+    if (import.meta.env?.DEV) {
+      // eslint-disable-next-line no-console
+      console.error('[reportError] Dispatching FRONTEND_ERROR event', {
+        event_type: 'FRONTEND_ERROR',
+        error_message: payload.error_message,
+        component_stack: payload.component_stack,
+        zone_id: payload.zone_id,
+        timestamp: payload.timestamp,
+        user_id: payload.user_id,
+      });
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10_000);
 
