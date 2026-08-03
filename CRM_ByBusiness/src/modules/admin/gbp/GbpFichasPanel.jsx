@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, Plus, MapPin, Star, AlertCircle } from 'lucide-react';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { fmtFecha } from '../../../utils/dates';
@@ -33,26 +34,22 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
   if (!can('gbp.write')) {
     return <AccessDenied permission="gbp.write" />;
   }
-  const [fichas,       setFichas]       = useState(null);
   const [filtroEstado, setFiltroEstado] = useState('');
-  const [error,        setError]        = useState(null);
 
-  /** Carga las fichas GBP desde n8n, filtrando por estado si está seleccionado. */
-  const cargar = () => {
-    setFichas(null);
-    setError(null);
-    const params = filtroEstado ? `?estado=${filtroEstado}` : '';
-    n8nGet(`crm-gbp-fichas${params}`)
-      .then(data => { if (data.ok) setFichas(data.fichas); else setFichas([]); })
-      .catch(() => { setFichas([]); setError('Error al cargar fichas GBP'); });
-  };
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['gbp-fichas', filtroEstado],
+    queryFn: () => {
+      const params = filtroEstado ? `?estado=${filtroEstado}` : '';
+      return n8nGet(`crm-gbp-fichas${params}`);
+    },
+    staleTime: 30_000,
+  });
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { cargar(); }, [filtroEstado]);
+  const fichas = data?.fichas ?? null;
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      {error && <p className="text-[10px] text-red-400 font-mono">{error}</p>}
+      {error && <p className="text-[10px] text-red-400 font-mono">Error al cargar fichas GBP</p>}
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex gap-1">
@@ -64,7 +61,7 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
           ))}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={cargar} className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-white transition-colors font-mono uppercase px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm">
+          <button onClick={() => refetch()} className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-white transition-colors font-mono uppercase px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm">
             <RefreshCw size={11} /> Actualizar
           </button>
           <button onClick={() => onSelectFicha('alta')} className="flex items-center gap-1.5 text-[10px] font-black text-white bg-[#D00000] hover:bg-red-700 px-3 py-2 rounded-sm transition-colors uppercase tracking-widest">
@@ -74,7 +71,7 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
       </div>
 
       {/* Tabla */}
-      {fichas === null ? (
+      {isLoading || fichas === null ? (
         <div className="space-y-2">
           {[1,2,3].map(i => <div key={i} className="h-12 bg-slate-800 rounded-sm animate-pulse" />)}
         </div>

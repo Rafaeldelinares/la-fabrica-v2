@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import PropTypes from 'prop-types';
+import { useQuery } from '@tanstack/react-query';
 import { MapPin, Star, MessageSquare, FileText, RefreshCw } from 'lucide-react';
 import { n8nGet } from '../../../shared/hooks/useN8n';
 import { useRbac } from '../../../shared/auth/useRbac';
@@ -26,20 +27,16 @@ const GbpDashboardPanel = () => {
   if (!can('gbp.write')) {
     return <AccessDenied permission="gbp.write" />;
   }
-  const [kpis,  setKpis]  = useState(null);
-  const [error, setError] = useState(null);
 
-  const cargar = () => {
-    setKpis(null);
-    setError(null);
-    n8nGet('crm-gbp-kpis')
-      .then(data => { if (data.ok) setKpis(data.kpis); else setKpis({}); })
-      .catch(() => { setKpis({}); setError('Error al cargar KPIs de GBP'); });
-  };
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: ['gbp-kpis'],
+    queryFn: () => n8nGet('crm-gbp-kpis'),
+    staleTime: 60_000,
+  });
 
-  useEffect(cargar, []); // eslint-disable-line react-hooks/set-state-in-effect
+  const kpis = data?.kpis ?? null;
 
-  if (kpis === null) return (
+  if (isLoading || kpis === null) return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {[1,2,3,4].map(i => <div key={i} className="h-24 bg-slate-800 rounded-sm animate-pulse" />)}
     </div>
@@ -47,10 +44,10 @@ const GbpDashboardPanel = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && <p className="text-[10px] text-red-400 font-mono">{error}</p>}
+      {error && <p className="text-[10px] text-red-400 font-mono">Error al cargar KPIs de GBP</p>}
       <div className="flex items-center justify-between">
         <p className="text-[10px] text-slate-500 uppercase tracking-widest font-black">Resumen de cartera GBP</p>
-        <button onClick={cargar} className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-white transition-colors font-mono uppercase px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm">
+        <button onClick={() => refetch()} className="flex items-center gap-1.5 text-[10px] text-slate-500 hover:text-white transition-colors font-mono uppercase px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm">
           <RefreshCw size={11} /> Actualizar
         </button>
       </div>
