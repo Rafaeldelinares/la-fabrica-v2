@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../modules/auth/AuthContext';
 import Sidebar from './Sidebar';
+import RouteSkeleton from '../ui/RouteSkeleton';
 
 // Lazy — all panels loaded on demand to keep initial bundle small.
 // Previously 4 panels (DashboardPanel, OperatorDashboard, AgendaGlobalPanel,
@@ -30,15 +31,6 @@ const ScraperConfigPanel = lazy(() => import('../../modules/admin/scraper/Scrape
 const BackupPanel = lazy(() => import('../../modules/admin/backup/BackupPanel'));
 const AdminAuditPanel = lazy(() => import('../../modules/admin/auditoria/AdminAuditPanel'));
 
-/** Skeleton Navy Industrial mostrado mientras un panel lazy está cargando. */
-const PanelSkeleton = () => (
-  <div className="flex flex-col gap-3 p-2">
-    <div className="h-6 w-48 bg-slate-800/60 rounded-sm animate-pulse" />
-    <div className="h-32 bg-slate-800/40 rounded-sm animate-pulse" />
-    <div className="h-32 bg-slate-800/40 rounded-sm animate-pulse" />
-  </div>
-);
-
 /**
  * Contenedor principal de la zona de trabajo del CRM.
  * Renderiza el Sidebar y el panel activo según activeTab.
@@ -65,7 +57,7 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px] pointer-events-none rounded-sm"></div>
 
         <div className="relative z-10 h-full overflow-y-auto custom-scrollbar p-6">
-          <Suspense fallback={<PanelSkeleton />}>
+          <Suspense fallback={<RouteSkeleton variant="admin" />}>
             {/* Admin Views */}
             {activeTab === 'DASHBOARD_EXE' && <DashboardPanel />}
             {activeTab === 'AGENDA_GLOB' && <AgendaGlobalPanel />}
