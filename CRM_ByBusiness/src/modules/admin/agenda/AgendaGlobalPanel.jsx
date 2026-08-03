@@ -653,6 +653,23 @@ const estiloEvento = useCallback((evento) => ({
               </div>
             ))}
           </div>
+        ) : !loading && eventosFiltrados.length === 0 ? (
+          // [FIX 2026-08-03] Empty state — antes el calendario se renderizaba sin
+          // eventos y el usuario veía una pantalla vacía sin entender por qué.
+          // Ahora muestra mensaje claro cuando los filtros activos no producen
+          // matches. Ver P3 del action plan (2026-08-01).
+          <div className="h-full flex items-center justify-center" data-testid="agenda-empty-state">
+            <div className="flex flex-col items-center gap-2 max-w-md text-center px-6">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                Sin eventos para los filtros activos
+              </p>
+              <p className="text-xs text-slate-600 font-mono leading-relaxed">
+                Ningún workflow de n8n ha emitido eventos con los tipos seleccionados
+                para esta fecha. Probá activar más filtros en la barra superior o
+                cambiá la vista (día / semana / mes).
+              </p>
+            </div>
+          </div>
         ) : (
           <Calendar
             localizer={localizer}
