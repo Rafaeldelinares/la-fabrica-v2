@@ -227,7 +227,7 @@ export const can = (perm, user) => ...;
 
 **GAP backend:** solo 2/5 workflows validan admin en backend (`CRM_USUARIOS_CREAR`, `CRM_REGISTRAR_RESULTADO`). 2FA workflows sin validar por limitación n8n queryReplacement.
 
-**Auditoría:** cada acción admin genera evento en `fabrica.sistema.eventos_sistema`. Append-only, sin UPDATE permitido a nivel DB.
+**Auditoría:** cada acción admin genera evento en `crm_bybusiness.sistema.eventos_sistema`. Append-only, sin UPDATE permitido a nivel DB.
 
 ### 4.5 Comunicaciones
 
@@ -355,7 +355,7 @@ operaciones.campanas_envios (canal='whatsapp')
 - `FOR UPDATE SKIP LOCKED` evita lock contention
 
 **Optimizaciones pendientes (Línea 3):**
-- Particionar `fabrica.sistema.eventos_sistema` por año
+- Particionar `crm_bybusiness.sistema.eventos_sistema` por año
 - Cache de lecturas con TTL (no implementado)
 - CDN para assets estáticos (no implementado — VPS sirve directo)
 
@@ -414,7 +414,7 @@ operaciones.campanas_envios (canal='whatsapp')
 - Tablero KPI: `CRM_KPI_DASHBOARD_V2` (consultable vía webhook)
 
 **Auditoría:**
-- `fabrica.sistema.eventos_sistema` — eventos append-only
+- `crm_bybusiness.sistema.eventos_sistema` — eventos append-only
 - Tipos: BACKUP, REPAIR_GBP, CRON_RUN, SNAPSHOT_GBP, RENOVACION, INCIDENCIA, BACKUP_SISTEMA, CRON_SISTEMA, VENTA_CERRADA
 
 **Alertas:**

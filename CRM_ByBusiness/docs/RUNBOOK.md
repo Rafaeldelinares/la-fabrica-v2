@@ -46,7 +46,7 @@ Documento de operación para el día a día del CRM. Última actualización: 202
 - **Script**: `/opt/fabrica/scripts/alimentador_reputacion.py --vps --scraper gosom --batch 50`.
 - **Log**: `/var/log/fabrica/alimentador.log` (logrotate diario, 14 días).
 - **Lo que hace**: toma 50 leads sin rating o con rating > 180 días, llama al motor Go para refrescar, escribe UPDATE en VPS vía SSH + docker exec.
-- **Auditoría**: cada corrida inserta un evento `CRON_RUN` en `sistema.eventos_sistema` con detalles `{cron, batch_size, max_age_days, processed, updated, no_match, no_rating, errors, dry_run}`.
+- **Auditoría**: cada corrida inserta un evento `CRON_RUN` en `crm_bybusiness.sistema.eventos_sistema` con detalles `{cron, batch_size, max_age_days, processed, updated, no_match, no_rating, errors, dry_run}`.
 - **Validación**: tras 2 ciclos (12h), el campo `reputacion_at` de los leads procesados debe estar actualizado.
 
 ### 3.2 Métricas diarias de frescura (VPS)
@@ -108,7 +108,7 @@ Documento de operación para el día a día del CRM. Última actualización: 202
 | `operaciones.fn_lead_vendido_to_cliente` | Trigger lead → cliente. |
 | `clientes.clientes` | Clientes convertidos. |
 | `clientes.citas` | Citas de admin/operador (tipo='cliente'). |
-| `sistema.eventos_sistema` | Eventos del sistema (cron, backup, gbp, informe). |
+| `crm_bybusiness.sistema.eventos_sistema` | Eventos del sistema (cron, backup, gbp, informe). |
 | `sistema.lead_freshness_metrics` | Métricas diarias de frescura. |
 | `auth.usuarios` | Usuarios del CRM. |
 
@@ -147,7 +147,7 @@ ssh -o BatchMode=yes root@72.60.191.179 "touch /var/www/crm.ia-bybusiness.com/as
 
 1. **Métricas de frescura** (`sistema.lead_freshness_metrics`): ¿`pct_fresco > 70%`? Si no, revisar alimentador.
 2. **Alimentador corrió 4 veces** en 24h: `grep CRON_RUN /var/log/fabrica/alimentador.log`.
-3. **Eventos cron del día**: `SELECT * FROM sistema.eventos_sistema WHERE tipo_evento='CRON_RUN' AND fecha_evento > NOW() - INTERVAL '24 hours';`.
+3. **Eventos cron del día**: `SELECT * FROM crm_bybusiness.sistema.eventos_sistema WHERE tipo_evento='CRON_RUN' AND fecha_evento > NOW() - INTERVAL '24 hours';`.
 4. **Agenda Global accesible** desde el navegador sin error.
 
 ### Cada semana
@@ -287,7 +287,7 @@ Para cada sesión nueva, crear un archivo `verification/YYYY-MM-DD-<topic>.md` y
 - Fix del shim `CampanasPanel.jsx`: ahora `OperatorDashboard.jsx` importa directamente de `../../modules/admin/campanas/CampanasPanel`. Build y deploy OK.
 - Log del cron alimentador movido de `/tmp/alimentador_cron.log` a `/var/log/fabrica/alimentador.log` con logrotate diario.
 - Workflow `CRM_BACKFILL_LEAD_QUALITY` creado (id `i7UTe5EkotG5FBm3`) que corre diario a las 03:00 UTC y registra estadísticas de calidad de leads.
-- Bug-A: 42 filas mal clasificadas en `clientes.citas` migradas a `sistema.eventos_sistema` (35 BACKUP, 4 RENOVACION, 3 INCIDENCIA).
+- Bug-A: 42 filas mal clasificadas en `clientes.citas` migradas a `crm_bybusiness.sistema.eventos_sistema` (35 BACKUP, 4 RENOVACION, 3 INCIDENCIA).
 - Bug-B: nuevo UNION ALL leg en `CRM_AGENDA_V2` que lee `operaciones.campanas_envios`. Toggle `envio_proforma_waha` ahora con 74 eventos, `aceptacion_proforma` con 8.
 - **Sección 11 agregada**: workflow de commits local con workaround para GGA hook (provider `opencode` corrompe index).
 - **Regresión detectada y corregida**: `Sidebar.jsx` tenía `isOpen: PropTypes.isRequired` (válido solo como chain), HEAD tenía `PropTypes.bool.isRequired`. Fixed en commit 6ad58a4.

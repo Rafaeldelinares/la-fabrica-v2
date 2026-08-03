@@ -68,7 +68,7 @@ CRM ByBusiness automatiza el ciclo completo de **captación y conversión de cli
 
 ### 3.3 Admin (Torre de Control)
 
-**Qué hace:** 6 módulos admin (Cartera, Leads, Agenda, Campañas, Auditoría, Reportes), RBAC granular sobre 17 permisos / 4 roles, auditoría inmutable de todas las acciones críticas vía `fabrica.sistema.eventos_sistema`.
+**Qué hace:** 6 módulos admin (Cartera, Leads, Agenda, Campañas, Auditoría, Reportes), RBAC granular sobre 17 permisos / 4 roles, auditoría inmutable de todas las acciones críticas vía `crm_bybusiness.sistema.eventos_sistema`.
 
 **Por qué importa:** Visibilidad operacional + cumplimiento + control de accesos para escalar el equipo sin perder governance.
 

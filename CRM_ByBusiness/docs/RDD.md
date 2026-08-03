@@ -28,7 +28,7 @@ El CRM ByBusiness gestiona el ciclo completo de un negocio de **captación de cl
 1. **Schemas por dominio de negocio** (no por capa técnica). Una tabla está en `operaciones` si modela el proceso de trabajo diario, en `crm_bybusiness` si modela entidades cliente, en `raw` si es zona de staging antes de validación.
 2. **`operaciones.leads` es la entidad operativa** — el "lead vivo" con estado y prioridad. `crm_bybusiness.clientes` es el resultado de una conversión (`lead → cliente → venta → pago`). No son la misma cosa.
 3. **`soft delete` por convención**: campos `estado`, `fecha_baja`, `freeze_hasta`/`freeze_razon`. NO se borran filas (excepto PII bajo derecho al olvido — ver §6).
-4. **Auditoría append-only**: `sistema.eventos_sistema` (en DB fabrica, no en `crm_bybusiness`) guarda cada acción admin/operador. Tabla inmutable — solo INSERT.
+4. **Auditoría append-only**: `crm_bybusiness.sistema.eventos_sistema` guarda cada acción admin/operador. Tabla inmutable — solo INSERT. La separación es por **schema** (`sistema` dentro de `crm_bybusiness`), no por base de datos.
 5. **Timestamps `created_at` / `updated_at` en toda tabla** con default `now()`. Para consistencia operativa, **todos los timestamps son `timestamp without time zone`** en `operaciones.*` y `crm_bybusiness.*`; `timestamp with time zone` solo en tablas que cruzan zona horaria (gbp_*).
 6. **Sin magic strings** — los valores de `estado`, `rol`, `prioridad`, `tipo` se documentan en el RDD (ver §4). Cambios requieren migración explícita.
 7. **Foreign keys nombradas con prefijo `fk_`** (estándar La Fábrica). `idx_tabla_campo` para índices.
@@ -49,7 +49,7 @@ DB: `crm_bybusiness` en `localhost:5432` (local) y `VPS 72.60.191.179` (producci
 | `rrhh` | Operadores humanos (RRHH) | `candidatos`, `horarios_trabajo` |
 | `social` | Automatización de redes sociales | `dm_conversaciones`, `posts_cola` |
 
-**Eventos del sistema** (auditoría) viven en DB `fabrica` schema `sistema.eventos_sistema` — **separado físicamente** del CRM. Esto aísla la auditoría del rendimiento del CRM y permite análisis independiente.
+**Eventos del sistema** (auditoría) viven en DB `crm_bybusiness` schema `sistema.eventos_sistema` — **separados lógicamente por schema** del resto del CRM. Esto aísla la auditoría a nivel SQL (permisos, queries) y permite análisis independiente sin afectar rendimiento del CRM.
 
 ---
 
@@ -141,7 +141,7 @@ crm_bybusiness.operadores            — perfil extendido del operador (métrica
 **Roles** (4): `admin`, `supervisor`, `operador`, `viewer`. Permisos granulares (17) en `src/shared/auth/rbac.js`.
 
 **Auditoría:**
-- `fabrica.sistema.eventos_sistema` — append-only, eventos con `tipo_evento`, `descripcion` (jsonb), `fecha_evento`
+- `crm_bybusiness.sistema.eventos_sistema` — append-only, eventos con `tipo_evento`, `descripcion` (jsonb), `fecha_evento`
 - Eventos críticos: `BACKUP`, `REPAIR_GBP`, `CRON_RUN`, `SNAPSHOT_GBP`, `RENOVACION`, `INCIDENCIA`, `BACKUP_SISTEMA`, `CRON_SISTEMA`
 - Cada acción admin genera ≥1 evento aquí
 
@@ -221,7 +221,7 @@ social.posts_cola                    — cola de publicación en redes
 +-----------------------+        +----------------------+
 
 FABRICA DB (separada):
-   fabrica.sistema.eventos_sistema  <-- append-only, auditoría
+   crm_bybusiness.sistema.eventos_sistema  <-- append-only, auditoría
 ```
 
 ---
@@ -265,7 +265,7 @@ FABRICA DB (separada):
 | `crm_bybusiness.clientes` | Indefinida (cliente activo) | — | Anonymize tras 5 años sin interacción |
 | `crm_bybusiness.pagos` | **10 años** (legal/fiscal España) | — | Obligatorio por ley |
 | `auth.usuarios` | Mientras esté activo | — | Anonymize tras baja |
-| `fabrica.sistema.eventos_sistema` | 5 años | Indefinido | Cumplimiento auditoría |
+| `crm_bybusiness.sistema.eventos_sistema` | 5 años | Indefinido | Cumplimiento auditoría |
 | `social.dm_conversaciones` | 1 año activo | 3 años | — |
 
 **GAP:** no hay job automático de archivado/anonymización. Está en roadmap Línea 3.
@@ -337,7 +337,7 @@ FABRICA DB (separada):
 | raw.lista_negra_categorias | <50 | Scraper | Admin | Filtro de descartes |
 | social.dm_conversaciones | <1000 | Operador social | Bot | Futuro |
 | social.posts_cola | <100 | Operador social | Admin | Futuro |
-| fabrica.sistema.eventos_sistema | 1M+ | Auditoría | Append-only | 5 años |
+| crm_bybusiness.sistema.eventos_sistema | 1M+ | Auditoría | Append-only | 5 años |
 
 ---
 
