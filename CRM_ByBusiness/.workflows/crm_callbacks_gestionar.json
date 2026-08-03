@@ -1,0 +1,39 @@
+{
+  "id": "epiM2Wd8mziT3Awz",
+  "name": "CRM_CALLBACKS_GESTIONAR",
+  "active": true,
+  "webhookId": "crm-callbacks-gestionar",
+  "webhookUrl": "https://n8n.ia-bybusiness.online/webhook/crm-callbacks-gestionar",
+  "createdAt": "2026-08-02T08:00:00.000Z",
+  "description": "Handles reschedule and cancel actions on operaciones.llamadas_programadas. Reschedule updates fecha_programada; cancel sets estado='cancelado'. Both require estado='programado' to succeed.",
+  "nodes": [
+    {"id": "wh", "name": "Webhook", "type": "n8n-nodes-base.webhook"},
+    {"id": "code", "name": "Parse Input", "type": "n8n-nodes-base.code"},
+    {"id": "if_action", "name": "Is Reschedule", "type": "n8n-nodes-base.if"},
+    {"id": "pg_r", "name": "Reschedule Callback", "type": "n8n-nodes-base.postgres"},
+    {"id": "if_r", "name": "If Rows Reschedule", "type": "n8n-nodes-base.if"},
+    {"id": "err_r", "name": "Error Reschedule", "type": "n8n-nodes-base.set"},
+    {"id": "resp_err_r", "name": "Respond Err Reschedule", "type": "n8n-nodes-base.respondToWebhook"},
+    {"id": "ok_r", "name": "OK Reschedule", "type": "n8n-nodes-base.set"},
+    {"id": "resp_ok_r", "name": "Respond OK Reschedule", "type": "n8n-nodes-base.respondToWebhook"},
+    {"id": "pg_c", "name": "Cancel Callback", "type": "n8n-nodes-base.postgres"},
+    {"id": "if_c", "name": "If Rows Cancel", "type": "n8n-nodes-base.if"},
+    {"id": "err_c", "name": "Error Cancel", "type": "n8n-nodes-base.set"},
+    {"id": "resp_err_c", "name": "Respond Err Cancel", "type": "n8n-nodes-base.respondToWebhook"},
+    {"id": "ok_c", "name": "OK Cancel", "type": "n8n-nodes-base.set"},
+    {"id": "resp_ok_c", "name": "Respond OK Cancel", "type": "n8n-nodes-base.respondToWebhook"}
+  ],
+  "credential": "PostgreSQL VPS (id: 8NbamWrMdRexLNwa)",
+  "actions": {
+    "reschedule": {
+      "method": "POST",
+      "body": {"action": "reschedule", "callback_id": "string", "operador_id": "string", "new_datetime": "ISO datetime"},
+      "response": {"ok": "true", "action": "reschedule", "callback": "stringified JSON"}
+    },
+    "cancel": {
+      "method": "POST",
+      "body": {"action": "cancel", "callback_id": "string", "operador_id": "string"},
+      "response": {"ok": "true", "action": "cancel"}
+    }
+  }
+}

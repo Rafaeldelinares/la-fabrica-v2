@@ -1,0 +1,65 @@
+# OpenSpec config — CRM_ByBusiness
+schema: spec-driven
+
+context: |
+  Tech stack: React 19.2.0 + Vite 7.2.4 + Tailwind CSS v4 + TanStack Query 5 + Zod 4. JavaScript/JSX, no TypeScript.
+  Backend: PHP API (separate repo/module), PostgreSQL via n8n workflows. Frontend NEVER hits DB directly.
+  Architecture: Multi-module admin (admin/), auth/, crm/, entrenamiento/. n8n orchestrates business logic.
+  Testing: Vitest 2.0.0 (placeholder tests only, no config), Playwright 1.59.1 E2E (3 specs: agenda, auth, rbac).
+  Style: Navy Industrial (bg-slate-950, #D00000 accent, rounded-sm, JetBrains Mono for data).
+  Multi-tenant: Reverted — ByBusiness-exclusive.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Frontend changes must respect Navy Industrial style constraints
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Document API contract separately from frontend contract; frontend goes through n8n
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Never bypass n8n for direct DB access
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - Max 3 files per commit (GGA discipline)
+  apply:
+    - Follow existing code patterns
+    - tdd: false
+    - test_command: "npm run test"
+    - e2e_command: "npm run test:e2e"
+  verify:
+    - test_command: "npm run test"
+    - e2e_command: "npm run test:e2e"
+    - build_command: "npm run build"
+    - coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
+
+testing:
+  strict_tdd: false
+  reason: "vitest is installed but has no config file; only 3 placeholder/documented tests exist. Playwright E2E is functional (3 specs). Strict TDD not appropriate until vitest has real unit tests."
+  unit:
+    runner: vitest
+    command: "npm run test"
+    available: false
+    note: "vitest 2.0.0 installed; 3 placeholder/documented tests (useTrainingScope.test.js has real tests, others are documented placeholders). No vitest.config.js."
+  integration:
+    runner: none
+    available: false
+    note: "No integration test runner configured."
+  e2e:
+    runner: playwright
+    command: "npm run test:e2e"
+    available: true
+    specs: 3
+  coverage:
+    available: false
+    command: null
+  quality:
+    linter: eslint
+    linter_command: "npm run lint"
+    type_checker: false
+    formatter: false
