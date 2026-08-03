@@ -6,6 +6,8 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import { Users, ExternalLink } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 const ESTADO_CLASSES = {
   nuevo:      'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -29,6 +31,12 @@ const ORIGEN_CLASSES = {
 
 /** Panel de gestión de candidatos RRHH con filtros por estado y origen y cambio de estado inline. */
 const CandidatosPanel = () => {
+  const { can } = useRbac();
+  // [RBAC 2026-08-03] candidatos.read: admin+supervisor ven candidatos RRHH.
+  // Refs: action plan P1.
+  if (!can('candidatos.read')) {
+    return <AccessDenied permission="candidatos.read" />;
+  }
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState('');
   const [candidatos, setCandidatos] = useState(null);

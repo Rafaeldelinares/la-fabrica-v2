@@ -8,6 +8,8 @@ import ProformasPanel from './ProformasPanel';
 const ClienteDrawer = lazy(() => import('../cartera/ClienteDrawer'));
 import { Users, RefreshCw, FileText, ClipboardList } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const TABS = [
@@ -20,6 +22,12 @@ const TABS = [
 /** Panel de facturación con cuatro pestañas: Clientes, Proformas, Facturas y Renovaciones. */
 const FacturacionPanel = () => {
   const { user } = useAuth();
+  const { can } = useRbac();
+  // [RBAC 2026-08-03] ventas.read.all: admin+supervisor ven facturación cross-equipo.
+  // Refs: action plan P1.
+  if (!can('ventas.read.all')) {
+    return <AccessDenied permission="ventas.read.all" />;
+  }
   const [tab, setTab] = useState('clientes');
   const [clienteDrawer, setClienteDrawer] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);

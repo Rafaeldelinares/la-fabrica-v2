@@ -9,6 +9,8 @@ import EmptyState from '../../../shared/ui/EmptyState';
 const ClienteDrawer      = lazy(() => import('./ClienteDrawer'));
 const NuevoClienteDrawer = lazy(() => import('./NuevoClienteDrawer'));
 import { useAuth } from '../../auth/AuthContext';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 import { n8nGet } from '../../../shared/hooks/useN8n';
 
 const PAGE_SIZE = 15;
@@ -57,6 +59,12 @@ SortIcon.propTypes = {
  */
 const CarteraPanel = () => {
   const { user } = useAuth();
+  const { can } = useRbac();
+  // [RBAC 2026-08-03] clientes.read.all: admin+supervisor ven cartera cross-equipo.
+  // Operador usa clientes.read.own (no tiene este panel). Refs: action plan P1.
+  if (!can('clientes.read.all')) {
+    return <AccessDenied permission="clientes.read.all" />;
+  }
   const [clientes, setClientes]         = useState(null);
   const [filtroSemaforo, setFiltroSemaforo] = useState('');
   const [filtroAnio,     setFiltroAnio] = useState(String(new Date().getFullYear()));

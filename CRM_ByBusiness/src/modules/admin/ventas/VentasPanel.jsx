@@ -5,6 +5,8 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import { TrendingUp, RefreshCw } from 'lucide-react';
 import VentaRow from './VentaRow';
 import { n8nGet } from '../../../shared/hooks/useN8n';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 /** Devuelve YYYY-MM-DD de hace N días */
 const fechaHace = (dias) => {
@@ -18,6 +20,12 @@ const fechaHace = (dias) => {
  * Consume crm-ventas y crm-operadores-lista vía n8n.
  */
 const VentasPanel = () => {
+    const { can } = useRbac();
+    // [RBAC 2026-08-03] ventas.read.all: admin+supervisor ven ventas cross-equipo.
+    // Refs: action plan P1.
+    if (!can('ventas.read.all')) {
+        return <AccessDenied permission="ventas.read.all" />;
+    }
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroOperador, setFiltroOperador]   = useState('');
     const [fechaDesde, setFechaDesde]           = useState(fechaHace(30));
