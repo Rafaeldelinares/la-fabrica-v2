@@ -11,6 +11,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Polyfill ResizeObserver para jsdom (usado por FacturacionPanel)
 global.ResizeObserver = class {
@@ -24,6 +25,12 @@ import CarteraPanel from './cartera/CarteraPanel';
 import FacturacionPanel from './facturacion/FacturacionPanel';
 import CandidatosPanel from './candidatos/CandidatosPanel';
 import VentasPanel from './ventas/VentasPanel';
+
+const Wrapper = ({ children }) => (
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        {children}
+    </QueryClientProvider>
+);
 
 vi.mock('../../shared/auth/useRbac', () => ({ useRbac: vi.fn() }));
 vi.mock('../auth/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -83,13 +90,13 @@ describe('FacturacionPanel RBAC', () => {
 describe('CandidatosPanel RBAC', () => {
     it('muestra "Acceso restringido" sin candidatos.read', () => {
         vi.mocked(useRbac).mockReturnValue(deniedRbac);
-        render(<CandidatosPanel />);
+        render(<CandidatosPanel />, { wrapper: Wrapper });
         expect(screen.getByText(/acceso restringido/i)).toBeInTheDocument();
     });
 
     it('pasa el guard con candidatos.read', () => {
         vi.mocked(useRbac).mockReturnValue(allowedRbac('candidatos.read'));
-        render(<CandidatosPanel />);
+        render(<CandidatosPanel />, { wrapper: Wrapper });
         expect(screen.queryByText(/acceso restringido/i)).not.toBeInTheDocument();
     });
 });
@@ -97,13 +104,13 @@ describe('CandidatosPanel RBAC', () => {
 describe('VentasPanel RBAC', () => {
     it('muestra "Acceso restringido" sin ventas.read.all', () => {
         vi.mocked(useRbac).mockReturnValue(deniedRbac);
-        render(<VentasPanel />);
+        render(<VentasPanel />, { wrapper: Wrapper });
         expect(screen.getByText(/acceso restringido/i)).toBeInTheDocument();
     });
 
     it('pasa el guard con ventas.read.all', () => {
         vi.mocked(useRbac).mockReturnValue(allowedRbac('ventas.read.all'));
-        render(<VentasPanel />);
+        render(<VentasPanel />, { wrapper: Wrapper });
         expect(screen.queryByText(/acceso restringido/i)).not.toBeInTheDocument();
     });
 });
