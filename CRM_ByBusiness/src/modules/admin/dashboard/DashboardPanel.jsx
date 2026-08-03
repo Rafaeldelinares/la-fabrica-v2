@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
+import { useQuery } from '@tanstack/react-query';
 import Card from '../../../shared/ui/Card';
 import Stat from '../../../shared/ui/Stat';
 import Badge from '../../../shared/ui/Badge';
@@ -36,78 +37,68 @@ const TICK_MS          = 60_000;  // 1 minuto
 const DashboardPanel = () => {
     const { mode, isAdmin, isTraining, getFilterValue } = useTrainingScope();
 
-    const [kpis, setKpis]             = useState(null);
-    const [leads, setLeads]           = useState([]);
-    const [operadores, setOperadores] = useState([]);
-    const [errorKpis, setErrorKpis]             = useState('');
-    const [errorActividad, setErrorActividad]   = useState('');
-    const [errorLeads, setErrorLeads]           = useState('');
     const [ultimaActualizacion, setUltimaActualizacion] = useState(null);
     const [minutosSinRefresh, setMinutosSinRefresh]     = useState(0);
 
-    const autoRefreshRef = useRef(null);
-    const tickRef        = useRef(null);
+    const tickRef = useRef(null);
 
-    const cargarDatos = useCallback(() => {
-        setErrorKpis('');
-        setErrorActividad('');
-        setErrorLeads('');
+    const scopeValue = getFilterValue();
 
-        const scopeValue = getFilterValue();
+    // React Query: KPIs del dashboard (auto-refresh cada 5 min)
+    const { data: kpisData, isLoading: loadingKpis, error: errorKpisObj, dataUpdatedAt, refetch: refetchKpis } = useQuery({
+        queryKey: ['dashboard-kpis', scopeValue, mode],
+        queryFn: () => n8nGet(`crm-kpi-dashboard?es_simulacion=${scopeValue}&mode=${mode}`),
+        staleTime: 30_000,
+        refetchInterval: AUTO_REFRESH_MS,
+    });
 
-        // KPIs: el admin recibe ambos universos (real+training), los demás solo el suyo
-        n8nGet(`crm-kpi-dashboard?es_simulacion=${scopeValue}&mode=${mode}`)
-            .then(d => {
-                if (d.ok) {
-                    // d.data es array de filas: para admin [{real:..., training:...}, {real:..., training:...}]
-                    // para otros [ {total_leads, leads_hoy, ...} ]
-                    setKpis(d.data);
-                } else {
-                    setErrorKpis('Error al cargar KPIs del dashboard');
-                }
-            })
-            .catch(() => setErrorKpis('Error al cargar KPIs — comprueba la conexión'));
+    // React Query: leads recientes
+    const { data: leadsData, isLoading: loadingLeads, error: errorLeadsObj, refetch: refetchLeads } = useQuery({
+        queryKey: ['dashboard-leads', scopeValue],
+        queryFn: () => n8nGet(`crm-leads-admin?es_simulacion=${scopeValue}&limit=5`),
+        staleTime: 30_000,
+        refetchInterval: AUTO_REFRESH_MS,
+    });
 
-        // Leads recientes — siempre filtrados por scope
-        n8nGet(`crm-leads-admin?es_simulacion=${scopeValue}&limit=5`)
-            .then(d => {
-                if (d.ok && Array.isArray(d.data)) {
-                    setLeads(d.data);
-                } else if (d.ok) {
-                    setLeads([]);
-                } else {
-                    setErrorLeads(d.message || 'Error al cargar leads recientes');
-                }
-            })
-            .catch(() => setErrorLeads('Error al cargar leads recientes'));
+    // React Query: actividad de operadores
+    const { data: actividadData, isLoading: loadingActividad, error: errorActividadObj, refetch: refetchActividad } = useQuery({
+        queryKey: ['dashboard-actividad', scopeValue],
+        queryFn: () => n8nGet(`crm-actividad-operadores?es_simulacion=${scopeValue}`),
+        staleTime: 30_000,
+        refetchInterval: AUTO_REFRESH_MS,
+    });
 
-        // Actividad de operadores — filtrada por scope
-        n8nGet(`crm-actividad-operadores?es_simulacion=${scopeValue}`)
-            .then(d => {
-                if (d.ok && Array.isArray(d.data)) {
-                    setOperadores(d.data);
-                } else {
-                    setErrorActividad(d.message || 'Error al cargar actividad de operadores');
-                }
-            })
-            .catch(() => setErrorActividad('Error al cargar actividad — comprueba la conexión'));
+    // Derivar state de queries
+    const kpis = kpisData?.ok ? (kpisData.data ?? null) : null;
+    const leads = (leadsData?.ok && Array.isArray(leadsData.data)) ? leadsData.data : [];
+    const operadores = (actividadData?.ok && Array.isArray(actividadData.data)) ? actividadData.data : [];
 
-        setUltimaActualizacion(new Date());
-        setMinutosSinRefresh(0);
-    }, [mode, getFilterValue]);
+    // Error strings para los banners
+    const errorKpis = errorKpisObj
+        ? 'Error al cargar KPIs — comprueba la conexión'
+        : (kpisData?.ok === false ? 'Error al cargar KPIs del dashboard' : '');
+    const errorActividad = errorActividadObj
+        ? 'Error al cargar actividad — comprueba la conexión'
+        : (actividadData?.ok === false ? (actividadData?.message || 'Error al cargar actividad de operadores') : '');
+    const errorLeads = errorLeadsObj
+        ? 'Error al cargar leads recientes'
+        : (leadsData?.ok === false ? (leadsData?.message || 'Error al cargar leads recientes') : '');
 
-    /* Montaje: carga inicial + auto-refresh + tick contador */
+    // Actualizar timestamp al recibir datos
+    const prevDataUpdatedAt = useRef(dataUpdatedAt);
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        cargarDatos();
-        autoRefreshRef.current = setInterval(cargarDatos, AUTO_REFRESH_MS);
-        tickRef.current = setInterval(() => setMinutosSinRefresh(m => m + 1), TICK_MS);
+        if (dataUpdatedAt !== prevDataUpdatedAt.current) {
+            setUltimaActualizacion(new Date());
+            setMinutosSinRefresh(0);
+            prevDataUpdatedAt.current = dataUpdatedAt;
+        }
+    }, [dataUpdatedAt]);
 
-        return () => {
-            clearInterval(autoRefreshRef.current);
-            clearInterval(tickRef.current);
-        };
-    }, [cargarDatos]);
+    // Tick contador para "hace X min"
+    useEffect(() => {
+        tickRef.current = setInterval(() => setMinutosSinRefresh(m => m + 1), TICK_MS);
+        return () => clearInterval(tickRef.current);
+    }, []);
 
     /* Derivar totales de la lista de operadores */
     const totalLlamadasHoy = operadores.reduce(
@@ -174,7 +165,11 @@ const DashboardPanel = () => {
                     )}
                 </div>
                 <button
-                    onClick={cargarDatos}
+                    onClick={() => {
+                        refetchKpis();
+                        refetchLeads();
+                        refetchActividad();
+                    }}
                     className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400
                         hover:text-slate-200 hover:border-slate-700 transition-colors"
                     title="Recargar datos"
