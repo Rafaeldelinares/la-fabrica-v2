@@ -4,6 +4,9 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import { RefreshCw, Plus, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
 import { n8nPost } from '../../../shared/hooks/useN8n';
+import { useAuth } from '../../../modules/auth/AuthContext';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 /**
  * GeneradorCampanasPanel — Panel de generación automática de campañas desde leads huérfanos.
@@ -11,6 +14,13 @@ import { n8nPost } from '../../../shared/hooks/useN8n';
  * @param {Function} onCerrar — Callback al cerrar el modal
  */
 const GeneradorCampanasPanel = ({ modoInicial = 'reales', onCerrar }) => {
+  const { user } = useAuth();
+  const { can } = useRbac();
+  // [RBAC 2026-08-03] leads.assign: admin+supervisor generan campañas.
+  // Refs: action plan P1.
+  if (!can('leads.assign')) {
+    return <AccessDenied permission="leads.assign" />;
+  }
   const [modo, setModo] = useState(modoInicial);
   const [analizando, setAnalizando] = useState(false);
   const [resultado, setResultado] = useState(null);

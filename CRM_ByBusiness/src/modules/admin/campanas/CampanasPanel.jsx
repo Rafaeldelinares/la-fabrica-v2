@@ -29,6 +29,9 @@ import AsignarOperadoresModal from './AsignarOperadoresModal';
 import GeneradorCampanasPanel from './GeneradorCampanasPanel';
 import CrearDesdeBusquedaModal from './CrearDesdeBusquedaModal';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
+import { useAuth } from '../../../modules/auth/AuthContext';
+import { useRbac } from '../../../shared/auth/useRbac';
+import AccessDenied from '../../../shared/ui/AccessDenied';
 
 const PAGE_SIZE = 10;
 
@@ -38,6 +41,13 @@ const PAGE_SIZE = 10;
  * v2026.04.11 - Fix manejo de respuesta vacía cuando no hay campañas
  */
 const CampanasPanel = () => {
+  const { user } = useAuth();
+  const { can } = useRbac();
+  // [RBAC 2026-08-03] leads.assign: admin+supervisor crean/editan campañas.
+  // Refs: action plan P1.
+  if (!can('leads.assign')) {
+    return <AccessDenied permission="leads.assign" />;
+  }
   const [campanas, setCampanas] = useState(null);
   const [operadores, setOperadores] = useState([]);
   const [estadisticas, setEstadisticas] = useState({});
