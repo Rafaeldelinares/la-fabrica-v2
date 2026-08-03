@@ -8,7 +8,7 @@
  * Auth is handled internally via the n8n workflows (JWT in cookie or header
  * added by the n8n webhook setup) — no manual token needed here.
  *
- * Base URL comes from VITE_N8N_URL (default: http://localhost:5678/webhook).
+ * Base URL comes from VITE_N8N_URL (required — no localhost fallback per AD-12).
  */
 import { n8nGet, n8nPost } from '../hooks/useN8n';
 
