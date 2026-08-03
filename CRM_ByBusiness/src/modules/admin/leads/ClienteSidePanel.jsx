@@ -3,7 +3,9 @@ import PropTypes from 'prop-types';
 import { X, ExternalLink, Loader } from 'lucide-react';
 import { n8nGet } from '../../../shared/hooks/useN8n';
 
-const L = (t) => <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{t}</p>;
+// [FIX 2026-08-03] Antes `(t) => <p>{t}</p>` recibía props.children, no el string.
+// Ver tests en ClienteSidePanel.test.jsx (descubierto al convertir placeholders).
+const L = ({ children: t }) => <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{t}</p>;
 const V = (v) => <p className="text-sm text-slate-200 font-mono mt-0.5 break-all">{v ?? '—'}</p>;
 
 /**
