@@ -30,13 +30,13 @@ const BackupPanel = () => {
     setShowBackupConfirm,
   } = useBackupOps();
 
-  if (!rbac.can('admin.system.config')) {
+  if (!rbac.can('backup.admin')) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center">
           <AlertTriangle size={32} className="mx-auto mb-3 text-slate-600" />
           <h2 className="text-lg font-bold text-white mb-2">Acceso restringido</h2>
-          <p className="text-sm text-slate-400">Se requiere permiso admin.system.config.</p>
+          <p className="text-sm text-slate-400">Se requiere permiso backup.admin.</p>
         </div>
       </div>
     );

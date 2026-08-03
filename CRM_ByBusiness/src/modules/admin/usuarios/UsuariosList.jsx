@@ -310,10 +310,10 @@ ReactivarModal.propTypes = {
 const UsuariosList = () => {
   const { user } = useAuth();
   const { can } = useRbac();
-  if (!can('admin.users.manage')) {
-    return <AccessDenied permission="admin.users.manage" />;
+  if (!can('usuarios.write')) {
+    return <AccessDenied permission="usuarios.write" />;
   }
-  const readOnly = !can('admin.users.manage');
+  const readOnly = !can('usuarios.write');
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);

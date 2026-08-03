@@ -23,8 +23,8 @@ const Stat = ({ label, value, icon: Icon, color = 'text-white', sub = null }) =>
  */
 const GbpDashboardPanel = () => {
   const { can } = useRbac();
-  if (!can('admin.system.config')) {
-    return <AccessDenied permission="admin.system.config" />;
+  if (!can('gbp.write')) {
+    return <AccessDenied permission="gbp.write" />;
   }
   const [kpis,  setKpis]  = useState(null);
   const [error, setError] = useState(null);

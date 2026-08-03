@@ -94,8 +94,8 @@ AltaFichaInfo.propTypes = {
 /** Panel principal de Google Business Profile — tabs Dashboard y Fichas. */
 const GbpPanel = () => {
   const { can } = useRbac();
-  if (!can('admin.system.config')) {
-    return <AccessDenied permission="admin.system.config" />;
+  if (!can('gbp.write')) {
+    return <AccessDenied permission="gbp.write" />;
   }
   const [tab, setTab] = useState('DASHBOARD');
   const [fichaModal, setFichaModal]   = useState(null);

@@ -30,8 +30,8 @@ const RatingStars = ({ value }) => {
  */
 const GbpFichasPanel = ({ onSelectFicha }) => {
   const { can } = useRbac();
-  if (!can('admin.system.config')) {
-    return <AccessDenied permission="admin.system.config" />;
+  if (!can('gbp.write')) {
+    return <AccessDenied permission="gbp.write" />;
   }
   const [fichas,       setFichas]       = useState(null);
   const [filtroEstado, setFiltroEstado] = useState('');

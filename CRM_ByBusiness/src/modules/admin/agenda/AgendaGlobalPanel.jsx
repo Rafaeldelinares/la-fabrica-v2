@@ -608,20 +608,24 @@ const estiloEvento = useCallback((evento) => ({
 
       {/* ── Toolbar fila 2: filtros por tipo (wrap a 2 líneas si hace falta) ── */}
       <div className="flex items-center justify-center gap-1.5 flex-wrap">
-        {Object.entries(TIPO).map(([tipo, tipoConfig]) => (
-          <button key={tipo} onClick={() => setFiltros(prev => ({ ...prev, [tipo]: !prev[tipo] }))}
-            className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all ${
-              filtros[tipo]
-                ? `${tipoConfig.textClass} ${tipoConfig.borderClass} ${tipoConfig.bgClass}`
-                : 'border-slate-800 text-slate-700'
-            }`}>
-            <tipoConfig.Icon size={9} />
-            {tipoConfig.label}
-            <span className="font-mono ml-0.5 opacity-60">
-              {eventosFiltrados.filter(eventoFiltrado => eventoFiltrado.tipo === tipo).length}
-            </span>
-          </button>
-        ))}
+        {Object.entries(TIPO).map(([tipo, tipoConfig]) => {
+          // gbp_snapshot toggle requires agenda.snapshots permission
+          if (tipo === 'gbp_snapshot' && !can('agenda.snapshots')) return null;
+          return (
+            <button key={tipo} onClick={() => setFiltros(prev => ({ ...prev, [tipo]: !prev[tipo] }))}
+              className={`flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-sm border transition-all ${
+                filtros[tipo]
+                  ? `${tipoConfig.textClass} ${tipoConfig.borderClass} ${tipoConfig.bgClass}`
+                  : 'border-slate-800 text-slate-700'
+              }`}>
+              <tipoConfig.Icon size={9} />
+              {tipoConfig.label}
+              <span className="font-mono ml-0.5 opacity-60">
+                {eventosFiltrados.filter(eventoFiltrado => eventoFiltrado.tipo === tipo).length}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Calendario + Renovaciones ── */}

@@ -22,8 +22,8 @@ const LeadsPanel = () => {
     const { user } = useAuth();
     const scope = useTrainingScope();
     const rbac = useRbac();
-    if (!rbac.can('leads.assign')) {
-      return <AccessDenied permission="leads.assign" />;
+    if (!rbac.can('leads.write')) {
+      return <AccessDenied permission="leads.write" />;
     }
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
@@ -219,7 +219,7 @@ const LeadsPanel = () => {
                                 </thead>
                                 <tbody>
                                     {leadsPagina.map(lead => (
-                                        <LeadRow key={lead.id} lead={lead} gestores={gestores} canEdit={rbac.can('leads.update.status')} />
+                                        <LeadRow key={lead.id} lead={lead} gestores={gestores} canEdit={rbac.can('leads.read')} />
                                     ))}
                                 </tbody>
                             </table>

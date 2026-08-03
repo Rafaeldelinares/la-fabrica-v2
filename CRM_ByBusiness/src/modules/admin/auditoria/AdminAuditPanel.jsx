@@ -36,7 +36,7 @@ const AdminAuditPanel = () => {
     }
   );
 
-  if (!rbac.can('reportes.read')) {
+  if (!rbac.can('auditoria.read')) {
     return (
       <div className="flex items-center justify-center h-full p-8">
         <div className="text-center">

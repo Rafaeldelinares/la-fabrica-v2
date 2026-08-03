@@ -42,10 +42,10 @@ const KPI_CONFIG = [
  */
 const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteBaja }) => {
   const rbac = useRbac();
-  if (!rbac.can('leads.read.all')) {
-    return <AccessDenied permission="leads.read.all" />;
+  if (!rbac.can('leads.read')) {
+    return <AccessDenied permission="leads.read" />;
   }
-  const readOnly = !rbac.can('clientes.update');
+  const readOnly = !rbac.can('leads.write');
   const queryClient = useQueryClient();
   const [activeTab,        setActiveTab]        = useState('ficha');
   const [showModal,        setShowModal]        = useState(false);
