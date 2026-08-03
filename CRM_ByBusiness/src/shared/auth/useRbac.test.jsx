@@ -28,6 +28,10 @@ function RbacProbe() {
             <span data-testid="can-admin-users">{String(rbac.can('admin.users.manage'))}</span>
             <span data-testid="can-reportes">{String(rbac.can('reportes.read'))}</span>
             <span data-testid="can-ventas-create">{String(rbac.can('ventas.create'))}</span>
+            <span data-testid="can-gbp-read">{String(rbac.can('gbp.read'))}</span>
+            <span data-testid="can-scraper-read">{String(rbac.can('scraper.read'))}</span>
+            <span data-testid="can-candidatos-read">{String(rbac.can('candidatos.read'))}</span>
+            <span data-testid="can-auditoria-read">{String(rbac.can('auditoria.read'))}</span>
             <span data-testid="can-nonexistent">{String(rbac.can('does.not.exist'))}</span>
             <span data-testid="can-all-read-own-write">{String(rbac.canAll('leads.read.own', 'leads.update.status'))}</span>
             <span data-testid="can-all-mixed">{String(rbac.canAll('leads.read.own', 'admin.users.manage'))}</span>
@@ -71,6 +75,9 @@ describe('useRbac', () => {
             expect(screen.getByTestId('can-leads-read-own')).toHaveTextContent('true');
             expect(screen.getByTestId('can-admin-users')).toHaveTextContent('false');
             expect(screen.getByTestId('can-reportes')).toHaveTextContent('false'); // solo supervisor+
+            expect(screen.getByTestId('can-gbp-read')).toHaveTextContent('false');
+            expect(screen.getByTestId('can-scraper-read')).toHaveTextContent('false');
+            expect(screen.getByTestId('can-candidatos-read')).toHaveTextContent('false');
         });
 
         it('permisos contiene los esperados para operador', () => {
@@ -90,6 +97,15 @@ describe('useRbac', () => {
             expect(screen.getByTestId('can-reportes')).toHaveTextContent('true');
             expect(screen.getByTestId('can-admin-users')).toHaveTextContent('false');
             expect(screen.getByTestId('can-leads-read-own')).toHaveTextContent('false'); // solo all, no own
+        });
+
+        it('supervisor tiene los nuevos perms read-only (gbp/scraper/candidatos/auditoria)', () => {
+            vi.mocked(useAuth).mockReturnValue({ user: { id: 3, role: 'supervisor' } });
+            render(<RbacProbe />);
+            expect(screen.getByTestId('can-gbp-read')).toHaveTextContent('true');
+            expect(screen.getByTestId('can-scraper-read')).toHaveTextContent('true');
+            expect(screen.getByTestId('can-candidatos-read')).toHaveTextContent('true');
+            expect(screen.getByTestId('can-auditoria-read')).toHaveTextContent('true');
         });
     });
 

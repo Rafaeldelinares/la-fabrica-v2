@@ -48,6 +48,11 @@ export const ALL_PERMISSIONS = [
   'admin.workflows.edit',
   // GBP
   'gbp.write',
+  'gbp.read',
+  // Scraper
+  'scraper.read',
+  // Candidatos (RRHH)
+  'candidatos.read',
   // Backup
   'backup.admin',
   // Usuarios
@@ -66,6 +71,10 @@ export const ROLE_PERMISSIONS = {
     'ventas.read.all',
     'agenda.read.all',
     'reportes.read',
+    'auditoria.read',
+    'gbp.read',
+    'scraper.read',
+    'candidatos.read',
   ],
   operador: [
     'leads.read.own',
