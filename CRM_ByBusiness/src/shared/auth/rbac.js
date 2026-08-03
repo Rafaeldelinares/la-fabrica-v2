@@ -24,6 +24,8 @@ export const ALL_PERMISSIONS = [
   'leads.assign',
   'leads.update.status',
   'leads.delete',
+  'leads.read',
+  'leads.write',
   // Clientes
   'clientes.read.all',
   'clientes.read.own',
@@ -35,12 +37,21 @@ export const ALL_PERMISSIONS = [
   // Agenda
   'agenda.read.all',
   'agenda.read.own',
+  'agenda.snapshots',
   // Reportes
   'reportes.read',
+  // Auditoria
+  'auditoria.read',
   // Admin
   'admin.users.manage',
   'admin.system.config',
   'admin.workflows.edit',
+  // GBP
+  'gbp.write',
+  // Backup
+  'backup.admin',
+  // Usuarios
+  'usuarios.write',
 ];
 
 /**
