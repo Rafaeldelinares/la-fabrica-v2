@@ -9,8 +9,10 @@
  */
 import { useQuery, useMutation } from '@tanstack/react-query';
 
+import { validateEnvVar } from '../utils/envValidation';
+
 /** @type {string} */
-const BASE_URL = import.meta.env.VITE_N8N_URL ?? 'http://localhost:5678/webhook';
+const BASE_URL = validateEnvVar('VITE_N8N_URL');
 
 const TIMEOUT_MS     = 12_000;
 const RETRY_DELAY_MS = 600;

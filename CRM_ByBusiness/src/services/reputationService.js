@@ -4,7 +4,9 @@
  * Part of the "Industrial Intelligence" Architecture by IA-ByBusiness
  */
 
-const API_BASE_URL = import.meta.env.VITE_REPUTATION_API_URL || 'http://localhost:8092';
+import { validateEnvVar } from '../shared/utils/envValidation';
+
+const API_BASE_URL = validateEnvVar('VITE_REPUTATION_API_URL');
 
 export const getBusinessReputation = async (businessName) => {
   try {

@@ -18,8 +18,15 @@ export function reportError(error, context = {}) {
   };
 
   try {
-    const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_N8N_URL) ||
-      'https://n8n.ia-bybusiness.online/webhook';
+    const baseUrl = import.meta.env?.VITE_N8N_URL;
+    if (!baseUrl) {
+      // In DEV, surface the misconfiguration; in prod, fall back silently (never throw).
+      if (import.meta.env?.DEV) {
+        throw new Error('[envValidation] Missing required env var "VITE_N8N_URL"');
+      }
+      // Silent fallback for production — preserves the "never throw" contract.
+      return;
+    }
 
     // DEV: log structured metadata before attempting POST (tree-shaken in prod by Vite)
     if (import.meta.env?.DEV) {
