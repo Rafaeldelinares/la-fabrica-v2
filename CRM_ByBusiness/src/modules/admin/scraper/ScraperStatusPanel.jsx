@@ -58,7 +58,9 @@ const ScraperStatusPanel = () => {
     { refetchInterval: 60_000, staleTime: 30_000 }
   );
 
-  if (!rbac.can('admin.system.config')) return <AccessDenied permission="admin.system.config" />;
+  // [FIX 2026-08-03] Granularizar: scraper.read (supervisor también) en vez de
+  // admin.system.config (admin only). Refs: action plan P1 RBAC coverage.
+  if (!rbac.can('scraper.read')) return <AccessDenied permission="scraper.read" />;
 
   const scrapers  = data?.scrapers || [];
   const refreshedAt = data?.refreshed_at || null;
