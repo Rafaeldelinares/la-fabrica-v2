@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -39,43 +40,48 @@ const CandidatosPanel = () => {
   }
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState('');
-  const [candidatos, setCandidatos] = useState(null);
-  const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
+  const queryClient = useQueryClient();
 
-  /** Actualiza el estado de un candidato en el servidor y refleja el cambio en la UI. */
-  const cambiarEstado = async (id, nuevoEstado) => {
-    try {
-      const data = await n8nPost('crm-candidato-update', { id, estado: nuevoEstado });
-      if (data.ok) {
-        setCandidatos(prev => prev.map(c => c.id === id ? { ...c, estado: nuevoEstado } : c));
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: ['candidatos', filtroEstado, filtroOrigen],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (filtroEstado) params.set('estado', filtroEstado);
+      if (filtroOrigen) params.set('origen', filtroOrigen);
+      return n8nGet(`crm-candidatos-admin?${params}`);
+    },
+    staleTime: 30_000,
+  });
+
+  const candidatos = data?.candidatos ?? null;
+  const total = data?.total ?? 0;
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, estado }) => n8nPost('crm-candidato-update', { id, estado }),
+    onSuccess: (response) => {
+      if (!response?.ok) {
+        setError(response?.message || 'No se pudo actualizar el candidato');
       } else {
-        setError(data.message || 'No se pudo actualizar el candidato');
+        queryClient.invalidateQueries({ queryKey: ['candidatos'] });
       }
-    } catch (err) {
-      setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al actualizar el candidato' : 'Error al actualizar el candidato');
-    }
-  };
+    },
+    onError: () => {
+      setError('Error de conexión al actualizar el candidato');
+    },
+  });
 
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (filtroEstado) params.set('estado', filtroEstado);
-    if (filtroOrigen) params.set('origen', filtroOrigen);
-    n8nGet(`crm-candidatos-admin?${params}`)
-      .then(data => {
-        if (data.ok) { setCandidatos(data.candidatos); setTotal(data.total); setError(''); }
-        else { setCandidatos([]); setError('Error al cargar candidatos — respuesta inesperada del servidor'); }
-      })
-      .catch(() => { setCandidatos([]); setError('Error al cargar candidatos — comprueba la conexión'); });
-  }, [filtroEstado, filtroOrigen]);
+  const cambiarEstado = (id, nuevoEstado) => {
+    updateMutation.mutate({ id, estado: nuevoEstado });
+  };
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto bg-slate-950 font-sans">
 
       {/* Error banner */}
-      {error && (
+      {(error || isError) && (
         <div className="px-3 py-2 bg-red-900/20 border border-red-900/30 rounded-sm text-[10px] text-red-400 font-mono">
-          {error}
+          {error || 'Error al cargar candidatos — comprueba la conexión'}
         </div>
       )}
 
@@ -117,14 +123,14 @@ const CandidatosPanel = () => {
 
       {/* Tabla */}
       <Card className="flex flex-col flex-1 bg-slate-900 border-slate-800 !p-0 overflow-hidden">
-        {candidatos === null ? (
+        {isLoading || (candidatos === null && !isError) ? (
           <div className="flex-1 flex items-center justify-center py-20">
             <div className="flex flex-col gap-3 animate-pulse items-center">
               <div className="h-4 w-48 bg-slate-800 rounded-sm" />
               <div className="h-3 w-32 bg-slate-800 rounded-sm" />
             </div>
           </div>
-        ) : candidatos.length === 0 ? (
+        ) : candidatos?.length === 0 ? (
           <div className="flex-1 flex items-center justify-center py-20">
             <EmptyState title="Sin candidatos" icon={Users} description="No hay candidatos con los filtros seleccionados" />
           </div>
