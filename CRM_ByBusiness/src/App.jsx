@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from './modules/auth/AuthContext';
 import { ToastProvider } from './shared/context/ToastContext';
 import { QueryProvider } from './shared/query/QueryProvider';
 import { n8nHealthCheck } from './shared/hooks/useN8n';
+import ErrorBoundary from './shared/ui/ErrorBoundary';
 import Dashboard from './Dashboard';
 import Login from './modules/auth/Login';
 
@@ -70,7 +71,9 @@ function App() {
       <AuthProvider>
         <ToastProvider>
           <N8nStatusBanner />
-          <AppContent />
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
         </ToastProvider>
       </AuthProvider>
     </QueryProvider>
