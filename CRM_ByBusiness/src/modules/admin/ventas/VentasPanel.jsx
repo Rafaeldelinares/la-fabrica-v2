@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { useQuery } from '@tanstack/react-query';
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
 import { TrendingUp, RefreshCw } from 'lucide-react';
@@ -30,37 +31,32 @@ const VentasPanel = () => {
     const [filtroOperador, setFiltroOperador]   = useState('');
     const [fechaDesde, setFechaDesde]           = useState(fechaHace(30));
     const [fechaHasta, setFechaHasta]           = useState(new Date().toISOString().slice(0, 10));
-    const [ventas, setVentas]                   = useState(null);
-    const [total, setTotal]                     = useState(0);
-    const [operadores, setOperadores]           = useState([]);
-    const [error, setError]                     = useState('');
 
-    useEffect(() => {
-        n8nGet('crm-operadores-lista')
-            .then(d => { if (d.ok) setOperadores(d.operadores); })
-            .catch(() => setOperadores([]));
-    }, []);
+    // React Query: operadores activos
+    const { data: operadoresData } = useQuery({
+        queryKey: ['operadores-lista'],
+        queryFn: () => n8nGet('crm-operadores-lista'),
+        staleTime: 60_000,
+    });
+    const operadores = operadoresData?.ok ? (operadoresData.operadores ?? []) : [];
 
-    const cargarVentas = useCallback(() => {
-        setVentas(null);
-        const params = new URLSearchParams();
-        if (filtroEstado)    params.set('estado', filtroEstado);
-        if (filtroOperador)  params.set('operador_id', filtroOperador);
-        if (fechaDesde)      params.set('fecha_desde', fechaDesde);
-        if (fechaHasta)      params.set('fecha_hasta', fechaHasta);
-        n8nGet(`crm-ventas?${params}`)
-            .then(d => {
-                if (d.ok) { setVentas(d.ventas); setTotal(d.total); setError(''); }
-                else { setVentas([]); setError(d.message || 'Error al cargar ventas — respuesta inesperada del servidor'); }
-            })
-            .catch(() => { setVentas([]); setError('Error al cargar ventas — comprueba la conexión'); });
-    }, [filtroEstado, filtroOperador, fechaDesde, fechaHasta]);
+    // React Query: ventas con filtros
+    const { data: ventasData, isLoading: ventasLoading, error: ventasError, refetch: refetchVentas } = useQuery({
+        queryKey: ['ventas', filtroEstado, filtroOperador, fechaDesde, fechaHasta],
+        queryFn: () => {
+            const params = new URLSearchParams();
+            if (filtroEstado)    params.set('estado', filtroEstado);
+            if (filtroOperador)  params.set('operador_id', filtroOperador);
+            if (fechaDesde)      params.set('fecha_desde', fechaDesde);
+            if (fechaHasta)      params.set('fecha_hasta', fechaHasta);
+            return n8nGet(`crm-ventas?${params}`);
+        },
+        staleTime: 30_000,
+    });
 
-    useEffect(() => { cargarVentas(); }, [cargarVentas]); // eslint-disable-line react-hooks/set-state-in-effect
-
-    const onEstadoChange = (ventaId, nuevoEstado) => {
-        setVentas(prev => prev.map(v => v.id === ventaId ? { ...v, estado: nuevoEstado } : v));
-    };
+    const ventas = ventasData?.ok ? (ventasData.ventas ?? []) : [];
+    const total = ventasData?.total ?? 0;
+    const error = ventasError ? 'Error al cargar ventas — comprueba la conexión' : (ventasData?.ok === false ? (ventasData.message || 'Error al cargar ventas — respuesta inesperada del servidor') : '');
 
     /* KPIs calculados del array local */
     const mrr = ventas
@@ -83,7 +79,7 @@ const VentasPanel = () => {
             )}
 
             {/* KPI chips */}
-            {ventas !== null && (
+            {!ventasLoading && ventas.length > 0 && (
                 <div className="flex gap-3 flex-wrap">
                     <div className="flex items-center gap-2 px-3 py-2 bg-slate-900 border border-slate-800 rounded-sm">
                         <span className="text-[10px] text-slate-500 uppercase font-mono tracking-widest">Total</span>
@@ -109,7 +105,7 @@ const VentasPanel = () => {
                 </div>
                 <div className="flex gap-2 items-center flex-wrap">
                     <button
-                        onClick={cargarVentas}
+                        onClick={() => refetchVentas()}
                         className="p-2 rounded-sm bg-slate-900 border border-slate-800 text-slate-400
                             hover:text-slate-200 hover:border-slate-700 transition-colors"
                         title="Recargar"
@@ -133,7 +129,7 @@ const VentasPanel = () => {
             </div>
 
             <Card className="flex flex-col flex-1 bg-slate-900 border-slate-800 !p-0 overflow-hidden">
-                {ventas === null ? (
+                {ventasLoading ? (
                     <div className="flex-1 flex items-center justify-center py-20 animate-pulse">
                         <div className="flex flex-col gap-3 items-center">
                             <div className="h-4 w-48 bg-slate-800 rounded-sm" />
@@ -163,7 +159,7 @@ const VentasPanel = () => {
                             </thead>
                             <tbody>
                                 {ventas.map(v => (
-                                    <VentaRow key={v.id} venta={v} onEstadoChange={onEstadoChange} />
+                                    <VentaRow key={v.id} venta={v} />
                                 ))}
                             </tbody>
                         </table>

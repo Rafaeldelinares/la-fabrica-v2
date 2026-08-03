@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Badge from '../../../shared/ui/Badge';
 import { fmtFecha } from '../../../utils/dates';
 import { n8nPost } from '../../../shared/hooks/useN8n';
@@ -16,26 +17,35 @@ const ESTADO_CLASSES = {
  * @param {Function} props.onEstadoChange - Callback cuando se actualiza el estado
  */
 const VentaRow = ({ venta, onEstadoChange }) => {
+    const queryClient = useQueryClient();
     const [estado, setEstado]       = useState(venta.estado || 'activo');
-    const [guardando, setGuardando] = useState(false);
     const [error, setError]         = useState('');
 
-    const onChange = async (e) => {
-        const nuevoEstado = e.target.value;
-        setEstado(nuevoEstado);
-        setGuardando(true);
-        setError('');
-        try {
-            const data = await n8nPost('crm-venta-actualizar', { venta_id: venta.id, estado: nuevoEstado });
-            if (!data.ok) { setError(data.message || 'Error al guardar'); setEstado(venta.estado || 'activo'); }
-            else if (onEstadoChange) onEstadoChange(venta.id, nuevoEstado);
-        } catch (err) {
+    const updateMutation = useMutation({
+        mutationFn: (nuevoEstado) => n8nPost('crm-venta-actualizar', { venta_id: venta.id, estado: nuevoEstado }),
+        onMutate: (nuevoEstado) => {
+            setEstado(nuevoEstado);
+            setError('');
+        },
+        onSuccess: (data) => {
+            if (!data?.ok) {
+                setError(data?.message || 'Error al guardar');
+                setEstado(venta.estado || 'activo');
+            } else {
+                queryClient.invalidateQueries({ queryKey: ['ventas'] });
+            }
+        },
+        onError: (err) => {
             setError(err instanceof Error && err.message.startsWith('HTTP') ? 'Error de conexión al guardar' : 'Error al guardar');
             setEstado(venta.estado || 'activo');
-        } finally {
-            setGuardando(false);
-        }
+        },
+    });
+
+    const onChange = (e) => {
+        updateMutation.mutate(e.target.value);
     };
+
+    const guardando = updateMutation.isPending;
 
     const selectCls = `bg-slate-900 border border-slate-700 rounded-sm text-[10px] text-slate-200 px-2 py-1
         outline-none focus:border-[#D00000] font-mono uppercase ${guardando ? 'opacity-50 cursor-not-allowed' : ''}`;
