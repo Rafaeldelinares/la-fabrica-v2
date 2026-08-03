@@ -447,8 +447,10 @@ const CALENDAR_COMPONENTS = { event: EventoTag };
 const AgendaGlobalPanel = () => {
   const { user } = useAuth();
   const { can } = useRbac();
-  if (!can('admin.system.config')) {
-    return <AccessDenied permission="admin.system.config" />;
+  // [FIX 2026-08-03] Granularizar: agenda.read.all (admin+supervisor) en vez
+  // de admin.system.config (admin only). Refs: action plan P1 RBAC coverage.
+  if (!can('agenda.read.all')) {
+    return <AccessDenied permission="agenda.read.all" />;
   }
   const [view, setView]           = useState(Views.MONTH);
   // Inicializar en el día actual para que el admin vea los eventos del día
