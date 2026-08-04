@@ -148,6 +148,7 @@ def fetch_stale_leads(batch: int, host: str, user: str, psql_cmd: str) -> tuple:
       COALESCE(l.localidad, ''),
       COALESCE(l.telefono, ''),
       COALESCE(l.categoria, ''),
+      COALESCE(l.google_cid, ''),
       c.bucket,
       c.bucket_max_age_days
     FROM classified c
@@ -174,13 +175,13 @@ def fetch_stale_leads(batch: int, host: str, user: str, psql_cmd: str) -> tuple:
     reader = csv.reader(io.StringIO(raw.strip()))
     header_skipped = False
     for row in reader:
-        if len(row) < 7:
+        if len(row) < 8:
             continue
         if not header_skipped:
             # First row is the CSV header (id,nombre,localidad,...)
             header_skipped = True
             continue
-        bucket = row[5]
+        bucket = row[6]
         bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
         leads.append({
             'id': int(row[0]),
@@ -188,8 +189,9 @@ def fetch_stale_leads(batch: int, host: str, user: str, psql_cmd: str) -> tuple:
             'localidad': row[2],
             'telefono': row[3],
             'categoria': row[4],
+            'google_cid': row[5] if len(row) > 5 and row[5] else None,
             'bucket': bucket,
-            'bucket_max_age_days': int(row[6]) if row[6] else BUCKET_C_MAX_AGE_DAYS,
+            'bucket_max_age_days': int(row[7]) if row[7] else BUCKET_C_MAX_AGE_DAYS,
         })
     return leads, bucket_counts
 
@@ -269,6 +271,62 @@ def search_gmaps(page, nombre, localidad):
         return None
     cid = extract_cid_from_url(best.get('href', ''))
     return {**best, 'cid': cid}
+
+
+def search_gmaps_by_cid(page, cid):
+    """Navigate directly to a Google Maps place via CID and extract rating/reviews.
+    Returns dict {name, rating, reviews, cid} or None if page can't be loaded
+    or no rating visible.
+
+    Use this when we already know the google_cid — avoids name-search ambiguity
+    and is faster (skips search results page).
+    """
+    if not cid:
+        return None
+    url = f'https://www.google.com/maps/place/?cid={cid}'
+    try:
+        page.goto(url, wait_until='domcontentloaded', timeout=20000)
+    except PWTimeout:
+        return None
+    page.wait_for_timeout(3000)
+    # Handle consent dialog if it appears
+    if 'consent' in page.url or 'Antes de ir a Google Maps' in page.title():
+        handle_consent(page)
+        page.wait_for_timeout(3000)
+    # Read rating + reviews + name from the detail page
+    info = page.evaluate(r"""() => {
+        const ratingBtn = document.querySelector('button[aria-label*="estrellas"], button[aria-label*="stars"]');
+        const reviewsBtn = document.querySelector('button[aria-label*="reseñas"], button[aria-label*="reviews"]');
+        const nameEl = document.querySelector('h1');
+        const ratingLabel = ratingBtn ? ratingBtn.getAttribute('aria-label') : null;
+        const reviewsLabel = reviewsBtn ? reviewsBtn.getAttribute('aria-label') : null;
+        return {
+            name: nameEl ? nameEl.textContent.trim() : null,
+            rating_label: ratingLabel,
+            reviews_label: reviewsLabel,
+        };
+    }""") or {}
+    rating_label = info.get('rating_label') or ''
+    reviews_label = info.get('reviews_label') or ''
+    # Parse "4,7 estrellas 164 reseñas" or "4.7 stars 164 reviews"
+    rating_match = re.search(r'(\d+[.,]\d+)', rating_label)
+    reviews_match = re.search(r'(\d+)', reviews_label)
+    if not rating_match:
+        return None
+    try:
+        rating = float(rating_match.group(1).replace(',', '.'))
+    except ValueError:
+        return None
+    try:
+        reviews = int(reviews_match.group(1)) if reviews_match else 0
+    except ValueError:
+        reviews = 0
+    return {
+        'name': info.get('name'),
+        'rating': rating,
+        'reviews': reviews,
+        'cid': cid,
+    }
 
 
 def read_lead_rating(lead_id: int, host: str, user: str, psql_cmd: str):
@@ -410,8 +468,9 @@ def main():
 
         try:
             for lead in leads:
+                existing_cid = lead.get('google_cid')  # may be None for leads without CID
                 bucket_label = lead.get('bucket', '?')
-                print(f'-- Lead {lead["id"]} [B={bucket_label}]: "{lead["nombre"]}" (loc="{lead["localidad"]}")')
+                print(f'-- Lead {lead["id"]} [B={bucket_label}]: "{lead["nombre"]}" (loc="{lead["localidad"]}") [cid={existing_cid or "—"}]')
                 stats['processed'] += 1
                 t0 = time.time()
                 lead_result = {
@@ -424,78 +483,97 @@ def main():
                     'match_status': None,
                     'rating_nuevo': None,
                     'reviews_nuevo': None,
-                    'google_cid': None,
+                    'google_cid': existing_cid,
                 }
+                info = None
+                search_method = None
+                # 1) Try CID search first if we have one
+                if existing_cid:
+                    try:
+                        info = search_gmaps_by_cid(page, existing_cid)
+                        if info:
+                            search_method = 'cid'
+                    except Exception as e:
+                        print(f'   CID search falló: {e}')
+                # 2) Fallback to name search if no CID or CID search failed
+                if info is None:
+                    try:
+                        info = search_gmaps(page, lead['nombre'], lead['localidad'])
+                        if info:
+                            search_method = 'name'
+                    except Exception as e:
+                        print(f'   name search falló: {e}')
+                elapsed = time.time() - t0
+                if not info:
+                    stats['no_match'] += 1
+                    lead_result['match_status'] = 'no_match'
+                    print(f'   sin resultado ({elapsed:.1f}s)')
+                    resultados.append(lead_result)
+                    continue
+                name = info['name']
                 try:
-                    info = search_gmaps(page, lead['nombre'], lead['localidad'])
-                    elapsed = time.time() - t0
-                    if not info:
-                        stats['no_match'] += 1
-                        lead_result['match_status'] = 'no_match'
-                        lead_result['google_cid'] = None
-                        print(f'   sin resultado ({elapsed:.1f}s)')
-                        resultados.append(lead_result)
-                        continue
-                    name = info['name']
-                    rating = float(info['rating'])  # parseFloat desde JS devuelve number, pero por si acaso
+                    rating = float(info['rating'])
                     reviews = int(info['reviews'])
-                    print(f'   "{name}" {rating} ({reviews}) [{elapsed:.1f}s]')
-                    if rating <= 0 or reviews <= 0:
-                        stats['no_rating'] += 1
-                        lead_result['match_status'] = 'no_rating'
-                        lead_result['google_cid'] = info.get('cid')
-                        print(f'   rating 0, saltado')
-                        resultados.append(lead_result)
-                        continue
-                    if dry_run:
-                        print(f'   (dry-run) update lead {lead["id"]} con {rating}/{reviews} (cid={info.get("cid") or "—"})')
+                except (TypeError, ValueError):
+                    stats['errors'] += 1
+                    lead_result['match_status'] = 'error'
+                    print(f'   ERROR: rating/reviews no parseables ({elapsed:.1f}s)')
+                    resultados.append(lead_result)
+                    continue
+                print(f'   [{search_method}-search] "{name}" {rating} ({reviews}) [{elapsed:.1f}s]')
+                if rating <= 0 or reviews <= 0:
+                    stats['no_rating'] += 1
+                    lead_result['match_status'] = 'no_rating'
+                    lead_result['google_cid'] = info.get('cid') or existing_cid
+                    print(f'   rating 0, saltado')
+                    resultados.append(lead_result)
+                    continue
+                # Prefer freshly-fetched CID over existing one
+                final_cid = info.get('cid') or existing_cid
+                if dry_run:
+                    print(f'   (dry-run) update lead {lead["id"]} con {rating}/{reviews} (cid={final_cid or "—"})')
+                    stats['updated'] += 1
+                    lead_result['match_status'] = 'updated'
+                    lead_result['rating_nuevo'] = rating
+                    lead_result['reviews_nuevo'] = reviews
+                    lead_result['google_cid'] = final_cid
+                    resultados.append(lead_result)
+                else:
+                    out, prev = update_lead(lead['id'], rating, reviews, final_cid, args.ssh, args.ssh_user, args.psql_cmd)
+                    if out.strip():
                         stats['updated'] += 1
                         lead_result['match_status'] = 'updated'
                         lead_result['rating_nuevo'] = rating
                         lead_result['reviews_nuevo'] = reviews
-                        lead_result['google_cid'] = info.get('cid')
-                        resultados.append(lead_result)
-                    else:
-                        out, prev = update_lead(lead['id'], rating, reviews, info.get('cid'), args.ssh, args.ssh_user, args.psql_cmd)
-                        if out.strip():
-                            stats['updated'] += 1
-                            lead_result['match_status'] = 'updated'
-                            lead_result['rating_nuevo'] = rating
-                            lead_result['reviews_nuevo'] = reviews
-                            lead_result['google_cid'] = info.get('cid')
-                            print(f'   ✓ actualizado')
-                            # Historial: solo si rating o reviews cambiaron
-                            if prev is not None:
+                        lead_result['google_cid'] = final_cid
+                        print(f'   ✓ actualizado')
+                        # Historial: solo si rating o reviews cambiaron
+                        if prev is not None:
+                            try:
+                                prev_rating = float(prev['rating']) if prev['rating'] not in (None, '') else None
+                                prev_reviews = int(prev['reviews']) if prev['reviews'] not in (None, '') else None
+                            except (TypeError, ValueError):
+                                prev_rating = prev_reviews = None
+                            rating_changed = prev_rating is None or abs(prev_rating - rating) >= 0.01
+                            reviews_changed = prev_reviews is None or prev_reviews != reviews
+                            if rating_changed or reviews_changed:
                                 try:
-                                    prev_rating = float(prev['rating']) if prev['rating'] not in (None, '') else None
-                                    prev_reviews = int(prev['reviews']) if prev['reviews'] not in (None, '') else None
-                                except (TypeError, ValueError):
-                                    prev_rating = prev_reviews = None
-                                rating_changed = prev_rating is None or abs(prev_rating - rating) >= 0.01
-                                reviews_changed = prev_reviews is None or prev_reviews != reviews
-                                if rating_changed or reviews_changed:
-                                    try:
-                                        hist_id = insert_reputacion_history(
-                                            lead['id'], prev_rating, rating, prev_reviews, reviews,
-                                            info.get('cid'),
-                                            args.ssh, args.ssh_user, args.psql_cmd
-                                        )
-                                        delta_str = ''
-                                        if prev_rating is not None:
-                                            d = rating - prev_rating
-                                            delta_str = f' (Δ {d:+.2f})'
-                                        print(f'   📊 histórico registrado{delta_str}')
-                                    except Exception as e:
-                                        print(f'   WARN no pude registrar histórico: {e}')
-                        else:
-                            stats['errors'] += 1
-                            lead_result['match_status'] = 'error'
-                            print(f'   ✗ update no devolvió nada')
-                        resultados.append(lead_result)
-                except Exception as e:
-                    stats['errors'] += 1
-                    lead_result['match_status'] = 'error'
-                    print(f'   ERROR: {e}')
+                                    hist_id = insert_reputacion_history(
+                                        lead['id'], prev_rating, rating, prev_reviews, reviews,
+                                        final_cid,
+                                        args.ssh, args.ssh_user, args.psql_cmd
+                                    )
+                                    delta_str = ''
+                                    if prev_rating is not None:
+                                        d = rating - prev_rating
+                                        delta_str = f' (Δ {d:+.2f})'
+                                    print(f'   📊 histórico registrado{delta_str}')
+                                except Exception as e:
+                                    print(f'   WARN no pude registrar histórico: {e}')
+                    else:
+                        stats['errors'] += 1
+                        lead_result['match_status'] = 'error'
+                        print(f'   ✗ update no devolvió nada')
                     resultados.append(lead_result)
                 time.sleep(1)  # rate limit politeness
         finally:
