@@ -16,6 +16,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Skip submodules: el repo tiene una referencia huérfana
+          # a monitor-go-frontend/go_github sin URL en .gitmodules
+          # y eso rompe cada deploy con exit code 128.
+          submodules: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -33,13 +38,17 @@ jobs:
         run: npm run build
 
       - name: Deploy to VPS
+        working-directory: CRM_ByBusiness
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
+          set -e
           mkdir -p ~/.ssh
-          echo "$VPS_SSH_KEY" > ~/.ssh/id_rsa
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          rsync -az --delete CRM_ByBusiness/dist/ "root@$VPS_HOST:/var/www/crm.ia-bybusiness.com/"
+          echo "Adding host key..."
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>&1 || { echo "ssh-keyscan failed"; exit 1; }
+          echo "Syncing dist/ to $VPS_HOST..."
+          rsync -avz --delete dist/ "root@$VPS_HOST:/var/www/crm.ia-bybusiness.com/"
           echo "Deploy complete"
