@@ -24,10 +24,6 @@ const Stat = ({ label, value, icon: Icon, color = 'text-white', sub = null }) =>
  */
 const GbpDashboardPanel = () => {
   const { can } = useRbac();
-  if (!can('gbp.write')) {
-    return <AccessDenied permission="gbp.write" />;
-  }
-
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['gbp-kpis'],
     queryFn: () => n8nGet('crm-gbp-kpis'),
@@ -35,6 +31,10 @@ const GbpDashboardPanel = () => {
   });
 
   const kpis = data?.kpis ?? null;
+
+  if (!can('gbp.write')) {
+    return <AccessDenied permission="gbp.write" />;
+  }
 
   if (isLoading || kpis === null) return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

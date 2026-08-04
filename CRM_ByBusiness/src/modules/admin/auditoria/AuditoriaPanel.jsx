@@ -73,18 +73,6 @@ const AuditoriaPanel = () => {
   const [filtroOp, setFiltroOp] = useState('');
   const [filtroRes, setFiltroRes] = useState('');
 
-  // Guard: solo accesible si el usuario tiene permiso de reportes.
-  if (!rbac.can('reportes.read')) {
-    return (
-      <div className="flex items-center justify-center h-full p-8">
-        <div className="text-center">
-          <h2 className="text-lg font-bold text-white mb-2">Acceso restringido</h2>
-          <p className="text-sm text-slate-400">No tienes permiso para ver este panel.</p>
-        </div>
-      </div>
-    );
-  }
-
   // React Query: auditoría de llamadas
   const { data: auditoriaData, isLoading, refetch } = useQuery({
     queryKey: ['auditoria-llamadas'],
@@ -115,6 +103,18 @@ const AuditoriaPanel = () => {
     ? Math.round(filtradas.reduce((s, l) => s + (l.duracion_segundos || 0), 0) / filtradas.length)
     : 0;
   const tasa = total > 0 ? ((ventas / total) * 100).toFixed(1) : '0.0';
+
+  // Guard: solo accesible si el usuario tiene permiso de reportes.
+  if (!rbac.can('reportes.read')) {
+    return (
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center">
+          <h2 className="text-lg font-bold text-white mb-2">Acceso restringido</h2>
+          <p className="text-sm text-slate-400">No tienes permiso para ver este panel.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto bg-slate-950 font-sans">

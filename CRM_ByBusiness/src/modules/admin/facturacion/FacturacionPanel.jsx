@@ -23,11 +23,6 @@ const TABS = [
 const FacturacionPanel = () => {
   const { user } = useAuth();
   const { can } = useRbac();
-  // [RBAC 2026-08-03] ventas.read.all: admin+supervisor ven facturación cross-equipo.
-  // Refs: action plan P1.
-  if (!can('ventas.read.all')) {
-    return <AccessDenied permission="ventas.read.all" />;
-  }
   const [tab, setTab] = useState('clientes');
   const [clienteDrawer, setClienteDrawer] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -49,6 +44,12 @@ const FacturacionPanel = () => {
       .then(data => { if (data.ok && data.clientes?.length) setClienteDrawer(data.clientes[0]); })
       .catch(err => console.error('[FacturacionPanel] Error abriendo cliente:', err));
   }, []);
+
+  // [RBAC 2026-08-03] ventas.read.all: admin+supervisor ven facturación cross-equipo.
+  // Refs: action plan P1.
+  if (!can('ventas.read.all')) {
+    return <AccessDenied permission="ventas.read.all" />;
+  }
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-slate-950 font-sans">

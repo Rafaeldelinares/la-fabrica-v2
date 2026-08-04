@@ -5,7 +5,6 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import { useTrainingScope } from '../../../shared/hooks/useTrainingScope';
 import { n8nPost } from '../../../shared/hooks/useN8n';
-import { useAuth } from '../../../modules/auth/AuthContext';
 import { useRbac } from '../../../shared/auth/useRbac';
 import AccessDenied from '../../../shared/ui/AccessDenied';
 
@@ -99,13 +98,7 @@ const FAMILIAS_CATEGORIAS = {
 };
 
 const CampanasAnalisisPanel = ({ onCrearCampana }) => {
-  const { user } = useAuth();
   const { can } = useRbac();
-  // [RBAC 2026-08-03] leads.read.all: admin+supervisor ven análisis cross-equipo.
-  // Refs: action plan P1.
-  if (!can('leads.read.all')) {
-    return <AccessDenied permission="leads.read.all" />;
-  }
   const { getFilterValue } = useTrainingScope();
   const [tab, setTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
@@ -819,6 +812,12 @@ const CampanasAnalisisPanel = ({ onCrearCampana }) => {
       </>
     );
   };
+
+  // [RBAC 2026-08-03] leads.read.all: admin+supervisor ven análisis cross-equipo.
+  // Refs: action plan P1. Defer return to after all hooks.
+  if (!can('leads.read.all')) {
+    return <AccessDenied permission="leads.read.all" />;
+  }
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto p-6 bg-slate-950 font-sans">

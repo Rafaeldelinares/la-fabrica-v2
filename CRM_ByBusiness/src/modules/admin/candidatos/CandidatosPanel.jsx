@@ -33,17 +33,12 @@ const ORIGEN_CLASSES = {
 /** Panel de gestión de candidatos RRHH con filtros por estado y origen y cambio de estado inline. */
 const CandidatosPanel = () => {
   const { can } = useRbac();
-  // [RBAC 2026-08-03] candidatos.read: admin+supervisor ven candidatos RRHH.
-  // Refs: action plan P1.
-  if (!can('candidatos.read')) {
-    return <AccessDenied permission="candidatos.read" />;
-  }
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroOrigen, setFiltroOrigen] = useState('');
   const [error, setError] = useState('');
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch: _refetch } = useQuery({
     queryKey: ['candidatos', filtroEstado, filtroOrigen],
     queryFn: () => {
       const params = new URLSearchParams();
@@ -70,6 +65,12 @@ const CandidatosPanel = () => {
       setError('Error de conexión al actualizar el candidato');
     },
   });
+
+  // [RBAC 2026-08-03] candidatos.read: admin+supervisor ven candidatos RRHH.
+  // Refs: action plan P1. Defer return to after all hooks.
+  if (!can('candidatos.read')) {
+    return <AccessDenied permission="candidatos.read" />;
+  }
 
   const cambiarEstado = (id, nuevoEstado) => {
     updateMutation.mutate({ id, estado: nuevoEstado });

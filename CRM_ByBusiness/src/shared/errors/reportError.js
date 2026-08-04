@@ -30,7 +30,6 @@ export function reportError(error, context = {}) {
 
     // DEV: log structured metadata before attempting POST (tree-shaken in prod by Vite)
     if (import.meta.env?.DEV) {
-      // eslint-disable-next-line no-console
       console.error('[reportError] Dispatching FRONTEND_ERROR event', {
         event_type: 'FRONTEND_ERROR',
         error_message: payload.error_message,

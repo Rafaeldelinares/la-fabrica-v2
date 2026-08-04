@@ -45,7 +45,7 @@ const DashboardPanel = () => {
     const scopeValue = getFilterValue();
 
     // React Query: KPIs del dashboard (auto-refresh cada 5 min)
-    const { data: kpisData, isLoading: loadingKpis, error: errorKpisObj, dataUpdatedAt, refetch: refetchKpis } = useQuery({
+    const { data: kpisData, error: errorKpisObj, dataUpdatedAt, refetch: refetchKpis } = useQuery({
         queryKey: ['dashboard-kpis', scopeValue, mode],
         queryFn: () => n8nGet(`crm-kpi-dashboard?es_simulacion=${scopeValue}&mode=${mode}`),
         staleTime: 30_000,
@@ -53,7 +53,7 @@ const DashboardPanel = () => {
     });
 
     // React Query: leads recientes
-    const { data: leadsData, isLoading: loadingLeads, error: errorLeadsObj, refetch: refetchLeads } = useQuery({
+    const { data: leadsData, error: errorLeadsObj, refetch: refetchLeads } = useQuery({
         queryKey: ['dashboard-leads', scopeValue],
         queryFn: () => n8nGet(`crm-leads-admin?es_simulacion=${scopeValue}&limit=5`),
         staleTime: 30_000,
@@ -61,7 +61,7 @@ const DashboardPanel = () => {
     });
 
     // React Query: actividad de operadores
-    const { data: actividadData, isLoading: loadingActividad, error: errorActividadObj, refetch: refetchActividad } = useQuery({
+    const { data: actividadData, error: errorActividadObj, refetch: refetchActividad } = useQuery({
         queryKey: ['dashboard-actividad', scopeValue],
         queryFn: () => n8nGet(`crm-actividad-operadores?es_simulacion=${scopeValue}`),
         staleTime: 30_000,
@@ -85,12 +85,11 @@ const DashboardPanel = () => {
         : (leadsData?.ok === false ? (leadsData?.message || 'Error al cargar leads recientes') : '');
 
     // Actualizar timestamp al recibir datos
-    const prevDataUpdatedAt = useRef(dataUpdatedAt);
     useEffect(() => {
-        if (dataUpdatedAt !== prevDataUpdatedAt.current) {
+        if (dataUpdatedAt) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- intentionally syncing local display state to query timestamp
             setUltimaActualizacion(new Date());
             setMinutosSinRefresh(0);
-            prevDataUpdatedAt.current = dataUpdatedAt;
         }
     }, [dataUpdatedAt]);
 

@@ -31,9 +31,6 @@ const RatingStars = ({ value }) => {
  */
 const GbpFichasPanel = ({ onSelectFicha }) => {
   const { can } = useRbac();
-  if (!can('gbp.write')) {
-    return <AccessDenied permission="gbp.write" />;
-  }
   const [filtroEstado, setFiltroEstado] = useState('');
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -46,6 +43,10 @@ const GbpFichasPanel = ({ onSelectFicha }) => {
   });
 
   const fichas = data?.fichas ?? null;
+
+  if (!can('gbp.write')) {
+    return <AccessDenied permission="gbp.write" />;
+  }
 
   return (
     <div className="flex flex-col gap-4 h-full">

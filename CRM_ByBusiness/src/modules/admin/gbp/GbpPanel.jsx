@@ -94,6 +94,10 @@ AltaFichaInfo.propTypes = {
 /** Panel principal de Google Business Profile — tabs Dashboard y Fichas. */
 const GbpPanel = () => {
   const { can } = useRbac();
+  const [tab, setTab] = useState('DASHBOARD');
+  const [fichaModal, setFichaModal]   = useState(null);
+  const [altaModal, setAltaModal]     = useState(false);
+
   // [FIX 2026-08-03] Granularizar: gbp.read (admin+supervisor) en vez de
   // gbp.write (admin only). Supervisor necesita ver dashboard/fichas. Acciones
   // de escritura (editar ficha) mantienen su gate gbp.write internamente.
@@ -101,9 +105,6 @@ const GbpPanel = () => {
   if (!can('gbp.read')) {
     return <AccessDenied permission="gbp.read" />;
   }
-  const [tab, setTab] = useState('DASHBOARD');
-  const [fichaModal, setFichaModal]   = useState(null);
-  const [altaModal, setAltaModal]     = useState(false);
 
   const handleSelectFicha = (ficha) => {
     if (ficha === 'alta') {

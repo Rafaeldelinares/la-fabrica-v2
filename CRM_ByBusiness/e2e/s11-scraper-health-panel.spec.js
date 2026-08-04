@@ -147,7 +147,7 @@ test.describe('S11: scraper-health-panel (ScraperStatusPanel)', () => {
 
     // Alert banner text should be visible if any scraper is down
     const alertBanner = page.locator('text=CAÍDO').first();
-    const hasAlertBanner = await alertBanner.count() > 0;
+    const _hasAlertBanner = await alertBanner.count() > 0;
 
     // This test passes if either a scraper is DOWN (banner visible)
     // or all are OPERATIVO (banner not visible — which is also correct)

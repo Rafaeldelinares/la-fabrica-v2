@@ -15,7 +15,7 @@ import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
 import SlotPicker from './SlotPicker';
 import FreshnessConfigCard from './FreshnessConfigCard';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
 /** Tipos de evento operador — se distribuyen 10:00–20:00 si llegan a las 00:00. */
@@ -31,85 +31,9 @@ const SLOT_MIN = 15;
  * @param {string} horaTexto
  * @returns {number}
  */
-const horaAMinutos = (horaTexto) => {
+const _horaAMinutos = (horaTexto) => {
   const partes = horaTexto.split(':');
   return parseInt(partes[0], 10) * 60 + parseInt(partes[1], 10);
-};
-
-/**
- * Si un evento llega con hora 00:00 (sin hora real en DB), redistribuye
- * su start/end a una franja horaria razonable de forma determinista.
- * El offset se calcula a partir del ID para que sea estable entre recargas.
- *
- * Si el evento tiene gestor_id y horarios contiene su agenda para ese día,
- * se distribuye dentro de sus bloques de trabajo reales.
- * Fallback: TIPOS_OPERADOR → 10:00–20:00, TIPOS_ADMIN → 10:00–14:00.
- *
- * @param {{ id: string, tipo: string, start: Date, end: Date, gestor_id?: number }} evento
- * @param {Map<number, Array<{dia_semana: number, hora_inicio: string, hora_fin: string}>>} horarios
- *   Mapa de usuario_id → bloques del usuario.
- * @returns {{ start: Date, end: Date }}
- */
-const redistribuirHora = (evento, horarios) => {
-  const start = new Date(evento.start);
-  if (start.getHours() >= 9) return { start, end: new Date(evento.end) };
-
-  const esOperador = TIPOS_OPERADOR.has(evento.tipo);
-  const esAdmin    = TIPOS_ADMIN.has(evento.tipo);
-  if (!esOperador && !esAdmin) return { start, end: new Date(evento.end) };
-
-  const idNumerico = parseInt(String(evento.id).replace(/\D/g, '') || '0', 10);
-  const gestorId   = evento.gestor_id ? parseInt(evento.gestor_id, 10) : null;
-
-  // Índice de día de semana (0 = lunes, 6 = domingo) a partir del start
-  // JS getDay(): 0=dom,1=lun,...,6=sab → convertir: (getDay() + 6) % 7
-  const diaSemana = (start.getDay() + 6) % 7;
-
-  // Intentar usar horario real del gestor
-  if (gestorId && horarios) {
-    const bloquesGestor = (horarios.get(gestorId) || [])
-      .filter(bloque => bloque.dia_semana === diaSemana);
-
-    if (bloquesGestor.length > 0) {
-      // Calcular capacidad total de slots en los bloques del día
-      const totalSlotsDisponibles = bloquesGestor.reduce((acumulado, bloque) => {
-        const inicioMin = horaAMinutos(bloque.hora_inicio);
-        const finMin    = horaAMinutos(bloque.hora_fin);
-        return acumulado + Math.floor((finMin - inicioMin) / SLOT_MIN);
-      }, 0);
-
-      if (totalSlotsDisponibles > 0) {
-        const slotElegido = idNumerico % totalSlotsDisponibles;
-        let slotContador = 0;
-
-        for (const bloque of bloquesGestor) {
-          const inicioMin = horaAMinutos(bloque.hora_inicio);
-          const finMin    = horaAMinutos(bloque.hora_fin);
-          const slotsEnBloque = Math.floor((finMin - inicioMin) / SLOT_MIN);
-
-          if (slotElegido < slotContador + slotsEnBloque) {
-            const slotEnBloque = slotElegido - slotContador;
-            const minutosFinal = inicioMin + slotEnBloque * SLOT_MIN;
-            const nuevaStart   = new Date(start);
-            nuevaStart.setHours(Math.floor(minutosFinal / 60), minutosFinal % 60, 0, 0);
-            const nuevaEnd = new Date(nuevaStart.getTime() + SLOT_MIN * 60 * 1000);
-            return { start: nuevaStart, end: nuevaEnd };
-          }
-          slotContador += slotsEnBloque;
-        }
-      }
-    }
-  }
-
-  // Fallback: lógica original por tipo
-  const rangoMin  = esOperador ? 600 : 240;
-  const offsetMin = idNumerico % rangoMin;
-  const horaBase  = 10 * 60 + offsetMin;
-
-  const nuevaStart = new Date(start);
-  nuevaStart.setHours(Math.floor(horaBase / 60), horaBase % 60, 0, 0);
-  const nuevaEnd = new Date(nuevaStart.getTime() + 60 * 60 * 1000);
-  return { start: nuevaStart, end: nuevaEnd };
 };
 
 const localizer = dateFnsLocalizer({
@@ -295,7 +219,7 @@ const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
     try {
       const parsed = JSON.parse(evento.descripcion);
       if (parsed && typeof parsed === 'object') detallesJson = parsed;
-    } catch (_) {
+    } catch {
       detallesJson = null; // mantener como texto crudo
     }
   }
@@ -447,11 +371,6 @@ const CALENDAR_COMPONENTS = { event: EventoTag };
 const AgendaGlobalPanel = () => {
   const { user } = useAuth();
   const { can } = useRbac();
-  // [FIX 2026-08-03] Granularizar: agenda.read.all (admin+supervisor) en vez
-  // de admin.system.config (admin only). Refs: action plan P1 RBAC coverage.
-  if (!can('agenda.read.all')) {
-    return <AccessDenied permission="agenda.read.all" />;
-  }
   const [view, setView]           = useState(Views.MONTH);
   // Inicializar en el día actual para que el admin vea los eventos del día
   // y no tenga que navegar. La vista Mes muestra el mes completo del día actual.
@@ -462,11 +381,6 @@ const AgendaGlobalPanel = () => {
   const [clienteDrawer, setClienteDrawer] = useState(null);
   const [tooltipEvento, setTooltipEvento] = useState(null);
   const tooltipWrapperRef                 = useRef(null);
-  /**
-   * Caché de horarios de trabajo: Map<usuario_id, Array<{dia_semana, hora_inicio, hora_fin}>>.
-   * Se puebla al montar el panel y no requiere re-render.
-   */
-  const horariosRef = useRef(new Map());
 
   // React Query: agenda unificada (2min staleTime)
   const { data: agendaData, isLoading: loadingAgenda, error: errorAgenda, refetch: refetchAgenda } = useQuery({
@@ -480,7 +394,7 @@ const AgendaGlobalPanel = () => {
   });
 
   // React Query: clientes para selector de nueva cita
-  const { data: clientesData, isLoading: loadingClientes, error: errorClientes } = useQuery({
+  const { data: clientesData, error: errorClientes } = useQuery({
     queryKey: ['clientes'],
     queryFn: () => n8nGet('crm-clientes'),
     staleTime: 60_000, // 1 minute
@@ -517,7 +431,7 @@ const AgendaGlobalPanel = () => {
     if (!carteraData?.ok) return [];
     const clientes = carteraData.clientes || [];
     const ahora              = new Date();
-    const fechaLimite60Dias  = new Date(Date.now() + 60 * 86400000);
+    const fechaLimite60Dias  = new Date(ahora.getTime() + 60 * 86400000);
     return clientes
       .filter(cliente => cliente.proxima_renovacion
         && new Date(cliente.proxima_renovacion) >= ahora
@@ -556,9 +470,14 @@ const AgendaGlobalPanel = () => {
 
   const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo_evento]);
 
-const estiloEvento = useCallback((evento) => ({
+  const estiloEvento = useCallback((evento) => ({
     className: `ev-tipo-${evento.tipo_evento ?? 'default'}`,
   }), []);
+
+  // Permission guard — after all hooks so rules-of-hooks is satisfied
+  if (!can('agenda.read.all')) {
+    return <AccessDenied permission="agenda.read.all" />;
+  }
 
   const navegar = (dir) => {
     if (view === Views.MONTH) setFecha(fechaActual => dir > 0 ? addMonths(fechaActual, 1) : subMonths(fechaActual, 1));

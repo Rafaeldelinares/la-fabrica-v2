@@ -14,7 +14,7 @@ import { formatValue } from './MisKpiStrip.helpers';
  * @returns {JSX.Element}
  */
 const MisKpiStrip = ({ operatorId }) => {
-  const { kpis, isLoading, isFetching, dataUpdatedAt, refetch } = useKpiStripLogic(operatorId);
+  const { kpis, isLoading, isFetching, dataUpdatedAt, refetch: _refetch } = useKpiStripLogic(operatorId);
 
   const kpiDescriptors = [
     { label: 'Calls Today',  unit: 'llamadas', icon: Phone,      key: 'calls_today' },
@@ -38,9 +38,6 @@ const MisKpiStrip = ({ operatorId }) => {
       </div>
     );
   }
-
-  const STALE_THRESHOLD_MS = 60_000;
-  const isStale = dataUpdatedAt ? Date.now() - dataUpdatedAt > STALE_THRESHOLD_MS : false;
   const lastRefreshed = dataUpdatedAt
     ? new Date(dataUpdatedAt).toLocaleTimeString('es-ES', {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -77,11 +74,7 @@ const MisKpiStrip = ({ operatorId }) => {
       {lastRefreshed && (
         <div className="flex items-center justify-between px-1">
           <span className="text-[9px] text-slate-600">
-            {isStale ? (
-              <span className="text-amber-600">Datos posiblemente desactualizados</span>
-            ) : (
-              `Actualizado ${lastRefreshed}`
-            )}
+            {lastRefreshed && `Actualizado ${lastRefreshed}`}
             {isFetching && <span className="ml-2 text-slate-500">[refreshing…]</span>}
           </span>
           <span className="text-[9px] text-slate-700 font-mono">· cada 30s</span>

@@ -16,7 +16,7 @@ const ESTADO_CLASSES = {
  * @param {object} props.venta - Datos de la venta/cliente
  * @param {Function} props.onEstadoChange - Callback cuando se actualiza el estado
  */
-const VentaRow = ({ venta, onEstadoChange }) => {
+const VentaRow = ({ venta, onEstadoChange: _onEstadoChange }) => {
     const queryClient = useQueryClient();
     const [estado, setEstado]       = useState(venta.estado || 'activo');
     const [error, setError]         = useState('');

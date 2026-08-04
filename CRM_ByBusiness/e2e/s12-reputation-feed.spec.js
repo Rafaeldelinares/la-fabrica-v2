@@ -88,7 +88,7 @@ test.describe('S12: reputation-feed (ReputacionTab)', () => {
     });
   });
 
-  test('ReputacionTab component file exists and exports default', async ({ page }) => {
+  test('ReputacionTab component file exists and exports default', async ({ page: _page }) => {
     // Verify the component file exists (structural test)
     const fs = require('fs');
     const path = require('path');
@@ -103,7 +103,7 @@ test.describe('S12: reputation-feed (ReputacionTab)', () => {
     expect(content).toContain('alertState');
   });
 
-  test('ReputacionTab shows alert when score < 60 (visual check)', async ({ page }) => {
+  test('ReputacionTab shows alert when score < 60 (visual check)', async ({ page: _page }) => {
     // This test verifies the alert state logic exists in the component
     const fs = require('fs');
     const path = require('path');
@@ -116,7 +116,7 @@ test.describe('S12: reputation-feed (ReputacionTab)', () => {
     expect(content).toContain('Puntuación por debajo del umbral');
   });
 
-  test('Zone2Content imports ReputacionTab', async ({ page }) => {
+  test('Zone2Content imports ReputacionTab', async ({ page: _page }) => {
     const fs = require('fs');
     const path = require('path');
     const zonePath = path.join(process.cwd(), 'src/components/dashboard/zones/Zone2Content.jsx');
