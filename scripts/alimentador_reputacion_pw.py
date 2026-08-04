@@ -212,16 +212,11 @@ def handle_consent(page):
     return False
 
 
-def search_gmaps(page, nombre, localidad):
+def search_gmaps(page, nombre, categoria, localidad):
     """Navigate to Google Maps search for {nombre} {localidad}.
-    Return (name, rating, reviews) of best matching result, or None.
-
-    The algorithm:
-    1. Search for the query
-    2. Read all results (name, rating, reviews)
-    3. Pick the one with best name token overlap to the target
-    4. Click that one to get full detail (or skip if no good match)
-    """
+    Returns {'best': best_result, 'candidates': [...]}. best is None if no
+    good match. candidates are top-5 other results filtered by category match
+    and CID availability (for lead discovery)."""
     query = f'{nombre} {localidad}'.replace(' ', '+').replace('&', '%26').replace('"', '%22')
     url = f'https://www.google.com/maps/search/{query}'
     try:
@@ -268,9 +263,26 @@ def search_gmaps(page, nombre, localidad):
         return len(target_tokens & name_tokens)
     best = max(results, key=score)
     if score(best) < 1:
-        return None
-    cid = extract_cid_from_url(best.get('href', ''))
-    return {**best, 'cid': cid}
+        return {'best': None, 'candidates': []}
+    best_cid = extract_cid_from_url(best.get('href', ''))
+    best_result = {**best, 'cid': best_cid}
+    # Candidates for discovery — top 5 (excluding best), filtered by category
+    candidates = []
+    for r in results:
+        if r is best:
+            continue
+        cand_cid = extract_cid_from_url(r.get('href', ''))
+        if not cand_cid:
+            continue
+        # Category match check — token overlap on categoria
+        cat_tokens = set(re.findall(r'\w+', categoria.lower())) if categoria else set()
+        name_tokens = set(re.findall(r'\w+', r['name'].lower()))
+        if cat_tokens and not (cat_tokens & name_tokens):
+            continue  # category doesn't match
+        candidates.append({**r, 'cid': cand_cid})
+        if len(candidates) >= 5:
+            break
+    return {'best': best_result, 'candidates': candidates}
 
 
 def search_gmaps_by_cid(page, cid):
@@ -426,6 +438,44 @@ def log_evento_cron(stats: dict, batch_size: int,
     return ssh_psql(sql, host, user, psql_cmd)
 
 
+DISCOVERY_LIMIT_PER_RUN = 3
+
+
+def lead_exists_by_cid_or_name(cid, name, host, user, psql_cmd):
+    """Returns True if a lead with this CID or lowercase name match exists."""
+    safe_cid = cid.replace("'", "''")
+    safe_name = name.replace("'", "''")
+    sql = (
+        "SELECT id FROM operaciones.leads "
+        "WHERE google_cid = '%s' OR LOWER(nombre_comercial) = LOWER('%s') "
+        "LIMIT 1;" % (safe_cid, safe_name)
+    )
+    out = ssh_psql(sql, host, user, psql_cmd).strip()
+    return bool(out)
+
+
+def insert_discovered_lead(candidate, categoria, host, user, psql_cmd):
+    """Insert a discovered business as a new pending lead with origen='discovery'.
+    Returns the new lead id as string, or empty if insert failed/conflicted."""
+    name = candidate['name'].replace("'", "''")
+    cid = candidate.get('cid', '').replace("'", "''")
+    categoria_safe = categoria.replace("'", "''") if categoria else ''
+    rating = candidate.get('rating', 0)
+    reviews = candidate.get('reviews', 0)
+    sql = (
+        "INSERT INTO operaciones.leads "
+        "(nombre_comercial, google_cid, categoria, estado, origen, es_simulacion, scoring, rating, num_reseñas, created_at, updated_at) "
+        "VALUES ('%s', '%s', '%s', 'pendiente', 'discovery', false, 0, %.2f, %d, NOW(), NOW()) "
+        "RETURNING id;" % (name, cid, categoria_safe, float(rating or 0), int(reviews or 0))
+    )
+    try:
+        out = ssh_psql(sql, host, user, psql_cmd).strip()
+        return out
+    except RuntimeError as e:
+        print(f'   WARN insert_discovered_lead failed: {e}')
+        return ''
+
+
 def main():
     p = argparse.ArgumentParser(description='Refresca reputacion via Playwright (Google Maps directo) — modo tiered')
     p.add_argument('--batch', type=int, default=20)
@@ -456,8 +506,9 @@ def main():
         print('Sin leads para procesar')
         return
 
-    stats = {'processed': 0, 'updated': 0, 'no_match': 0, 'no_rating': 0, 'errors': 0}
+    stats = {'processed': 0, 'updated': 0, 'no_match': 0, 'no_rating': 0, 'errors': 0, 'discovered': 0}
     resultados = []  # per-lead detail list for the 'leads' JSONB field
+    discovery_count = 0  # track discoveries this run, cap at DISCOVERY_LIMIT_PER_RUN
 
     if args.persist:
         PERSIST_DIR.mkdir(parents=True, exist_ok=True)
@@ -493,6 +544,7 @@ def main():
                 }
                 info = None
                 search_method = None
+                candidates = []
                 # 1) Try CID search first if we have one
                 if existing_cid:
                     try:
@@ -501,12 +553,25 @@ def main():
                             search_method = 'cid'
                     except Exception as e:
                         print(f'   CID search falló: {e}')
+                # Auto-clear bad CID (Feature A)
+                if existing_cid and info is None:
+                    try:
+                        ssh_psql(
+                            "UPDATE operaciones.leads SET google_cid = NULL WHERE id = %d;" % int(lead['id']),
+                            args.ssh, args.ssh_user, args.psql_cmd
+                        )
+                        print(f'   ⚠ cleared bad CID {existing_cid}')
+                    except Exception as e:
+                        print(f'   WARN could not clear CID: {e}')
                 # 2) Fallback to name search if no CID or CID search failed
                 if info is None:
                     try:
-                        info = search_gmaps(page, lead['nombre'], lead['localidad'])
-                        if info:
-                            search_method = 'name'
+                        name_search_result = search_gmaps(page, lead['nombre'], lead.get('categoria', ''), lead['localidad'])
+                        if name_search_result:
+                            info = name_search_result.get('best')
+                            candidates = name_search_result.get('candidates', [])
+                            if info:
+                                search_method = 'name'
                     except Exception as e:
                         print(f'   name search falló: {e}')
                 elapsed = time.time() - t0
@@ -581,6 +646,33 @@ def main():
                         lead_result['match_status'] = 'error'
                         print(f'   ✗ update no devolvió nada')
                     resultados.append(lead_result)
+                # Lead discovery (Feature B) — candidates from name-search
+                if candidates and discovery_count < DISCOVERY_LIMIT_PER_RUN and not dry_run:
+                    for cand in candidates:
+                        if discovery_count >= DISCOVERY_LIMIT_PER_RUN:
+                            print(f'   (discovery cap {DISCOVERY_LIMIT_PER_RUN} reached)')
+                            break
+                        if not cand.get('cid'):
+                            continue
+                        if cand.get('cid') == final_cid:
+                            continue
+                        if lead_exists_by_cid_or_name(cand['cid'], cand['name'], args.ssh, args.ssh_user, args.psql_cmd):
+                            continue
+                        new_id = insert_discovered_lead(cand, lead.get('categoria') or '', args.ssh, args.ssh_user, args.psql_cmd)
+                        if new_id:
+                            discovery_count += 1
+                            stats['discovered'] += 1
+                            print(f'   🔍 discovered new lead {new_id}: "{cand["name"]}"')
+                elif candidates and dry_run:
+                    for cand in candidates[:DISCOVERY_LIMIT_PER_RUN - discovery_count]:
+                        if not cand.get('cid'):
+                            continue
+                        if cand.get('cid') == final_cid:
+                            continue
+                        if lead_exists_by_cid_or_name(cand['cid'], cand['name'], args.ssh, args.ssh_user, args.psql_cmd):
+                            print(f'   (dry-run) candidate "{cand["name"]}" already exists, skip')
+                            continue
+                        print(f'   (dry-run) would discover: "{cand["name"]}" (cid={cand["cid"]})')
                 time.sleep(1)  # rate limit politeness
         finally:
             if args.persist:
