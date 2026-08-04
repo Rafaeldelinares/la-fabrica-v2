@@ -288,18 +288,24 @@ def search_gmaps_by_cid(page, cid):
         page.goto(url, wait_until='domcontentloaded', timeout=20000)
     except PWTimeout:
         return None
-    page.wait_for_timeout(3000)
+    page.wait_for_timeout(5000)
     # Handle consent dialog if it appears
     if 'consent' in page.url or 'Antes de ir a Google Maps' in page.title():
         handle_consent(page)
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(5000)
+    # Wait for rating element to appear (Google Maps renders it dynamically)
+    try:
+        page.wait_for_selector('[role="img"][aria-label*="estrellas"]', timeout=10000)
+    except PWTimeout:
+        return None
     # Read rating + reviews + name from the detail page
+    # Rating and reviews are on <span role="img" aria-label="X,X estrellas "> not buttons
     info = page.evaluate(r"""() => {
-        const ratingBtn = document.querySelector('button[aria-label*="estrellas"], button[aria-label*="stars"]');
-        const reviewsBtn = document.querySelector('button[aria-label*="reseñas"], button[aria-label*="reviews"]');
+        const ratingEl = document.querySelector('[role="img"][aria-label*="estrellas"], [role="img"][aria-label*="stars"]');
+        const reviewsEl = document.querySelector('[role="img"][aria-label*="reseñas"], [role="img"][aria-label*="reviews"]');
         const nameEl = document.querySelector('h1');
-        const ratingLabel = ratingBtn ? ratingBtn.getAttribute('aria-label') : null;
-        const reviewsLabel = reviewsBtn ? reviewsBtn.getAttribute('aria-label') : null;
+        const ratingLabel = ratingEl ? ratingEl.getAttribute('aria-label') : null;
+        const reviewsLabel = reviewsEl ? reviewsEl.getAttribute('aria-label') : null;
         return {
             name: nameEl ? nameEl.textContent.trim() : null,
             rating_label: ratingLabel,
