@@ -274,11 +274,8 @@ def search_gmaps(page, nombre, categoria, localidad):
         cand_cid = extract_cid_from_url(r.get('href', ''))
         if not cand_cid:
             continue
-        # Category match check — token overlap on categoria
-        cat_tokens = set(re.findall(r'\w+', categoria.lower())) if categoria else set()
-        name_tokens = set(re.findall(r'\w+', r['name'].lower()))
-        if cat_tokens and not (cat_tokens & name_tokens):
-            continue  # category doesn't match
+        # No category filter — we don't reliably know the candidate's category from
+        # the search card. origen='discovery' tag lets us filter/clean later.
         candidates.append({**r, 'cid': cand_cid})
         if len(candidates) >= 5:
             break
@@ -459,14 +456,14 @@ def insert_discovered_lead(candidate, categoria, host, user, psql_cmd):
     Returns the new lead id as string, or empty if insert failed/conflicted."""
     name = candidate['name'].replace("'", "''")
     cid = candidate.get('cid', '').replace("'", "''")
-    categoria_safe = categoria.replace("'", "''") if categoria else ''
+    # categoria always NULL — we don't reliably know the candidate's category from a search card
     rating = candidate.get('rating', 0)
     reviews = candidate.get('reviews', 0)
     sql = (
         "INSERT INTO operaciones.leads "
         "(nombre_comercial, google_cid, categoria, estado, origen, es_simulacion, scoring, rating, num_reseñas, created_at, updated_at) "
-        "VALUES ('%s', '%s', '%s', 'pendiente', 'discovery', false, 0, %.2f, %d, NOW(), NOW()) "
-        "RETURNING id;" % (name, cid, categoria_safe, float(rating or 0), int(reviews or 0))
+        "VALUES ('%s', '%s', NULL, 'pendiente', 'discovery', false, 0, %.2f, %d, NOW(), NOW()) "
+        "RETURNING id;" % (name, cid, float(rating or 0), int(reviews or 0))
     )
     try:
         out = ssh_psql(sql, host, user, psql_cmd).strip()
