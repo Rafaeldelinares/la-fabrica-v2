@@ -3,6 +3,9 @@
 .env.*
 *.env
 !.env.example
+# Excepción: .env.production contiene URLs públicas de webhooks (no son secretos),
+# debe commitearse para que GitHub Actions tenga las env vars al hacer build.
+!.env.production
 
 # Datos sensibles / volúmenes DB
 data/
