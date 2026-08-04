@@ -2,11 +2,20 @@
 """
 alimentador_reputacion_pw.py — Playwright-based reputation feeder.
 
-Busca Google Maps directamente via Chromium headless (bypassing gosom y su
-problema de cache contamination). Para cada lead stale, lee rating y
-review count actuales de Google Maps y hace UPDATE en la DB VPS.
+Refresco tiered de reputacion via Google Maps. Cada lead se refresca a una
+frecuencia proporcional a su probabilidad de ser llamado:
 
-vs gosom-based original:
+  Bucket A (1-3 dias):   llamada en ultimos 7d O cita/llamada_programada
+                          en prox 7d  -> max_age = 3 dias
+  Bucket B (7-14 dias):  cualquier actividad en ultimos 30d O
+                          cita/llamada_programada en prox 30d
+                          -> max_age = 14 dias
+  Bucket C (30-90 dias): leads sin actividad reciente
+                          -> max_age = 90 dias
+  Bucket D (SKIP):        estado IN (lista_negra, vendido, no_interesa)
+                          -> no se procesan
+
+vs Gosom-based original:
   + datos siempre fresh (no contamination)
   + mas preciso (Google mismo elige el match)
   - ~10-15s por lead (vs 5-8s cached)
@@ -15,19 +24,31 @@ vs gosom-based original:
 
 Uso:
     python3 scripts/alimentador_reputacion_pw.py --vps --batch 10
-    python3 scripts/alimentador_reputacion_pw.py --dry-run --batch 5
+    python3 scripts/alimentador_reputacion_pw.py --batch 25  # dry-run por defecto
 
 Argumentos:
     --batch N        Procesa hasta N leads (default 20).
     --vps            Escribe en VPS (default: dry-run).
-    --max-age DAYS   Solo leads con reputacion_at mas viejos que DAYS (default 90).
     --headless       Run browser headless (default True).
     --headed         Show browser window (for debugging).
     --persist        Use persistent context (saves cookies between runs).
     --ssh HOST       Host SSH para VPS (default root@72.60.191.179).
     --psql-cmd CMD   Comando psql dentro del VPS (default
                      `docker exec fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness`).
+
+Nota: el max-age por lead se determina via bucket (A/B/C). Ya no se usa --max-age.
 """
+
+# ─── Bucket thresholds ──────────────────────────────────────────────────────────
+# Cuanto menor el max-age, mas frecuente el refresco.
+#Bucket A: actividad reciente (llamada <7d O cita/próx 7d)        → refresco cada 3 dias
+#Bucket B: alguna actividad en ultimos 30d O cita prox 30d       → refresco cada 14 dias
+#Bucket C: leads fríos sin actividad reciente                    → refresco cada 90 dias
+#Bucket D: estados que no se deben procesar                      → skip
+BUCKET_A_MAX_AGE_DAYS = 3
+BUCKET_B_MAX_AGE_DAYS = 14
+BUCKET_C_MAX_AGE_DAYS = 90
+BUCKET_D_SKIP_STATES = ['lista_negra', 'vendido', 'no_interesa']
 import argparse
 import json
 import os
@@ -47,49 +68,118 @@ USER_AGENT = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like G
 PERSIST_DIR = Path('/var/lib/fabrica/playwright-gmaps')
 
 
-def ssh_psql(sql: str, host: str, user: str, psql_cmd: str) -> str:
-    """Run a SQL statement on the VPS PostgreSQL via SSH + docker exec."""
+def ssh_psql(sql: str, host: str, user: str, psql_cmd: str, use_csv: bool = False) -> str:
+    """Run a SQL statement on the VPS PostgreSQL via SSH + docker exec.
+    When use_csv=True, psql outputs CSV format (needed for fields that may
+    contain delimiters such as pipes in nombre_comercial)."""
     safe_sql = sql.replace("'", "'\\''")
+    csv_flag = ' --csv' if use_csv else ''
     cmd = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
-           f'{user}@{host}', f"{psql_cmd} -Atc '{safe_sql}'"]
+           f'{user}@{host}', f"{psql_cmd}{csv_flag} -c '{safe_sql}'"]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     if r.returncode != 0:
         raise RuntimeError(f'ssh_psql failed: {r.stderr.strip()[:300]}')
     return r.stdout
 
 
-def fetch_stale_leads(batch: int, max_age_days: int, host: str, user: str, psql_cmd: str) -> list:
-    # `leads` array contract (stored in sistema.eventos_sistema.detalles JSONB as 'leads'):
-    #   id, nombre_comercial, sector (=categoria), telefono, localidad,
-    #   match_status, rating_nuevo, reviews_nuevo
-    sql = (
-        "SELECT id, COALESCE(nombre_comercial,''), COALESCE(localidad,''), "
-        "       COALESCE(telefono,''), COALESCE(categoria,'') "
-        "FROM operaciones.leads "
-        "WHERE es_simulacion = false AND estado = 'pendiente' "
-        "  AND telefono IS NOT NULL AND telefono <> '' "
-        "  AND nombre_comercial IS NOT NULL AND nombre_comercial <> '' "
-        "  AND (reputacion_at IS NULL "
-        "       OR reputacion_at < NOW() - INTERVAL '%d days') "
-        "ORDER BY reputacion_at NULLS FIRST, scoring DESC NULLS LAST "
-        "LIMIT %d;" % (max_age_days, batch)
+def fetch_stale_leads(batch: int, host: str, user: str, psql_cmd: str) -> tuple:
+    """Returns (leads_list, bucket_counts) where bucket_counts = {bucket: count}.
+    Leads are ordered by bucket priority (A > B > C); Bucket D is excluded.
+    Each lead dict includes: id, nombre, localidad, telefono, categoria, bucket_max_age_days."""
+    import csv
+    import io
+
+    sql = f"""
+    WITH lead_activity AS (
+      SELECT
+        l.id,
+        l.estado,
+        l.reputacion_at,
+        EXISTS (SELECT 1 FROM operaciones.historial_llamadas hl
+                WHERE hl.lead_id = l.id AND hl.created_at > NOW() - INTERVAL '7 days')
+          AS recent_call,
+        EXISTS (SELECT 1 FROM operaciones.llamadas_programadas lp
+                WHERE lp.lead_id = l.id
+                  AND lp.fecha_programada BETWEEN NOW() AND NOW() + INTERVAL '7 days')
+          AS upcoming_7d,
+        EXISTS (SELECT 1 FROM operaciones.historial_llamadas hl
+                WHERE hl.lead_id = l.id AND hl.created_at > NOW() - INTERVAL '30 days')
+          AS call_30d,
+        EXISTS (SELECT 1 FROM operaciones.llamadas_programadas lp
+                WHERE lp.lead_id = l.id
+                  AND lp.fecha_programada BETWEEN NOW() AND NOW() + INTERVAL '30 days')
+          AS upcoming_30d
+      FROM operaciones.leads l
+      WHERE l.es_simulacion = false
+        AND l.estado = 'pendiente'
+    ),
+    classified AS (
+      SELECT
+        id, estado, reputacion_at,
+        CASE
+          WHEN estado IN ('lista_negra', 'vendido', 'no_interesa') THEN 'D'
+          WHEN recent_call OR upcoming_7d THEN 'A'
+          WHEN call_30d OR upcoming_30d THEN 'B'
+          ELSE 'C'
+        END AS bucket,
+        CASE
+          WHEN estado IN ('lista_negra', 'vendido', 'no_interesa') THEN NULL
+          WHEN recent_call OR upcoming_7d THEN {BUCKET_A_MAX_AGE_DAYS}
+          WHEN call_30d OR upcoming_30d THEN {BUCKET_B_MAX_AGE_DAYS}
+          ELSE {BUCKET_C_MAX_AGE_DAYS}
+        END AS bucket_max_age_days
+      FROM lead_activity
     )
-    raw = ssh_psql(sql, host, user, psql_cmd)
+    SELECT
+      l.id,
+      COALESCE(l.nombre_comercial, ''),
+      COALESCE(l.localidad, ''),
+      COALESCE(l.telefono, ''),
+      COALESCE(l.categoria, ''),
+      c.bucket,
+      c.bucket_max_age_days
+    FROM classified c
+    JOIN operaciones.leads l ON l.id = c.id
+    WHERE c.bucket != 'D'
+      AND l.telefono IS NOT NULL AND l.telefono <> ''
+      AND l.nombre_comercial IS NOT NULL AND l.nombre_comercial <> ''
+      AND (c.reputacion_at IS NULL
+           OR c.reputacion_at < NOW() - (c.bucket_max_age_days || ' days')::interval)
+    ORDER BY
+      c.bucket = 'A' DESC,
+      c.bucket = 'B' DESC,
+      c.bucket = 'C' DESC,
+      c.reputacion_at NULLS FIRST,
+      l.scoring DESC NULLS LAST
+    LIMIT {batch};
+    """
+    raw = ssh_psql(sql, host, user, psql_cmd, use_csv=True)
+
+    # Counters para el resumen de buckets (solo los que cumplen condicion de edad)
+    bucket_counts = {'A': 0, 'B': 0, 'C': 0, 'D': 0}
+
     leads = []
-    for line in raw.splitlines():
-        line = line.strip()
-        if not line:
+    reader = csv.reader(io.StringIO(raw.strip()))
+    header_skipped = False
+    for row in reader:
+        if len(row) < 7:
             continue
-        parts = line.split('|', 5)
-        if len(parts) >= 5:
-            leads.append({
-                'id': int(parts[0]),
-                'nombre': parts[1],
-                'localidad': parts[2],
-                'telefono': parts[3],
-                'categoria': parts[4],
-            })
-    return leads
+        if not header_skipped:
+            # First row is the CSV header (id,nombre,localidad,...)
+            header_skipped = True
+            continue
+        bucket = row[5]
+        bucket_counts[bucket] = bucket_counts.get(bucket, 0) + 1
+        leads.append({
+            'id': int(row[0]),
+            'nombre': row[1],
+            'localidad': row[2],
+            'telefono': row[3],
+            'categoria': row[4],
+            'bucket': bucket,
+            'bucket_max_age_days': int(row[6]) if row[6] else BUCKET_C_MAX_AGE_DAYS,
+        })
+    return leads, bucket_counts
 
 
 def handle_consent(page):
@@ -178,13 +268,13 @@ def update_lead(lead_id: int, rating, reviews: int, host: str, user: str, psql_c
     return ssh_psql(sql, host, user, psql_cmd)
 
 
-def log_evento_cron(stats: dict, batch_size: int, max_age: int,
+def log_evento_cron(stats: dict, batch_size: int,
                     dry_run: bool, host: str, user: str, psql_cmd: str,
-                    leads: list = None) -> str:
+                    leads: list = None, bucket_counts: dict = None) -> str:
     detalles = {
         'cron': 'alimentador_reputacion_pw',
         'batch_size': batch_size,
-        'max_age_days': max_age,
+        'bucket_counts': bucket_counts or {},
         'processed': stats.get('processed', 0),
         'updated': stats.get('updated', 0),
         'no_match': stats.get('no_match', 0),
@@ -204,12 +294,10 @@ def log_evento_cron(stats: dict, batch_size: int, max_age: int,
 
 
 def main():
-    p = argparse.ArgumentParser(description='Refresca reputacion via Playwright (Google Maps directo)')
+    p = argparse.ArgumentParser(description='Refresca reputacion via Playwright (Google Maps directo) — modo tiered')
     p.add_argument('--batch', type=int, default=20)
     p.add_argument('--vps', action='store_true',
                    help='Aplicar updates en el VPS (sin esto, dry-run).')
-    p.add_argument('--max-age', type=int, default=90,
-                   help='Solo leads con reputacion_at mas viejos que DAYS (default 90).')
     p.add_argument('--headless', action='store_true', default=True)
     p.add_argument('--headed', action='store_true', help='Show browser window (for debugging).')
     p.add_argument('--persist', action='store_true',
@@ -222,10 +310,15 @@ def main():
     headless = not args.headed
     dry_run = not args.vps
 
-    print(f'=== MODO: {"PRODUCCIÓN" if args.vps else "DRY-RUN"} (batch={args.batch}, max-age={args.max_age}d, headless={headless}, persist={args.persist}) ===')
-    print(f'Leyendo leads stale...')
-    leads = fetch_stale_leads(args.batch, args.max_age, args.ssh, args.ssh_user, args.psql_cmd)
-    print(f'Leads encontrados: {len(leads)}')
+    print(f'=== MODO: {"PRODUCCIÓN" if args.vps else "DRY-RUN"} (batch={args.batch}, headless={headless}, persist={args.persist}) ===')
+    print(f'Leyendo leads stale (bucket tiered)...')
+    leads, bucket_counts = fetch_stale_leads(args.batch, args.ssh, args.ssh_user, args.psql_cmd)
+    n_a = bucket_counts.get('A', 0)
+    n_b = bucket_counts.get('B', 0)
+    n_c = bucket_counts.get('C', 0)
+    n_d = bucket_counts.get('D', 0)
+    print(f'Buckets: A={n_a}, B={n_b}, C={n_c}, D={n_d} (skipped)')
+    print(f'Leads para procesar: {len(leads)}')
     if not leads:
         print('Sin leads para procesar')
         return
@@ -248,7 +341,8 @@ def main():
 
         try:
             for lead in leads:
-                print(f'-- Lead {lead["id"]}: "{lead["nombre"]}" (loc="{lead["localidad"]}")')
+                bucket_label = lead.get('bucket', '?')
+                print(f'-- Lead {lead["id"]} [B={bucket_label}]: "{lead["nombre"]}" (loc="{lead["localidad"]}")')
                 stats['processed'] += 1
                 t0 = time.time()
                 lead_result = {
@@ -257,6 +351,7 @@ def main():
                     'sector': lead['categoria'],
                     'telefono': lead['telefono'],
                     'localidad': lead['localidad'],
+                    'bucket': bucket_label,
                     'match_status': None,
                     'rating_nuevo': None,
                     'reviews_nuevo': None,
@@ -315,7 +410,7 @@ def main():
     for k, v in stats.items():
         print(f'  {k}: {v}')
     try:
-        log_evento_cron(stats, args.batch, args.max_age, dry_run, args.ssh, args.ssh_user, args.psql_cmd, resultados)
+        log_evento_cron(stats, args.batch, dry_run, args.ssh, args.ssh_user, args.psql_cmd, resultados, bucket_counts)
         print(f'  evento CRON_RUN registrado en sistema.eventos_sistema')
     except Exception as e:
         print(f'  WARN no pude registrar evento CRON_RUN: {e}')
