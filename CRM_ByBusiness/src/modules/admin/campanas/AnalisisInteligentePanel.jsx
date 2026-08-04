@@ -5,7 +5,6 @@ import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 import { n8nPost } from '../../../shared/hooks/useN8n';
-import { useAuth } from '../../../modules/auth/AuthContext';
 import { useRbac } from '../../../shared/auth/useRbac';
 import AccessDenied from '../../../shared/ui/AccessDenied';
 
@@ -19,14 +18,8 @@ const ITEMS_PER_PAGE = 10;
  * @param {Function} props.onAprobarPropuesta - Callback al aprobar una propuesta
  * @param {number} props.userId - ID del usuario actual
  */
-const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
-  const { user } = useAuth();
+const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId: _userId }) => {
   const { can } = useRbac();
-  // [RBAC 2026-08-03] leads.read.all: admin+supervisor ven análisis cross-equipo.
-  // Refs: action plan P1.
-  if (!can('leads.read.all')) {
-    return <AccessDenied permission="leads.read.all" />;
-  }
   const scope = useTrainingScope();
   const [propuestas, setPropuestas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +69,12 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
     }
   }, [incluirWeb, filtroTipo]);
 
+  // [RBAC 2026-08-03] leads.read.all: admin+supervisor ven análisis cross-equipo.
+  // Refs: action plan P1.
+  if (!can('leads.read.all')) {
+    return <AccessDenied permission="leads.read.all" />;
+  }
+
   // Generar clave única estable para cada propuesta
   const getPropuestaKey = (propuesta) => `${propuesta.tipo}-${propuesta.nombre}-${propuesta.target}`;
 
@@ -88,7 +87,7 @@ const AnalisisInteligentePanel = ({ onCerrar, onAprobarPropuesta, userId }) => {
         nombre: propuesta.nombre,
         descripcion: propuesta.descripcion,
         es_simulacion: scope.getFilterValue(),
-        user_id: userId || 1,
+        user_id: _userId || 1,
         filtros: propuesta.filtros
       });
 

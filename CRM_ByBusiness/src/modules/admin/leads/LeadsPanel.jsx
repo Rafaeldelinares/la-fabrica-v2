@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Card from '../../../shared/ui/Card';
 import Badge from '../../../shared/ui/Badge';
@@ -9,7 +9,6 @@ import AsignameUnLead from './AsignameUnLead';
 import GeneradorCampanasPanel from '../campanas/GeneradorCampanasPanel';
 import CampanasAnalisisPanel from '../campanas/CampanasAnalisisPanel';
 import AnalisisInteligentePanel from '../campanas/AnalisisInteligentePanel';
-import { useAuth } from '../../auth/AuthContext';
 import useTrainingScope from '../../../shared/hooks/useTrainingScope';
 import { n8nGet } from '../../../shared/hooks/useN8n';
 import { useRbac } from '../../../shared/auth/useRbac';
@@ -19,12 +18,8 @@ const PAGE_SIZE = 15;
 
 /** Panel de gestion de leads: tabla filtrable, paginada, con acciones inline. */
 const LeadsPanel = () => {
-    const { user } = useAuth();
     const scope = useTrainingScope();
     const rbac = useRbac();
-    if (!rbac.can('leads.write')) {
-      return <AccessDenied permission="leads.write" />;
-    }
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroPrioridad, setFiltroPrioridad] = useState('');
     const [filtroCampana, setFiltroCampana]     = useState('');
@@ -48,6 +43,10 @@ const LeadsPanel = () => {
         queryFn: () => n8nGet('crm-operadores-activos'),
         staleTime: 60_000,
     });
+
+    if (!rbac.can('leads.write')) {
+      return <AccessDenied permission="leads.write" />;
+    }
 
     const leads = leadsData?.leads ?? null;
     const total = leadsData?.total ?? 0;

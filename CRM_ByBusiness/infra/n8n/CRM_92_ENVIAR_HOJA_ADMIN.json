@@ -1,0 +1,271 @@
+{
+  "name": "CRM_92_ENVIAR_HOJA_ADMIN",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-enviar-hoja-admin",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [250, 300],
+      "webhookId": "crm-enviar-hoja-admin"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst hojaId = parseInt(body.hoja_id, 10);\nreturn [{ json: { query: `SELECT * FROM crm_bybusiness.hojas_venta WHERE id = ${hojaId}`, hoja_id: hojaId, admin_id: parseInt(body.admin_id, 10) } }];"
+      },
+      "name": "Build SELECT Hoja",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}",
+        "options": {}
+      },
+      "name": "Cargar Hoja Venta",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [690, 300],
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const hoja = $('Cargar Hoja Venta').first().json;\nconst adminId = $('Build SELECT Hoja').first().json.admin_id;\nreturn [{ json: { query: `SELECT id, email, nombre FROM auth.usuarios WHERE id = ${adminId}`, _hoja: hoja, _admin_id: adminId } }];"
+      },
+      "name": "Build SELECT Admin",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}",
+        "options": {}
+      },
+      "name": "Cargar Admin",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1130, 300],
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const hojaId = $('Build SELECT Hoja').first().json.hoja_id;\nconst adminId = $('Build SELECT Hoja').first().json.admin_id;\nreturn [{ json: { query: `UPDATE crm_bybusiness.hojas_venta SET estado = 'enviada', admin_destino_id = ${adminId}, updated_at = NOW() WHERE id = ${hojaId}`, _hoja: $('Build SELECT Admin').first().json._hoja, _admin: $input.first().json } }];"
+      },
+      "name": "Build UPDATE",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}",
+        "options": {}
+      },
+      "name": "Marcar Como Enviada",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [1570, 300],
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Build UPDATE').first().json;\nconst hoja = ctx._hoja;\nconst adminId = $('Build SELECT Hoja').first().json.admin_id;\nconst hojaId = $('Build SELECT Hoja').first().json.hoja_id;\nconst esc = (v) => v == null ? '' : String(v);\nconst mensaje = `Nueva hoja de venta pendiente: ${esc(hoja.nombre_comercial)} - ${esc(hoja.precio_con_iva)} EUR`;\nreturn [{ json: { query: `INSERT INTO crm_bybusiness.notificaciones_admin (tipo, referencia_id, admin_id, mensaje, leida) VALUES ('hoja_venta_pendiente', ${hojaId}, ${adminId}, '${mensaje.replace(/'/g, \"''\")}', false)`, _hoja: hoja, _admin: ctx._admin } }];"
+      },
+      "name": "Build INSERT Notif",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}",
+        "options": {}
+      },
+      "name": "Crear Notificacion",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [2010, 300],
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "informacion@ia-bybusiness.com",
+        "toEmail": "={{ $('Build INSERT Notif').first().json._admin.email }}",
+        "subject": "=[HOJA VENTA] {{ $('Build INSERT Notif').first().json._hoja.nombre_comercial }} - {{ $('Build INSERT Notif').first().json._hoja.precio_con_iva }} EUR",
+        "text": "=NUEVA HOJA DE VENTA PENDIENTE\\n========================================\\n\\nNombre comercial: {{ $('Build INSERT Notif').first().json._hoja.nombre_comercial }}\\nEmpresa: {{ $('Build INSERT Notif').first().json._hoja.nombre_empresa }}\\nContacto: {{ $('Build INSERT Notif').first().json._hoja.nombre_contacto }}\\nFecha: {{ $('Build INSERT Notif').first().json._hoja.fecha }}\\n\\n--- Datos fiscales ---\\nFacturaci\u00f3n: {{ $('Build INSERT Notif').first().json._hoja.nombre_facturacion }}\\nDNI/CIF: {{ $('Build INSERT Notif').first().json._hoja.dni_cif }}\\nDirecci\u00f3n: {{ $('Build INSERT Notif').first().json._hoja.direccion }}\\nCiudad: {{ $('Build INSERT Notif').first().json._hoja.ciudad }}\\nProvincia: {{ $('Build INSERT Notif').first().json._hoja.provincia }}\\nCP: {{ $('Build INSERT Notif').first().json._hoja.codigo_postal }}\\n\\n--- Contacto ---\\nTel\u00e9fono: {{ $('Build INSERT Notif').first().json._hoja.telefono }}\\nEmail: {{ $('Build INSERT Notif').first().json._hoja.email }}\\nWeb: {{ $('Build INSERT Notif').first().json._hoja.pagina_web }}\\n\\n--- Datos econ\u00f3micos ---\\nPrecio sin IVA: {{ $('Build INSERT Notif').first().json._hoja.precio_sin_iva }} EUR\\nPrecio con IVA: {{ $('Build INSERT Notif').first().json._hoja.precio_con_iva }} EUR\\n\\n--- Notas ---\\n{{ $('Build INSERT Notif').first().json._hoja.notas }}\\n\\n========================================\\nRevisa esta hoja en el CRM y contacta al cliente para cierre e integraci\u00f3n."
+      },
+      "name": "Email a Admin",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [2230, 300],
+      "credentials": {
+        "smtp": {
+          "id": "yd4SKJPHUHlmmzHF",
+          "name": "SMTP informacion@ia-bybusiness.com"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { ok: true } }];"
+      },
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build SELECT Hoja",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SELECT Hoja": {
+      "main": [
+        [
+          {
+            "node": "Cargar Hoja Venta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar Hoja Venta": {
+      "main": [
+        [
+          {
+            "node": "Build SELECT Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build SELECT Admin": {
+      "main": [
+        [
+          {
+            "node": "Cargar Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar Admin": {
+      "main": [
+        [
+          {
+            "node": "Build UPDATE",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build UPDATE": {
+      "main": [
+        [
+          {
+            "node": "Marcar Como Enviada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Como Enviada": {
+      "main": [
+        [
+          {
+            "node": "Build INSERT Notif",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build INSERT Notif": {
+      "main": [
+        [
+          {
+            "node": "Crear Notificacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Notificacion": {
+      "main": [
+        [
+          {
+            "node": "Email a Admin",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email a Admin": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

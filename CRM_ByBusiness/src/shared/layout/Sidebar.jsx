@@ -21,60 +21,59 @@ import { can } from '../auth/rbac';
  * @param {string}   props.activeTab - Tab actualmente seleccionado
  * @param {Function} props.setActiveTab - Handler para cambiar de tab
  */
+const CATEGORIES = [
+  {
+    id: 'MAIN',
+    name: 'General',
+    items: [
+      { name: 'Dashboard', icon: <LayoutDashboard size={18} />, id: 'DASHBOARD_EXE', requires: null },
+      { name: 'Agenda',    icon: <Calendar size={18} />,        id: 'AGENDA_GLOB',    requires: 'agenda.read.all' },
+    ]
+  },
+  {
+    id: 'NEGOCIO',
+    name: 'Negocio / Cartera',
+    items: [
+      { name: 'Clientes',         icon: <Briefcase size={18} />,       id: 'CARTERA',         requires: 'clientes.read.all' },
+      { name: 'Campañas',         icon: <Target size={18} />,          id: 'CAMPAÑAS',        requires: 'leads.read.all' },
+      { name: 'Gestión Leads',    icon: <Database size={18} />,        id: 'LEADS_MGMT',      requires: 'leads.read.all' },
+      { name: 'Leads Landing',    icon: <Database size={18} />,        id: 'LEADS_LANDING',   requires: 'leads.read.all' },
+      { name: 'Ventas',           icon: <TrendingUp size={18} />,      id: 'VENTAS',          requires: 'ventas.read.all' },
+      { name: 'Google Business',  icon: <MapPin size={18} />,          id: 'GBP_MGMT',        requires: 'leads.read.all' },
+    ]
+  },
+  {
+    id: 'FINANZAS',
+    name: 'Finanzas',
+    items: [
+      { name: 'Facturación',      icon: <Receipt size={18} />,         id: 'FACTURACION',     requires: 'clientes.read.all' },
+      { name: 'Gestoría',         icon: <Building2 size={18} />,       id: 'GESTORIA',        requires: 'clientes.read.all' },
+    ]
+  },
+  {
+    id: 'SISTEMA',
+    name: 'Sistema / Equipo',
+    items: [
+      { name: 'Candidatos RRHH',  icon: <UserCheck size={18} />,       id: 'CANDIDATOS',      requires: 'admin.users.manage' },
+      { name: 'Usuarios',         icon: <Users size={18} />,           id: 'USUARIOS',        requires: 'admin.users.manage' },
+      { name: 'Entrenamiento',    icon: <GraduationCap size={18} />,   id: 'ENTRENAMIENTO',   requires: 'admin.users.manage' },
+      { name: 'Auditoría',        icon: <ShieldCheck size={18} />,     id: 'AUDITORIA',       requires: 'reportes.read' },
+      { name: 'Monitor Scrapers', icon: <Activity size={18} />,        id: 'MONITOR',         requires: 'admin.system.config' },
+      { name: 'Respaldos',        icon: <Database size={18} />,        id: 'BACKUP',          requires: 'admin.system.config' },
+      { name: 'Auditoría Nueva',  icon: <ShieldCheck size={18} />,     id: 'AUDIT_NEW',       requires: 'reportes.read' },
+      { name: 'Configuración Scrapers', icon: <Settings size={18} />,   id: 'SCRAPER_CONFIG',   requires: 'admin.system.config' },
+    ]
+  }
+];
+
+const OPERATOR_MENU = [
+  { name: 'Mi Próxima Llamada', icon: <PhoneCall size={20} />, id: 'NEXT_CALL' },
+];
+
 const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
   const { user } = useAuth();
 
   const [expanded, setExpanded] = useState('NEGOCIO');
-
-  // Items declarativos con permiso requerido. Filtrados por RBAC al render.
-  const categories = [
-    {
-      id: 'MAIN',
-      name: 'General',
-      items: [
-        { name: 'Dashboard', icon: <LayoutDashboard size={18} />, id: 'DASHBOARD_EXE', requires: null },
-        { name: 'Agenda',    icon: <Calendar size={18} />,        id: 'AGENDA_GLOB',    requires: 'agenda.read.all' },
-      ]
-    },
-    {
-      id: 'NEGOCIO',
-      name: 'Negocio / Cartera',
-      items: [
-        { name: 'Clientes',         icon: <Briefcase size={18} />,       id: 'CARTERA',         requires: 'clientes.read.all' },
-        { name: 'Campañas',         icon: <Target size={18} />,          id: 'CAMPAÑAS',        requires: 'leads.read.all' },
-        { name: 'Gestión Leads',    icon: <Database size={18} />,        id: 'LEADS_MGMT',      requires: 'leads.read.all' },
-        { name: 'Leads Landing',    icon: <Database size={18} />,        id: 'LEADS_LANDING',   requires: 'leads.read.all' },
-        { name: 'Ventas',           icon: <TrendingUp size={18} />,      id: 'VENTAS',          requires: 'ventas.read.all' },
-        { name: 'Google Business',  icon: <MapPin size={18} />,          id: 'GBP_MGMT',        requires: 'leads.read.all' },
-      ]
-    },
-    {
-      id: 'FINANZAS',
-      name: 'Finanzas',
-      items: [
-        { name: 'Facturación',      icon: <Receipt size={18} />,         id: 'FACTURACION',     requires: 'clientes.read.all' },
-        { name: 'Gestoría',         icon: <Building2 size={18} />,       id: 'GESTORIA',        requires: 'clientes.read.all' },
-      ]
-    },
-    {
-      id: 'SISTEMA',
-      name: 'Sistema / Equipo',
-      items: [
-        { name: 'Candidatos RRHH',  icon: <UserCheck size={18} />,       id: 'CANDIDATOS',      requires: 'admin.users.manage' },
-        { name: 'Usuarios',         icon: <Users size={18} />,           id: 'USUARIOS',        requires: 'admin.users.manage' },
-        { name: 'Entrenamiento',    icon: <GraduationCap size={18} />,   id: 'ENTRENAMIENTO',   requires: 'admin.users.manage' },
-        { name: 'Auditoría',        icon: <ShieldCheck size={18} />,     id: 'AUDITORIA',       requires: 'reportes.read' },
-        { name: 'Monitor Scrapers',   icon: <Activity size={18} />,       id: 'MONITOR',         requires: 'admin.system.config' },
-        { name: 'Respaldos',         icon: <Database size={18} />,        id: 'BACKUP',          requires: 'admin.system.config' },
-        { name: 'Auditoría Nueva',   icon: <ShieldCheck size={18} />,     id: 'AUDIT_NEW',       requires: 'reportes.read' },
-        { name: 'Configuración Scrapers', icon: <Settings size={18} />,   id: 'SCRAPER_CONFIG',   requires: 'admin.system.config' },
-      ]
-    }
-  ];
-
-  const operatorMenu = [
-    { name: 'Mi Próxima Llamada', icon: <PhoneCall size={20} />, id: 'NEXT_CALL' },
-  ];
 
   const toggle = (id) => setExpanded(expanded === id ? null : id);
 
@@ -100,7 +99,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
 
   // Filtrar items por permiso. Items con `requires: null` siempre se muestran.
   const visibleCategories = useMemo(() => {
-    return categories.map(cat => ({
+    return CATEGORIES.map(cat => ({
       ...cat,
       items: cat.items.filter(item => !item.requires || can(user, item.requires))
     })).filter(cat => cat.items.length > 0);
@@ -122,7 +121,7 @@ const Sidebar = ({ isOpen, onClose, activeTab, setActiveTab }) => {
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto custom-scrollbar">
           {isOperador ? (
-            operatorMenu.map(renderItem)
+            OPERATOR_MENU.map(renderItem)
           ) : (
             visibleCategories.map(cat => (
               <div key={cat.id} className="mb-2">

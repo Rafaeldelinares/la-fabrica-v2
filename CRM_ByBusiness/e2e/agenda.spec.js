@@ -147,7 +147,7 @@ test.describe('Agenda Global Panel', () => {
     const hoy = new Date();
     const monthNames = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
                         'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-    const expectedMonth = monthNames[hoy.getMonth()];
+    const _expectedMonth = monthNames[hoy.getMonth()];
 
     // Just verify no error occurred and toolbar is still visible
     await expect(page.locator('button:has-text("MES")')).toBeVisible();

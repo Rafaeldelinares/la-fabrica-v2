@@ -166,7 +166,7 @@ test.describe('S13: lead-freshness-config (FreshnessConfigCard)', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // Test 7: FreshnessConfigCard component file exists and exports default
 
-  test('FreshnessConfigCard file exists and exports default', async ({ page }) => {
+  test('FreshnessConfigCard file exists and exports default', async ({ page: _page }) => {
     const fs = require('fs');
     const path = require('path');
     const componentPath = path.join(process.cwd(), 'src/modules/admin/agenda/FreshnessConfigCard.jsx');
@@ -186,7 +186,7 @@ test.describe('S13: lead-freshness-config (FreshnessConfigCard)', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // Test 8: AgendaGlobalPanel imports and renders FreshnessConfigCard
 
-  test('AgendaGlobalPanel wires FreshnessConfigCard in sidebar', async ({ page }) => {
+  test('AgendaGlobalPanel wires FreshnessConfigCard in sidebar', async ({ page: _page }) => {
     const fs = require('fs');
     const path = require('path');
     const panelPath = path.join(process.cwd(), 'src/modules/admin/agenda/AgendaGlobalPanel.jsx');

@@ -78,7 +78,7 @@ test.describe('RBAC Permissions', () => {
     // Operador should NOT see Auditoria in sidebar
     // The sidebar for operador shows only Mi Próxima Llamada (NEXT_CALL)
     // So we verify that a full category navigation is not present
-    const sidebar = page.locator('nav').first();
+    const _sidebar = page.locator('nav').first();
 
     // Should see operador-specific menu
     const miProximaLlamada = page.locator('text=Mi Próxima Llamada');

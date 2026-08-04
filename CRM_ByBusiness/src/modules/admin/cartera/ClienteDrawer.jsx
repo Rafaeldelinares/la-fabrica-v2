@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import PropTypes from 'prop-types';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { X, Plus } from 'lucide-react';
 import RegistrarInteraccionModal from './RegistrarInteraccionModal';
 import TabFicha     from './tabs/TabFicha';
@@ -42,11 +42,6 @@ const KPI_CONFIG = [
  */
 const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteBaja }) => {
   const rbac = useRbac();
-  if (!rbac.can('leads.read')) {
-    return <AccessDenied permission="leads.read" />;
-  }
-  const readOnly = !rbac.can('leads.write');
-  const queryClient = useQueryClient();
   const [activeTab,        setActiveTab]        = useState('ficha');
   const [showModal,        setShowModal]        = useState(false);
   const [interaccionEditar, setInteraccionEditar] = useState(null);
@@ -71,6 +66,10 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
       // Error handling - could set a local error state here
     },
   });
+
+  if (!rbac.can('leads.read')) {
+    return <AccessDenied permission="leads.read" />;
+  }
 
   const handleSaved = () => {
     setShowModal(false);

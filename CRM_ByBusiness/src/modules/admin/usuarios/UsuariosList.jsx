@@ -310,10 +310,6 @@ ReactivarModal.propTypes = {
 const UsuariosList = () => {
   const { user } = useAuth();
   const { can } = useRbac();
-  if (!can('usuarios.write')) {
-    return <AccessDenied permission="usuarios.write" />;
-  }
-  const readOnly = !can('usuarios.write');
   const [usuarios, setUsuarios] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
@@ -341,6 +337,11 @@ const UsuariosList = () => {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  // Permission guard — after all hooks so rules-of-hooks is satisfied
+  if (!can('usuarios.write')) {
+    return <AccessDenied permission="usuarios.write" />;
+  }
 
   const mostrarInfo = (msg) => {
     setError(msg);

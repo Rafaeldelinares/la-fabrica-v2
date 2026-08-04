@@ -80,7 +80,7 @@ test.describe('S14: scraper-config-panel (ScraperConfigPanel)', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // Test 2: ScraperConfigPanel component file exists and exports default
 
-  test('ScraperConfigPanel file exists and exports default', async ({ page }) => {
+  test('ScraperConfigPanel file exists and exports default', async ({ page: _page }) => {
     const fs = require('fs');
     const path = require('path');
     const componentPath = path.join(process.cwd(), 'src/modules/admin/scraper/ScraperConfigPanel.jsx');
@@ -152,7 +152,7 @@ test.describe('S14: scraper-config-panel (ScraperConfigPanel)', () => {
   // ──────────────────────────────────────────────────────────────────────────
   // Test 6: WorkBody wires both S11 and S14 scraper panels
 
-  test('WorkBody wires ScraperStatusPanel and ScraperConfigPanel in MONITOR tab', async ({ page }) => {
+  test('WorkBody wires ScraperStatusPanel and ScraperConfigPanel in MONITOR tab', async ({ page: _page }) => {
     const fs = require('fs');
     const path = require('path');
     const workBodyPath = path.join(process.cwd(), 'src/shared/layout/WorkBody.jsx');

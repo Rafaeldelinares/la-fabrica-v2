@@ -127,7 +127,7 @@ test.describe('F02: watchdog-skip-coverage (CRM_WATCHDOG_CALLBACKS_V2 skip logic
   // ──────────────────────────────────────────────────────────────────────────
   // Test 3: Verify DB function skip-logic documentation file exists
 
-  test('watchdog verification doc exists with correct findings', async ({ page }) => {
+  test('watchdog verification doc exists with correct findings', async ({ page: _page }) => {
     const fs = require('fs');
     const path = require('path');
     const docPath = path.join(process.cwd(), '.workflows/f02-watchdog-verification.md');

@@ -6,8 +6,8 @@
  * los retorna correctamente. El test de "fuera del provider" se omite
  * porque AuthContext no se exporta (solo useAuth, que ya lo cubre).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AuthProvider, useAuth } from './AuthContext';
 

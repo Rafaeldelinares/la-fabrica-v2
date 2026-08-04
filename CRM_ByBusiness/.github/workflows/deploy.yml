@@ -1,0 +1,45 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: []
+    environment:
+      name: production
+      url: https://crm.ia-bybusiness.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: CRM_ByBusiness/package-lock.json
+
+      - name: Install dependencies
+        working-directory: CRM_ByBusiness
+        run: npm ci
+
+      - name: Build
+        working-directory: CRM_ByBusiness
+        run: npm run build
+
+      - name: Deploy to VPS
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$VPS_SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          rsync -az --delete CRM_ByBusiness/dist/ "root@$VPS_HOST:/var/www/crm.ia-bybusiness.com/"
+          echo "Deploy complete"

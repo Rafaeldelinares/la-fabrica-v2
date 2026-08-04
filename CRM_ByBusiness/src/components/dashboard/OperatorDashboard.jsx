@@ -11,7 +11,6 @@ import CampanasPanel from '../../modules/admin/campanas/CampanasPanel';
 import MisKpiStrip from './MisKpiStrip';
 import MisCallbacksPanel from './MisCallbacksPanel';
 import { n8nGet, n8nPost } from '../../shared/hooks/useN8n';
-import { useRbac } from '../../shared/auth/useRbac';
 
 // Función no-op estable para modo training (evita recreación en cada render)
 const noop = () => {};
@@ -34,7 +33,6 @@ const OperatorDashboard = ({
 }) => {
   const { user } = useAuth();
   const isTraining = user?.role === 'en_practicas';
-  const rbac = useRbac();
 
   const [localidad, setLocalidad] = useState('');
   const [tipoNegocio, setTipoNegocio] = useState('Todos');
@@ -206,7 +204,7 @@ const OperatorDashboard = ({
         refreshData();
       })
       .catch(() => setErrorRed('Error de red al registrar resultado. Inténtalo de nuevo.'));
-  }, [isTraining, lead, user?.id, sesionId, startTime, notas, refreshData]);
+  }, [isTraining, lead, user?.id, sesionId, startTime, notas, refreshData, llamadaId]);
 
   const handleEnviarInfo = useCallback((emailDestino, tipoInfo, nota) => {
     if (!emailDestino || !tipoInfo) {
@@ -237,7 +235,7 @@ const OperatorDashboard = ({
         }
       })
       .catch(err => setErrorRed('Error de red: ' + err.message));
-  }, [lead, user?.id, startTime, refreshData]);
+  }, [isTraining, lead, user?.id, startTime, refreshData, llamadaId]);
 
   const handleTomarCallback = useCallback(async (callback) => {
     try {

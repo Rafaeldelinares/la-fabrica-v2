@@ -1,0 +1,98 @@
+{
+  "name": "CRM_91_CREAR_HOJA_VENTA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-crear-hoja-venta",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [250, 300],
+      "webhookId": "crm-crear-hoja-venta"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || $input.first().json;\nconst esc = (v) => v == null ? null : String(v).replace(/'/g, \"''\");\nconst num = (v) => v == null || v === '' ? 0 : Number(v);\nconst fields = [\n  'lead_id', 'operador_id', 'nombre_comercial', 'nombre_contacto', 'fecha',\n  'nombre_facturacion', 'nombre_empresa', 'dni_cif', 'direccion', 'ciudad',\n  'provincia', 'codigo_postal', 'telefono', 'email', 'pagina_web', 'categorias',\n  'precio_sin_iva', 'precio_con_iva', 'notas'\n];\nconst numericFields = ['lead_id', 'operador_id', 'precio_sin_iva', 'precio_con_iva'];\nconst cols = fields.join(', ');\nconst vals = fields.map(f => {\n  if (numericFields.includes(f)) return num(body[f]);\n  const v = esc(body[f]);\n  return v == null ? 'NULL' : `'${v}'`;\n}).join(', ');\nconst query = `INSERT INTO crm_bybusiness.hojas_venta (${cols}) VALUES (${vals}) RETURNING id`;\nreturn [{ json: { query, hoja_id_expected: true } }];"
+      },
+      "name": "Build INSERT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.query }}",
+        "options": {}
+      },
+      "name": "Insertar Hoja Venta",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [690, 300],
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst hojaId = result.id || (Array.isArray(result) && result[0]?.id);\nreturn [{ json: { ok: true, hoja_id: hojaId } }];"
+      },
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build INSERT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build INSERT": {
+      "main": [
+        [
+          {
+            "node": "Insertar Hoja Venta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insertar Hoja Venta": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

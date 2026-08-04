@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useN8nQuery, useN8nMutation } from '../../../shared/hooks/useN8n';
 import { hasPendingChanges, buildConfigUpdates } from './scraperConfigHelpers';
 
@@ -36,16 +36,16 @@ const useScraperConfig = () => {
   const isSaving = mutation.isPending;
   const currentDepth = data?.depth ?? null;
   const currentFrequency = data?.frequency ?? data?.frequency_minutes ?? null;
-  const currentLocalities = data?.localities ?? [];
-  const currentExcluded = data?.excluded_categories ?? [];
+  const currentLocalities = useMemo(() => data?.localities ?? [], [data]);
+  const currentExcluded = useMemo(() => data?.excluded_categories ?? [], [data]);
 
   const displayDepth = localDepth !== null ? localDepth : currentDepth;
   const displayFrequency = localFrequency !== null ? localFrequency : currentFrequency;
   const displayLocalities = localLocalities !== null ? localLocalities : currentLocalities;
   const displayExcluded = localExcluded !== null ? localExcluded : currentExcluded;
 
-  const localState = { depth: localDepth, frequency: localFrequency, localities: localLocalities, excluded: localExcluded };
-  const currentState = { depth: currentDepth, frequency: currentFrequency, localities: currentLocalities, excluded: currentExcluded };
+  const localState = useMemo(() => ({ depth: localDepth, frequency: localFrequency, localities: localLocalities, excluded: localExcluded }), [localDepth, localFrequency, localLocalities, localExcluded]);
+  const currentState = useMemo(() => ({ depth: currentDepth, frequency: currentFrequency, localities: currentLocalities, excluded: currentExcluded }), [currentDepth, currentFrequency, currentLocalities, currentExcluded]);
   const hasChanges = hasPendingChanges(localState, currentState);
 
   const clearNotification = useCallback(() => {
@@ -75,7 +75,7 @@ const useScraperConfig = () => {
     });
     setConfirmOpen(false);
     setPendingValues(null);
-  }, [localDepth, localFrequency, localLocalities, localExcluded, mutation, clearNotification, refetch, currentDepth, currentFrequency, currentLocalities, currentExcluded]);
+  }, [localState, currentState, mutation, clearNotification, refetch]);
 
   const openConfirm = useCallback(() => {
     setPendingValues({ depth: localDepth, frequency: localFrequency, localities: localLocalities, excluded: localExcluded });

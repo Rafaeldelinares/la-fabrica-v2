@@ -22,11 +22,6 @@ const fechaHace = (dias) => {
  */
 const VentasPanel = () => {
     const { can } = useRbac();
-    // [RBAC 2026-08-03] ventas.read.all: admin+supervisor ven ventas cross-equipo.
-    // Refs: action plan P1.
-    if (!can('ventas.read.all')) {
-        return <AccessDenied permission="ventas.read.all" />;
-    }
     const [filtroEstado, setFiltroEstado]       = useState('');
     const [filtroOperador, setFiltroOperador]   = useState('');
     const [fechaDesde, setFechaDesde]           = useState(fechaHace(30));
@@ -53,6 +48,12 @@ const VentasPanel = () => {
         },
         staleTime: 30_000,
     });
+
+    // [RBAC 2026-08-03] ventas.read.all: admin+supervisor ven ventas cross-equipo.
+    // Refs: action plan P1. Defer return to after all hooks.
+    if (!can('ventas.read.all')) {
+        return <AccessDenied permission="ventas.read.all" />;
+    }
 
     const ventas = ventasData?.ok ? (ventasData.ventas ?? []) : [];
     const total = ventasData?.total ?? 0;

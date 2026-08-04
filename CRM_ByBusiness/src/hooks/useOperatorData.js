@@ -1,6 +1,6 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { n8nGet, n8nPost } from '../shared/hooks/useN8n'
+import { n8nPost } from '../shared/hooks/useN8n'
 import { useN8nQuery, useN8nMutation } from '../shared/hooks/useN8n'
 
 /**
@@ -26,13 +26,13 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   const queryClient = useQueryClient()
 
   // ─── Query keys ────────────────────────────────────────────────────────────
-  const keys = {
+  const keys = useMemo(() => ({
     programadas: ['operator-callbacks', userId, esSimulacion],
     llamadaActiva: ['operator-llamada-activa', userId, esSimulacion],
     stats: ['operator-stats', userId, esSimulacion],
     campanas: ['operator-campanas', esSimulacion],
     historial: ['operator-historial', userId, leadId, esSimulacion],
-  }
+  }), [userId, esSimulacion, leadId])
 
   // ─── Query 1: callbacks programadas ───────────────────────────────────────
   const {
@@ -139,11 +139,8 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
               : null
 
   // ─── Compatibilidad: trainingLeads / sesionId ──────────────────────────────
-  const [trainingLeads, setTrainingLeads] = [ [], () => {} ]
-  const [sesionId, setSesionId] = [
-    String(Date.now()),
-    () => {},
-  ]
+  const [trainingLeads, setTrainingLeads] = useState([])
+  const [sesionId, setSesionId] = useState(() => String(Date.now()))
 
   // ─── Mutation: registrar resultado ─────────────────────────────────────────
   const mutation = useN8nMutation('crm-registrar-resultado')
@@ -159,7 +156,7 @@ const useOperatorData = (userId, isTraining, leadId = null) => {
   )
 
   // ─── Refresh helpers ───────────────────────────────────────────────────────
-  const refetchProgramadas = useCallback(() => {
+  const refreshProgramadas = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: keys.programadas })
   }, [queryClient, keys.programadas])
 
