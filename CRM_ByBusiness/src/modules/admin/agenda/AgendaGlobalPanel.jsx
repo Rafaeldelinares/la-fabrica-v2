@@ -15,6 +15,7 @@ import { fmtFechaHora } from '../../../utils/dates';
 import ClienteDrawer from '../cartera/ClienteDrawer';
 import SlotPicker from './SlotPicker';
 import FreshnessConfigCard from './FreshnessConfigCard';
+import CronSistemaDetalle from './CronSistemaDetalle';
 import { useQuery } from '@tanstack/react-query';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 
@@ -242,64 +243,77 @@ const EventoDetalle = ({ evento, onClose, onAbrirCliente }) => {
     pct_fresco:    '% Fresco',
     alert_fired:   'Alerta activa',
   };
+  const isCronSistema = evento.tipo_evento === 'cron_sistema';
+  const leadsData = isCronSistema && detallesJson?.leads ? detallesJson.leads : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-slate-900 border border-slate-700 rounded-sm p-6 w-[28rem] max-w-[95vw] shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-4">
-          <span className={`text-[10px] font-black uppercase tracking-widest ${tipoConfig.textClass}`}>{tipoConfig.label}</span>
-          <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={16} /></button>
+      <div className="bg-slate-900 border border-slate-700 rounded-sm w-[28rem] max-w-[95vw] max-h-[80vh] overflow-hidden flex flex-col shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="p-6 shrink-0 border-b border-slate-800">
+          <div className="flex items-center justify-between mb-4">
+            <span className={`text-[10px] font-black uppercase tracking-widest ${tipoConfig.textClass}`}>{tipoConfig.label}</span>
+            <button onClick={onClose} className="text-slate-500 hover:text-white"><X size={16} /></button>
+          </div>
+
+          {tieneCliente ? (
+            <button
+              onClick={() => { onAbrirCliente(evento.cliente_id); onClose(); }}
+              className="group flex items-center gap-1.5 mb-3 text-left w-full"
+            >
+              <span className="text-base font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">
+                {evento.titulo}
+              </span>
+              <ExternalLink size={12} className="text-slate-600 group-hover:text-blue-400 transition-colors shrink-0 mt-px" />
+            </button>
+          ) : (
+            <p className="text-base font-bold text-white mb-3">{evento.titulo}</p>
+          )}
+
+          <div className="text-[10px] text-slate-500 font-mono space-y-1 mb-3">
+            <div>{format(evento.start, "dd/MM/yyyy · HH:mm")}</div>
+            {evento.responsable     && <div>Gestor: {evento.responsable}</div>}
+            {evento.operador_nombre && <div>Operador: {evento.operador_nombre}</div>}
+            {evento.google_cid      && <div className="text-slate-700">GID: {evento.google_cid}</div>}
+          </div>
         </div>
 
-        {tieneCliente ? (
-          <button
-            onClick={() => { onAbrirCliente(evento.cliente_id); onClose(); }}
-            className="group flex items-center gap-1.5 mb-3 text-left w-full"
-          >
-            <span className="text-base font-bold text-white group-hover:text-blue-400 transition-colors leading-tight">
-              {evento.titulo}
-            </span>
-            <ExternalLink size={12} className="text-slate-600 group-hover:text-blue-400 transition-colors shrink-0 mt-px" />
-          </button>
-        ) : (
-          <p className="text-base font-bold text-white mb-3">{evento.titulo}</p>
-        )}
-
-        <div className="text-[10px] text-slate-500 font-mono space-y-1 mb-3">
-          <div>{format(evento.start, "dd/MM/yyyy · HH:mm")}</div>
-          {evento.responsable     && <div>Gestor: {evento.responsable}</div>}
-          {evento.operador_nombre && <div>Operador: {evento.operador_nombre}</div>}
-          {evento.google_cid      && <div className="text-slate-700">GID: {evento.google_cid}</div>}
-        </div>
-
-        {detallesJson && (
-          <div className="border-t border-slate-800 pt-3 mt-1">
-            <p className="text-[9px] text-slate-600 uppercase tracking-widest font-black mb-2">Detalles</p>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
-              {Object.entries(detallesJson).map(([key, value]) => (
-                <div key={key} className="contents">
-                  <dt className="text-slate-500 font-mono">{LABELS_DETALLE[key] || key}</dt>
-                  <dd className="text-slate-200 font-mono text-right">
-                    {typeof value === 'boolean' ? (value ? 'sí' : 'no') : String(value)}
-                  </dd>
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-4">
+          {detallesJson && (
+            <div>
+              {!leadsData && (
+                <div className="border-t border-slate-800 pt-3 mt-1">
+                  <p className="text-[9px] text-slate-600 uppercase tracking-widest font-black mb-2">Detalles</p>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                    {Object.entries(detallesJson).map(([key, value]) => (
+                      <div key={key} className="contents">
+                        <dt className="text-slate-500 font-mono">{LABELS_DETALLE[key] || key}</dt>
+                        <dd className="text-slate-200 font-mono text-right">
+                          {typeof value === 'boolean' ? (value ? 'sí' : 'no') : String(value)}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
                 </div>
-              ))}
-            </dl>
-          </div>
-        )}
+              )}
+              {leadsData && <CronSistemaDetalle leads={leadsData} />}
+            </div>
+          )}
 
-        {!detallesJson && evento.descripcion && (
-          <p className="text-xs text-slate-400 italic border-l-2 border-slate-700 pl-2 mb-2 leading-relaxed">{evento.descripcion}</p>
-        )}
+          {!detallesJson && evento.descripcion && (
+            <p className="text-xs text-slate-400 italic border-l-2 border-slate-700 pl-2 mb-2 leading-relaxed">{evento.descripcion}</p>
+          )}
 
-        {evento.estado && (
-          <div className="mt-3">
-            <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase border ${
-              evento.estado === 'realizada' || evento.estado === 'confirmada'
-                ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
-                : 'bg-slate-800 text-slate-400 border-slate-700'
-            }`}>{evento.estado}</span>
-          </div>
-        )}
+          {evento.estado && (
+            <div className="mt-3">
+              <span className={`px-2 py-0.5 rounded-sm text-[9px] font-black uppercase border ${
+                evento.estado === 'realizada' || evento.estado === 'confirmada'
+                  ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/40'
+                  : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}>{evento.estado}</span>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
