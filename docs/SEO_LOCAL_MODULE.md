@@ -48,12 +48,25 @@ The SEO Local module tracks **only converted clients**, not pending leads. The f
 
 1. Lead exists in `operaciones.leads` (estado='pendiente')
 2. Lead converts → row created in `clientes` table
-3. **Optional**: agency manager adds the client to `seo.locations` for monitoring
+3. **Automatic**: PostgreSQL trigger `seo.fn_auto_register_client_location` creates the `seo.locations` entry when `google_cid` is populated and `estado='activo'`
 4. Local node audits periodically, alerts on NAP changes / bad reviews
 
 **Why this restriction**: SEO Local is a paid service offered by the agency. Only clients paying for SEO management get monitoring. Leads in the pipeline are evaluated OUTREACH-first; once they become clients, they become SEO candidates.
 
-**How to add a client to SEO monitoring** (manual via SQL):
+### Auto-registration flow
+
+When a client (in `clientes.clientes`) has `google_cid` populated AND `estado='activo'`, a PostgreSQL trigger `seo.fn_auto_register_client_location` automatically creates a corresponding entry in `seo.locations`. No manual SQL needed.
+
+**Trigger fires on**:
+- INSERT of a new client with google_cid
+- UPDATE of google_cid on an existing client
+- UPDATE of estado from non-active to 'activo'
+
+**Existing clients** were migrated by running `docs/seo_seed_from_clientes.sql` (one-shot, 2026-08-05, 22 clients migrated).
+
+**To opt-out**: set `seo.locations.is_monitored = FALSE` for that specific location.
+
+**Manual override**: to add a client without google_cid, or to pre-configure keywords/lat/lng, insert directly:
 ```sql
 INSERT INTO seo.locations (client_id, google_cid, business_name, target_keywords, latitude, longitude)
 VALUES (
@@ -65,8 +78,6 @@ VALUES (
     <lng>
 );
 ```
-
-**Future enhancement** (not in Phase 1): a CRM UI button in ClienteDrawer "Add to SEO monitoring" that pre-fills client_id, copy google_cid from the lead origin, and prompt for keywords/lat/lng.
 
 ---
 
@@ -267,10 +278,9 @@ Or simply run `--seed` — it creates jobs for all monitored locations whose `la
 - Integration with existing CRM dashboards
 
 ### Phase 5 — CRM UI Integration (future)
-- "Add to SEO monitoring" button in `ClienteDrawer.jsx` (clientes side panel)
-- Auto-fill: client_id, google_cid (from origin lead), business_name
-- Prompt for: target_keywords, latitude, longitude, audit_frequency_hours
-- List view in `SeoDashboard.jsx` showing monitored clients + their latest health
+- "Add to SEO monitoring" button in `ClienteDrawer.jsx` (clientes side panel) — only shown if the cliente doesn't already have a seo.locations entry
+- Display the seo.locations health inline: last_audit_at, NAP baseline diff, open alerts
+- Manual override: allow toggling is_monitored from the CRM
 
 ---
 
