@@ -1,0 +1,78 @@
+{
+  "name": "CRM_93_ADMINS_LISTA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "crm-admins-lista",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [250, 300],
+      "webhookId": "crm-admins-lista"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, email, nombre FROM auth.usuarios WHERE rol = 'admin' AND estado = 'activo' ORDER BY (email = 'gestoramarisa7@gmail.com') DESC, nombre",
+        "options": {}
+      },
+      "name": "Obtener Admins",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [470, 300],
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const admins = $input.all().map(i => i.json);\nreturn [{ json: { ok: true, admins } }];"
+      },
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Obtener Admins",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener Admins": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null
+}

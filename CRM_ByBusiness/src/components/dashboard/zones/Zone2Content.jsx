@@ -5,6 +5,8 @@ import { fmtFechaHora } from '../../../utils/dates';
 import Teleprompter from '../Teleprompter';
 import ReputacionTab from './ReputacionTab';
 import { useAuth } from '../../../modules/auth/AuthContext';
+import HojaVentaModal from './HojaVentaModal';
+import { n8nPost } from '../../../shared/hooks/useN8n';
 
 const RESULTADO_CONFIG = {
   venta:        { label: 'VENTA',        color: 'bg-emerald-900/30 text-emerald-400 border-emerald-700/40' },
@@ -255,8 +257,36 @@ const Zone2Content = ({
     setPopupActivo(resultadoId);
   };
 
-  const confirmarPopup = (detalles) => {
-    if (popupActivo === 'enviar_info') {
+  const confirmarPopup = async (detalles, sendToAdminId) => {
+    if (popupActivo === 'venta') {
+      // Guardar hoja de venta
+      let hojaId = null;
+      try {
+        const r1 = await n8nPost('crm-crear-hoja-venta', {
+          ...detalles,
+          lead_id: lead.id,
+          operador_id: user?.id,
+        });
+        if (r1?.ok && r1.hoja_id) {
+          hojaId = r1.hoja_id;
+          // Enviar a admin si corresponde
+          if (sendToAdminId) {
+            await n8nPost('crm-enviar-hoja-admin', {
+              hoja_id: hojaId,
+              admin_id: parseInt(sendToAdminId, 10),
+            });
+          }
+        }
+      } catch {
+        // best-effort — no bloqueamos el flujo de venta por errores en la hoja
+      }
+      // Continuar flujo normal de venta
+      onResultado('venta', {
+        email_confirmacion: detalles.email,
+        nombre_contacto: detalles.nombre_contacto,
+        notas: detalles.notas,
+      });
+    } else if (popupActivo === 'enviar_info') {
       onEnviarInfo(detalles.email_destino, detalles.tipo_info, detalles.nota);
     } else {
       onResultado(popupActivo, detalles);
@@ -268,7 +298,7 @@ const Zone2Content = ({
     if (!popupActivo) return null;
     const cancel = () => setPopupActivo(null);
     switch (popupActivo) {
-      case 'venta':       return <PopupVenta lead={lead} onConfirm={confirmarPopup} onCancel={cancel} />;
+      case 'venta':       return <HojaVentaModal lead={lead} operadorId={user?.id} onConfirm={confirmarPopup} onCancel={cancel} />;
       case 'callback':    return <PopupCallback onConfirm={confirmarPopup} onCancel={cancel} />;
       case 'responsable': return <PopupResponsable onConfirm={confirmarPopup} onCancel={cancel} />;
       case 'enviar_info': return <PopupEnviarInfo lead={lead} onConfirm={confirmarPopup} onCancel={cancel} />;
