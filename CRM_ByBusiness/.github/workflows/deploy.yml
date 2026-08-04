@@ -16,6 +16,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Skip submodules: el repo tiene una referencia huérfana
+          # a monitor-go-frontend/go_github sin URL en .gitmodules
+          # y eso rompe cada deploy con exit code 128.
+          submodules: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
