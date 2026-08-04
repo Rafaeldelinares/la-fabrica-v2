@@ -1,6 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { useQuery } from '@tanstack/react-query';
+import { ExternalLink } from 'lucide-react';
 import { n8nPost } from '../../../shared/hooks/useN8n';
 
 /** Format ISO timestamp to DD/MM/YYYY */
@@ -41,7 +42,19 @@ const ReputacionHistorial = ({ leadId }) => {
               : 'text-slate-500';
           return (
             <div key={h.id} className="flex items-center justify-between text-[10px] font-mono">
-              <span className="text-slate-500">{fmtFecha(h.scraped_at)}</span>
+              <span className="text-slate-600 flex items-center gap-1">
+                {fmtFecha(h.scraped_at)}
+                {h.google_cid && (
+                  <a
+                    href={`https://www.google.com/maps/place/?cid=${encodeURIComponent(h.google_cid)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-slate-500 hover:text-blue-400 inline-flex items-center"
+                    title="Ver en Google Maps">
+                    <ExternalLink size={9} />
+                  </a>
+                )}
+              </span>
               <span className="text-slate-300">
                 {h.rating_old != null ? h.rating_old.toFixed(1) : '—'} → {h.rating_new.toFixed(1)}
               </span>

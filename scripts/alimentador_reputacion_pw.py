@@ -60,6 +60,18 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
+# ─── Google CID extraction ───────────────────────────────────────────────────────
+CID_REGEX = re.compile(r'0x([0-9a-f]+):0x([0-9a-f]+)', re.IGNORECASE)
+
+def extract_cid_from_url(url: str) -> str | None:
+    """Extract Google CID (0xHEX:0xHEX) from a Google Maps URL.
+    Returns the full CID string or None if not found."""
+    if not url:
+        return None
+    m = CID_REGEX.search(url)
+    return m.group(0) if m else None
+
+
 DEFAULT_VPS_HOST = os.environ.get('VpsSSHHost', '72.60.191.179')
 DEFAULT_VPS_USER = os.environ.get('VpsSSHUser', 'root')
 DEFAULT_PSQL = ('docker exec fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness')
@@ -230,11 +242,12 @@ def search_gmaps(page, nombre, localidad):
             const nameEl = card.querySelector('.qBF1Pd, .fontHeadlineSmall, .NrDZNS, .hfpxzc');
             if (!nameEl) continue;
             const name = nameEl.textContent.trim();
-            // Busca "4,6(168)" o "4.6 (168)" en el card
             const txt = card.innerText;
             const m = txt.match(/(\d+[,.]\d+)\s*[(\[【](\d+)[)\]】]/);
             if (!m) continue;
-            out.push({name: name, rating: m[1].replace(',', '.'), reviews: m[2]});
+            const link = card.querySelector('a[href*="/maps/place"]') || card.querySelector('a');
+            const href = link ? link.href : '';
+            out.push({name: name, rating: m[1].replace(',', '.'), reviews: m[2], href: href});
         }
         return out;
     }""") or []
@@ -254,7 +267,8 @@ def search_gmaps(page, nombre, localidad):
     best = max(results, key=score)
     if score(best) < 1:
         return None
-    return best
+    cid = extract_cid_from_url(best.get('href', ''))
+    return {**best, 'cid': cid}
 
 
 def read_lead_rating(lead_id: int, host: str, user: str, psql_cmd: str):
@@ -269,22 +283,28 @@ def read_lead_rating(lead_id: int, host: str, user: str, psql_cmd: str):
     return {'rating': parts[0] or None, 'reviews': parts[1] or None}
 
 
-def update_lead(lead_id: int, rating, reviews: int, host: str, user: str, psql_cmd: str):
-    """Ejecuta UPDATE y retorna (output, valores_previos)."""
+def update_lead(lead_id: int, rating, reviews: int, cid, host: str, user: str, psql_cmd: str):
+    """Ejecuta UPDATE y retorna (output, valores_previos).
+    Siempre persiste CID cuando se proporciona (incluso si rating/reviews no cambiaron)."""
     prev = read_lead_rating(lead_id, host, user, psql_cmd)
-    sql = (
-        "UPDATE operaciones.leads SET "
-        "rating = %.2f, num_reseñas = %d, scoring = %.2f, reputacion_at = NOW() "
-        "WHERE id = %d RETURNING id;" % (
-            float(rating or 0), int(reviews or 0), float(rating or 0), int(lead_id),
-        )
+    set_clauses = [
+        "rating = %.2f" % float(rating or 0),
+        "num_reseñas = %d" % int(reviews or 0),
+        "scoring = %.2f" % float(rating or 0),
+        "reputacion_at = NOW()",
+    ]
+    if cid:
+        safe_cid = cid.replace("'", "''")
+        set_clauses.append("google_cid = '%s'" % safe_cid)
+    sql = "UPDATE operaciones.leads SET %s WHERE id = %d RETURNING id;" % (
+        ", ".join(set_clauses), int(lead_id),
     )
     out = ssh_psql(sql, host, user, psql_cmd)
     return (out, prev)
 
 
 def insert_reputacion_history(lead_id: int, rating_old, rating_new, reviews_old, reviews_new,
-                               host: str, user: str, psql_cmd: str):
+                               cid, host: str, user: str, psql_cmd: str):
     """Inserta fila en leads_reputacion_historico. Retorna output del INSERT."""
     def fmt(v):
         if v is None or v == '':
@@ -300,13 +320,18 @@ def insert_reputacion_history(lead_id: int, rating_old, rating_new, reviews_old,
             return '%d' % int(v)
         except (TypeError, ValueError):
             return 'NULL'
+    cid_value = "NULL"
+    if cid:
+        safe_cid = cid.replace("'", "''")
+        cid_value = "'%s'" % safe_cid
     sql = (
         "INSERT INTO operaciones.leads_reputacion_historico "
-        "(lead_id, rating_old, rating_new, reviews_old, reviews_new) "
-        "VALUES (%d, %s, %s, %s, %s) RETURNING id;" % (
+        "(lead_id, rating_old, rating_new, reviews_old, reviews_new, google_cid) "
+        "VALUES (%d, %s, %s, %s, %s, %s) RETURNING id;" % (
             int(lead_id),
             fmt(rating_old), fmt(rating_new),
             fmtrev(reviews_old), fmtrev(reviews_new),
+            cid_value,
         )
     )
     return ssh_psql(sql, host, user, psql_cmd)
@@ -399,6 +424,7 @@ def main():
                     'match_status': None,
                     'rating_nuevo': None,
                     'reviews_nuevo': None,
+                    'google_cid': None,
                 }
                 try:
                     info = search_gmaps(page, lead['nombre'], lead['localidad'])
@@ -406,6 +432,7 @@ def main():
                     if not info:
                         stats['no_match'] += 1
                         lead_result['match_status'] = 'no_match'
+                        lead_result['google_cid'] = None
                         print(f'   sin resultado ({elapsed:.1f}s)')
                         resultados.append(lead_result)
                         continue
@@ -416,23 +443,26 @@ def main():
                     if rating <= 0 or reviews <= 0:
                         stats['no_rating'] += 1
                         lead_result['match_status'] = 'no_rating'
+                        lead_result['google_cid'] = info.get('cid')
                         print(f'   rating 0, saltado')
                         resultados.append(lead_result)
                         continue
                     if dry_run:
-                        print(f'   (dry-run) update lead {lead["id"]} con {rating}/{reviews}')
+                        print(f'   (dry-run) update lead {lead["id"]} con {rating}/{reviews} (cid={info.get("cid") or "—"})')
                         stats['updated'] += 1
                         lead_result['match_status'] = 'updated'
                         lead_result['rating_nuevo'] = rating
                         lead_result['reviews_nuevo'] = reviews
+                        lead_result['google_cid'] = info.get('cid')
                         resultados.append(lead_result)
                     else:
-                        out, prev = update_lead(lead['id'], rating, reviews, args.ssh, args.ssh_user, args.psql_cmd)
+                        out, prev = update_lead(lead['id'], rating, reviews, info.get('cid'), args.ssh, args.ssh_user, args.psql_cmd)
                         if out.strip():
                             stats['updated'] += 1
                             lead_result['match_status'] = 'updated'
                             lead_result['rating_nuevo'] = rating
                             lead_result['reviews_nuevo'] = reviews
+                            lead_result['google_cid'] = info.get('cid')
                             print(f'   ✓ actualizado')
                             # Historial: solo si rating o reviews cambiaron
                             if prev is not None:
@@ -447,6 +477,7 @@ def main():
                                     try:
                                         hist_id = insert_reputacion_history(
                                             lead['id'], prev_rating, rating, prev_reviews, reviews,
+                                            info.get('cid'),
                                             args.ssh, args.ssh_user, args.psql_cmd
                                         )
                                         delta_str = ''

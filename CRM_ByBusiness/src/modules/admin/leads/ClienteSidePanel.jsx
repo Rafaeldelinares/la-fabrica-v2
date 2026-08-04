@@ -1,32 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { X, ExternalLink } from 'lucide-react';
-import { n8nGet } from '../../../shared/hooks/useN8n';
+import { useQuery } from '@tanstack/react-query';
+import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 import ReputacionHistorial from './ReputacionHistorial';
 
-// [FIX 2026-08-03] Antes `(t) => <p>{t}</p>` recibía props.children, no el string.
-// Ver tests en ClienteSidePanel.test.jsx (descubierto al convertir placeholders).
-/** Label para campos de ficha. Renderiza children en uppercase mono. */
 const FieldLabel = ({ children: labelText }) => <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{labelText}</p>;
-/** Valor de campo. Muestra el valor o '—' si es null/undefined. */
 const FieldValue = ({ children: val }) => <p className="text-sm text-slate-200 font-mono mt-0.5 break-all">{val ?? '—'}</p>;
+
+/** Muestra link "Ver en Google Maps" si el lead tiene CID en historial. */
+const GoogleMapsLink = ({ leadId }) => {
+    const { data } = useQuery({
+        queryKey: ['reputacion-historial', leadId],
+        queryFn: () => n8nPost('crm-lead-reputacion-historial', { lead_id: leadId }),
+        enabled: !!leadId,
+        staleTime: 60_000,
+    });
+    const cid = data?.historial?.[0]?.google_cid;
+    if (!cid) return null;
+    return (
+        <div className="mt-2">
+            <a href={`https://www.google.com/maps/place/?cid=${encodeURIComponent(cid)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 font-mono uppercase tracking-widest">
+                <ExternalLink size={10} /> Ver en Google Maps
+            </a>
+        </div>
+    );
+};
+
+GoogleMapsLink.propTypes = { leadId: PropTypes.number.isRequired };
 
 /**
  * ClienteSidePanel — Slide-in panel showing cliente details from crm-cartera-get.
- * Navy Industrial style, max 150 lines.
  * @param {{ clienteId: number|string, onClose: Function }} props
  */
 const ClienteSidePanel = ({ clienteId, onClose }) => {
     const [cliente, setCliente] = useState(null);
-    const [loading, setLoading]  = useState(true);
-    const [error, setError]     = useState('');
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
 
     useEffect(() => {
-        if (!clienteId) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect
-          setLoading(false);
-          return;
-        }
+        if (!clienteId) { setLoading(false); return; }
         setLoading(true);
         setError('');
         n8nGet(`crm-cartera-get?cliente_id=${clienteId}`)
@@ -47,7 +62,8 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                     <p className="text-xs font-black text-white uppercase tracking-widest">
                         {cliente ? 'FICHA DE CLIENTE' : 'CLIENTE'}
                     </p>
-                    <button onClick={onClose} className="p-1.5 rounded-sm text-slate-600 hover:text-white hover:bg-slate-800 transition-colors">
+                    <button onClick={onClose}
+                        className="p-1.5 rounded-sm text-slate-600 hover:text-white hover:bg-slate-800 transition-colors">
                         <X size={15} />
                     </button>
                 </div>
@@ -68,7 +84,9 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                         <div className="px-5 py-5 flex flex-col gap-4">
                             <div>
                                 <FieldLabel>Nombre comercial</FieldLabel>
-                                <p className="text-base font-black text-white uppercase tracking-wide mt-0.5">{cliente.nombre_comercial}</p>
+                                <p className="text-base font-black text-white uppercase tracking-wide mt-0.5">
+                                    {cliente.nombre_comercial}
+                                </p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><FieldLabel>Telefono</FieldLabel>{FieldValue(cliente.telefono)}</div>
@@ -84,12 +102,11 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                                     cliente.estado === 'activo'
                                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                         : 'bg-slate-800 text-slate-400 border border-slate-700'
-                                }`}>
-                                    {cliente.estado ?? '—'}
-                                </span>
+                                }`}>{cliente.estado ?? '—'}</span>
                             </div>
                             {cliente.bybusiness_url && (
-                                <div><FieldLabel>ByBusiness URL</FieldLabel>
+                                <div>
+                                    <FieldLabel>ByBusiness URL</FieldLabel>
                                     <a href={cliente.bybusiness_url} target="_blank" rel="noopener noreferrer"
                                         className="text-xs text-blue-400 font-mono mt-0.5 block hover:text-blue-300 underline break-all">
                                         {cliente.bybusiness_url}
@@ -98,11 +115,16 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                             )}
                             {cliente.notas_internas && (
                                 <div><FieldLabel>Notas internas</FieldLabel>
-                                    <p className="text-xs text-slate-400 font-mono mt-1 whitespace-pre-wrap leading-relaxed">{cliente.notas_internas}</p>
+                                    <p className="text-xs text-slate-400 font-mono mt-1 whitespace-pre-wrap leading-relaxed">
+                                        {cliente.notas_internas}
+                                    </p>
                                 </div>
                             )}
                             {cliente.lead_id && (
-                                <ReputacionHistorial leadId={cliente.lead_id} />
+                                <>
+                                    <ReputacionHistorial leadId={cliente.lead_id} />
+                                    <GoogleMapsLink leadId={cliente.lead_id} />
+                                </>
                             )}
                             <div><FieldLabel>Fecha de alta</FieldLabel>{FieldValue(cliente.created_at ? new Date(cliente.created_at).toLocaleDateString('es-ES') : null)}</div>
                         </div>
@@ -121,16 +143,11 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
     );
 };
 
-FieldLabel.propTypes = {
-    children: PropTypes.node.isRequired,
-};
-FieldValue.propTypes = {
-    children: PropTypes.node.isRequired,
-};
-
+FieldLabel.propTypes = { children: PropTypes.node.isRequired };
+FieldValue.propTypes = { children: PropTypes.node.isRequired };
 ClienteSidePanel.propTypes = {
     clienteId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
-    onClose:   PropTypes.func.isRequired,
+    onClose: PropTypes.func.isRequired,
 };
 
 export default ClienteSidePanel;
