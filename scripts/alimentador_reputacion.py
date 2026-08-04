@@ -264,6 +264,25 @@ def main():
                 match.get('name'), rating, reviews,
             ))
 
+            # FIX cache contamination: si el match viene de cache (cached=True) y
+            # tiene rating=0, es muy probable que el cache esté contaminado (otro
+            # business con key similar). Reintentamos con cache-bust (nonce en q)
+            # para forzar una consulta fresca y detectar el false-negative.
+            if rating <= 0 and result.get('cached'):
+                import uuid as _uuid
+                bust_query = f"{query} __bust={_uuid.uuid4().hex[:8]}"
+                print('   match cached con rating=0 — retry sin cache (nonce)...')
+                result2 = scrape_via_motor(bust_query, args.motor, depth=args.depth)
+                items2 = normalize_result(result2)
+                match2 = find_best_match(items2, lead['nombre'])
+                if match2 and float(match2.get('rating') or 0) > 0:
+                    print(f'   retry OK: match2="{match2.get("name")}" rating={match2.get("rating")} reviews={match2.get("reviews")} cached={result2.get("cached")}')
+                    match = match2
+                    rating = float(match2.get('rating') or 0)
+                    reviews = int(match2.get('reviews') or 0)
+                else:
+                    print(f'   retry sigue rating=0 — genuine, no es cache bug')
+
             if rating <= 0:
                 stats['no_rating'] += 1
                 print('   rating 0, saltado')

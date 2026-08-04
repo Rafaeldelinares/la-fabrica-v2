@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import { X, ExternalLink, Loader } from 'lucide-react';
+import { X, ExternalLink } from 'lucide-react';
 import { n8nGet } from '../../../shared/hooks/useN8n';
+import ReputacionHistorial from './ReputacionHistorial';
 
 // [FIX 2026-08-03] Antes `(t) => <p>{t}</p>` recibía props.children, no el string.
 // Ver tests en ClienteSidePanel.test.jsx (descubierto al convertir placeholders).
-const L = ({ children: t }) => <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{t}</p>;
-const V = (v) => <p className="text-sm text-slate-200 font-mono mt-0.5 break-all">{v ?? '—'}</p>;
+/** Label para campos de ficha. Renderiza children en uppercase mono. */
+const FieldLabel = ({ children: labelText }) => <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{labelText}</p>;
+/** Valor de campo. Muestra el valor o '—' si es null/undefined. */
+const FieldValue = ({ children: val }) => <p className="text-sm text-slate-200 font-mono mt-0.5 break-all">{val ?? '—'}</p>;
 
 /**
  * ClienteSidePanel — Slide-in panel showing cliente details from crm-cartera-get.
@@ -52,9 +55,10 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                 {/* Body */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {loading && (
-                        <div className="flex items-center justify-center h-32 gap-2">
-                            <Loader size={14} className="text-slate-500 animate-spin" />
-                            <p className="text-xs text-slate-500 font-mono">Cargando…</p>
+                        <div className="flex flex-col gap-2 px-5 py-6">
+                            <div className="h-3 w-24 bg-slate-800 rounded-sm animate-pulse" />
+                            <div className="h-3 w-32 bg-slate-800 rounded-sm animate-pulse" />
+                            <div className="h-3 w-20 bg-slate-800 rounded-sm animate-pulse" />
                         </div>
                     )}
                     {error && !loading && (
@@ -63,19 +67,19 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                     {cliente && !loading && (
                         <div className="px-5 py-5 flex flex-col gap-4">
                             <div>
-                                <L>Nombre comercial</L>
+                                <FieldLabel>Nombre comercial</FieldLabel>
                                 <p className="text-base font-black text-white uppercase tracking-wide mt-0.5">{cliente.nombre_comercial}</p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><L>Telefono</L>{V(cliente.telefono)}</div>
-                                <div><L>Email</L>{V(cliente.email)}</div>
+                                <div><FieldLabel>Telefono</FieldLabel>{FieldValue(cliente.telefono)}</div>
+                                <div><FieldLabel>Email</FieldLabel>{FieldValue(cliente.email)}</div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><L>Gestor</L>{V(cliente.gestor_nombre)}</div>
-                                <div><L>Operador</L>{V(cliente.operador_captacion_nombre || cliente.operador_captacion)}</div>
+                                <div><FieldLabel>Gestor</FieldLabel>{FieldValue(cliente.gestor_nombre)}</div>
+                                <div><FieldLabel>Operador</FieldLabel>{FieldValue(cliente.operador_captacion_nombre || cliente.operador_captacion)}</div>
                             </div>
                             <div>
-                                <L>Estado</L>
+                                <FieldLabel>Estado</FieldLabel>
                                 <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-widest ${
                                     cliente.estado === 'activo'
                                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -85,7 +89,7 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                                 </span>
                             </div>
                             {cliente.bybusiness_url && (
-                                <div><L>ByBusiness URL</L>
+                                <div><FieldLabel>ByBusiness URL</FieldLabel>
                                     <a href={cliente.bybusiness_url} target="_blank" rel="noopener noreferrer"
                                         className="text-xs text-blue-400 font-mono mt-0.5 block hover:text-blue-300 underline break-all">
                                         {cliente.bybusiness_url}
@@ -93,11 +97,14 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                                 </div>
                             )}
                             {cliente.notas_internas && (
-                                <div><L>Notas internas</L>
+                                <div><FieldLabel>Notas internas</FieldLabel>
                                     <p className="text-xs text-slate-400 font-mono mt-1 whitespace-pre-wrap leading-relaxed">{cliente.notas_internas}</p>
                                 </div>
                             )}
-                            <div><L>Fecha de alta</L>{V(cliente.created_at ? new Date(cliente.created_at).toLocaleDateString('es-ES') : null)}</div>
+                            {cliente.lead_id && (
+                                <ReputacionHistorial leadId={cliente.lead_id} />
+                            )}
+                            <div><FieldLabel>Fecha de alta</FieldLabel>{FieldValue(cliente.created_at ? new Date(cliente.created_at).toLocaleDateString('es-ES') : null)}</div>
                         </div>
                     )}
                 </div>
@@ -112,6 +119,13 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
             </div>
         </div>
     );
+};
+
+FieldLabel.propTypes = {
+    children: PropTypes.node.isRequired,
+};
+FieldValue.propTypes = {
+    children: PropTypes.node.isRequired,
 };
 
 ClienteSidePanel.propTypes = {

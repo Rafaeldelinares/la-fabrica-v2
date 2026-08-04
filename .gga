@@ -1,5 +1,8 @@
 # Gentleman Guardian Angel - La Fábrica IA
-PROVIDER="lmstudio:qwen2.5-coder-7b-instruct"
+# Provider: opencode CLI rutea a través del modelo configurado en
+# /home/rafael/.config/opencode/opencode.json (cuenta MiniMax plan,
+# no requiere API key — el opencode CLI ya está autenticado).
+PROVIDER="opencode:minimax-coding-plan/MiniMax-M3"
 
 # Cubrir todos los lenguajes de La Fábrica
 FILE_PATTERNS="*.go,*.js,*.jsx,*.tsx,*.ts,*.php,*.sql,*.sh"

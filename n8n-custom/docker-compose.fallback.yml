@@ -1,0 +1,42 @@
+version: '3'
+services:
+  n8n:
+    image: n8nio/n8n:2.11.0
+    container_name: n8n-vps-sqlite
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=n8n.ia-bybusiness.online
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://n8n.ia-bybusiness.online/
+      - N8N_ENCRYPTION_KEY=ClaveMaestra_FabricaIA_ByBusiness_v1
+      - DB_TYPE=sqlite
+      - N8N_USER_EMAIL=rafaeldelinares@gmail.com
+      - N8N_USER_PASSWORD=Samsung18091809&
+      - N8N_USER_FIRST_NAME=Rafael
+      - N8N_USER_LAST_NAME=Delinares
+      - GENERIC_TIMEZONE=Europe/Madrid
+      - N8N_ENQUEUE_MODE=memory
+      - N8N_TASK_RUNNER_MODE=external
+      - N8N_RUNNERS_AUTH_TOKEN=RunnerAuthToken_FabricaIA_2026_Stable_SharedSecret
+      - TZ=Europe/Madrid
+    volumes:
+      - /opt/fabrica/data/n8n-sqlite:/home/node/.n8n
+      - /opt/fabrica/data/files:/files
+      - /opt/fabrica/n8n-patches/entrypoint-wrapper.sh:/usr/local/bin/entrypoint-wrapper.sh:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.ia-bybusiness.online`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls.certresolver=myresolver"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+    networks:
+      - fabrica_fabrica_network
+    # FALLBACK: Use entrypoint wrapper only if custom image is unavailable
+    entrypoint: ["/bin/sh", "/usr/local/bin/entrypoint-wrapper.sh"]
+networks:
+  fabrica_fabrica_network:
+    external: true

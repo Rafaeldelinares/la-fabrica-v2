@@ -257,12 +257,56 @@ def search_gmaps(page, nombre, localidad):
     return best
 
 
-def update_lead(lead_id: int, rating, reviews: int, host: str, user: str, psql_cmd: str) -> str:
+def read_lead_rating(lead_id: int, host: str, user: str, psql_cmd: str):
+    """Lee rating y num_reseñas actuales del lead. Retorna dict o None."""
+    sql = "SELECT rating, num_reseñas FROM operaciones.leads WHERE id = %d;" % int(lead_id)
+    out = ssh_psql(sql, host, user, psql_cmd).strip()
+    if not out:
+        return None
+    parts = out.split('|')
+    if len(parts) < 2:
+        return None
+    return {'rating': parts[0] or None, 'reviews': parts[1] or None}
+
+
+def update_lead(lead_id: int, rating, reviews: int, host: str, user: str, psql_cmd: str):
+    """Ejecuta UPDATE y retorna (output, valores_previos)."""
+    prev = read_lead_rating(lead_id, host, user, psql_cmd)
     sql = (
         "UPDATE operaciones.leads SET "
         "rating = %.2f, num_reseñas = %d, scoring = %.2f, reputacion_at = NOW() "
         "WHERE id = %d RETURNING id;" % (
             float(rating or 0), int(reviews or 0), float(rating or 0), int(lead_id),
+        )
+    )
+    out = ssh_psql(sql, host, user, psql_cmd)
+    return (out, prev)
+
+
+def insert_reputacion_history(lead_id: int, rating_old, rating_new, reviews_old, reviews_new,
+                               host: str, user: str, psql_cmd: str):
+    """Inserta fila en leads_reputacion_historico. Retorna output del INSERT."""
+    def fmt(v):
+        if v is None or v == '':
+            return 'NULL'
+        try:
+            return '%.2f' % float(v)
+        except (TypeError, ValueError):
+            return 'NULL'
+    def fmtrev(v):
+        if v is None or v == '':
+            return 'NULL'
+        try:
+            return '%d' % int(v)
+        except (TypeError, ValueError):
+            return 'NULL'
+    sql = (
+        "INSERT INTO operaciones.leads_reputacion_historico "
+        "(lead_id, rating_old, rating_new, reviews_old, reviews_new) "
+        "VALUES (%d, %s, %s, %s, %s) RETURNING id;" % (
+            int(lead_id),
+            fmt(rating_old), fmt(rating_new),
+            fmtrev(reviews_old), fmtrev(reviews_new),
         )
     )
     return ssh_psql(sql, host, user, psql_cmd)
@@ -383,13 +427,35 @@ def main():
                         lead_result['reviews_nuevo'] = reviews
                         resultados.append(lead_result)
                     else:
-                        out = update_lead(lead['id'], rating, reviews, args.ssh, args.ssh_user, args.psql_cmd)
+                        out, prev = update_lead(lead['id'], rating, reviews, args.ssh, args.ssh_user, args.psql_cmd)
                         if out.strip():
                             stats['updated'] += 1
                             lead_result['match_status'] = 'updated'
                             lead_result['rating_nuevo'] = rating
                             lead_result['reviews_nuevo'] = reviews
                             print(f'   ✓ actualizado')
+                            # Historial: solo si rating o reviews cambiaron
+                            if prev is not None:
+                                try:
+                                    prev_rating = float(prev['rating']) if prev['rating'] not in (None, '') else None
+                                    prev_reviews = int(prev['reviews']) if prev['reviews'] not in (None, '') else None
+                                except (TypeError, ValueError):
+                                    prev_rating = prev_reviews = None
+                                rating_changed = prev_rating is None or abs(prev_rating - rating) >= 0.01
+                                reviews_changed = prev_reviews is None or prev_reviews != reviews
+                                if rating_changed or reviews_changed:
+                                    try:
+                                        hist_id = insert_reputacion_history(
+                                            lead['id'], prev_rating, rating, prev_reviews, reviews,
+                                            args.ssh, args.ssh_user, args.psql_cmd
+                                        )
+                                        delta_str = ''
+                                        if prev_rating is not None:
+                                            d = rating - prev_rating
+                                            delta_str = f' (Δ {d:+.2f})'
+                                        print(f'   📊 histórico registrado{delta_str}')
+                                    except Exception as e:
+                                        print(f'   WARN no pude registrar histórico: {e}')
                         else:
                             stats['errors'] += 1
                             lead_result['match_status'] = 'error'
