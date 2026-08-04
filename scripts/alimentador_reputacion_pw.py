@@ -506,9 +506,10 @@ def main():
         print('Sin leads para procesar')
         return
 
-    stats = {'processed': 0, 'updated': 0, 'no_match': 0, 'no_rating': 0, 'errors': 0, 'discovered': 0}
+    stats = {'processed': 0, 'updated': 0, 'no_match': 0, 'no_rating': 0, 'errors': 0, 'discovered': 0, 'discovery_candidates_seen': 0}
     resultados = []  # per-lead detail list for the 'leads' JSONB field
     discovery_count = 0  # track discoveries this run, cap at DISCOVERY_LIMIT_PER_RUN
+    discovery_candidates_seen = 0  # total candidates found this run, before filters
 
     if args.persist:
         PERSIST_DIR.mkdir(parents=True, exist_ok=True)
@@ -563,13 +564,26 @@ def main():
                         print(f'   ⚠ cleared bad CID {existing_cid}')
                     except Exception as e:
                         print(f'   WARN could not clear CID: {e}')
+                # Always try name-search for candidates (even when CID-search succeeded)
+                # This maximizes discovery coverage — we want to find new leads regardless
+                # of which search method matched the current lead.
+                if discovery_count < DISCOVERY_LIMIT_PER_RUN:
+                    try:
+                        discovery_search = search_gmaps(page, lead['nombre'], lead.get('categoria'), lead['localidad'])
+                        if discovery_search:
+                            candidates = discovery_search.get('candidates', [])
+                            if candidates:
+                                discovery_candidates_seen += len(candidates)
+                    except Exception as e:
+                        print(f'   discovery search falló: {e}')
                 # 2) Fallback to name search if no CID or CID search failed
                 if info is None:
                     try:
                         name_search_result = search_gmaps(page, lead['nombre'], lead.get('categoria', ''), lead['localidad'])
                         if name_search_result:
                             info = name_search_result.get('best')
-                            candidates = name_search_result.get('candidates', [])
+                            if not candidates:
+                                candidates = name_search_result.get('candidates', [])
                             if info:
                                 search_method = 'name'
                     except Exception as e:
@@ -682,6 +696,8 @@ def main():
     print('\n=== RESUMEN ===')
     for k, v in stats.items():
         print(f'  {k}: {v}')
+    if discovery_candidates_seen > stats['discovered']:
+        print(f'  candidatos_descartados: {discovery_candidates_seen - stats["discovered"]} (cap alcanzado o filtros)')
     try:
         log_evento_cron(stats, args.batch, dry_run, args.ssh, args.ssh_user, args.psql_cmd, resultados, bucket_counts)
         print(f'  evento CRON_RUN registrado en sistema.eventos_sistema')
