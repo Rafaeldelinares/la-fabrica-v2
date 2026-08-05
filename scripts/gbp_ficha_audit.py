@@ -63,13 +63,22 @@ def handle_consent(page):
 
 def scrape_place_id(page, place_id: str) -> dict:
     """Navigate to GBP ficha and extract structured audit data."""
+    import re as _re
+
     # Determine format and construct URL
     if place_id.startswith("ChIJ"):
+        # Standard Google place_id (e.g. ChIJEUY459_PEQ0R0Q72g_Jrlq0)
         url = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
         fmt = "place_id"
-    elif place_id.isdigit():
+    elif _re.fullmatch(r"0x[0-9a-fA-F]+:0x[0-9a-fA-F]+", place_id):
+        # Hex colon CID format stored in clientes.gmaps_fichas.google_cid
+        # e.g. 0xd6e2bbafd04c977:0x23fb2f3c11167d8a (Maquinaria Tenorio)
         url = f"https://www.google.com/maps/place/?cid={place_id}"
-        fmt = "cid"
+        fmt = "hex_cid"
+    elif place_id.isdigit():
+        # Decimal CID (legacy/alternative)
+        url = f"https://www.google.com/maps/place/?cid={place_id}"
+        fmt = "decimal_cid"
     else:
         return {"error": "invalid_format", "place_id": place_id}
 
@@ -102,11 +111,12 @@ def scrape_place_id(page, place_id: str) -> dict:
         handle_consent(page)
         page.wait_for_timeout(3000)
 
-    # Detect CAPTCHA / blocked page
-    page_text = page.content()
-    if "unusual traffic" in page_text.lower() or "captcha" in page_text.lower():
+    # Detect CAPTCHA / blocked page — check visible text, NOT raw HTML
+    # (Google's JS may contain "Object Not Found Matching Id" in the HTML)
+    visible_text = page.locator("body").inner_text()
+    if "unusual traffic" in visible_text.lower():
         return {"error": "captcha"}
-    if "no se encontro" in page_text.lower() or "not found" in page_text.lower():
+    if "no se encontro" in visible_text.lower() or "not found" in visible_text.lower():
         return {"error": "not_found"}
 
     # ── categoria_principal ──────────────────────────────────────────────────

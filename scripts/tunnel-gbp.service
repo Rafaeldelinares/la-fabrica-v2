@@ -1,0 +1,20 @@
+[Unit]
+Description=SSH Reverse Tunnel - GBP Ficha Audit (VPS :8095 → local :8095)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rafael
+Restart=always
+RestartSec=10
+ExecStart=/usr/bin/ssh -N -T \
+  -o "ServerAliveInterval=30" \
+  -o "ServerAliveCountMax=3" \
+  -o "ExitOnForwardFailure=yes" \
+  -o "StrictHostKeyChecking=no" \
+  -R 0.0.0.0:8095:127.0.0.1:8095 \
+  root@72.60.191.179
+
+[Install]
+WantedBy=multi-user.target
