@@ -9,9 +9,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('../../../shared/hooks/useN8n', () => ({
     n8nGet: vi.fn(),
+    n8nPost: vi.fn(),
 }));
 
 import { n8nGet } from '../../../shared/hooks/useN8n';
@@ -31,32 +33,50 @@ beforeEach(() => {
     vi.mocked(n8nGet).mockResolvedValue({ ok: true, clientes: [mockCliente] });
 });
 
+/** Crea un QueryClient aislado para cada test (sin retries para no enmascarar errores). */
+const createTestQueryClient = () => new QueryClient({
+    defaultOptions: {
+        queries: { retry: false, gcTime: 0 },
+        mutations: { retry: false },
+    },
+});
+
+/** Renderiza el componente envuelto en QueryClientProvider para que useQuery funcione. */
+const renderWithProviders = (ui) => {
+    const queryClient = createTestQueryClient();
+    return render(
+        <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    );
+};
+
 describe('ClienteSidePanel', () => {
 
     describe('clienteId no proporcionado', () => {
         it('no muestra loading state', () => {
-            render(<ClienteSidePanel clienteId={null} onClose={vi.fn()} />);
+            renderWithProviders(<ClienteSidePanel clienteId={null} onClose={vi.fn()} />);
             expect(screen.queryByText(/cargando/i)).not.toBeInTheDocument();
         });
 
         it('no muestra campos del cliente', () => {
-            render(<ClienteSidePanel clienteId={null} onClose={vi.fn()} />);
+            renderWithProviders(<ClienteSidePanel clienteId={null} onClose={vi.fn()} />);
             expect(screen.queryByText(/nombre comercial/i)).not.toBeInTheDocument();
             expect(screen.queryByText(/acme corp/i)).not.toBeInTheDocument();
         });
     });
 
     describe('render durante carga', () => {
-        it('muestra indicador "Cargando…" mientras resuelve la promesa', async () => {
+        it('muestra skeleton mientras resuelve la promesa', async () => {
             vi.mocked(n8nGet).mockReturnValue(new Promise(() => {})); // nunca resuelve
-            render(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
-            expect(await screen.findByText(/cargando/i)).toBeInTheDocument();
+            const { container } = renderWithProviders(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
+            // El skeleton tiene clases 'animate-pulse' y bg-slate-800
+            const skeleton = container.querySelector('.animate-pulse');
+            expect(skeleton).toBeInTheDocument();
         });
     });
 
     describe('render con datos del cliente', () => {
         it('renderiza nombre comercial, teléfono, email y estado', async () => {
-            render(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
+            renderWithProviders(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
 
             expect(await screen.findByText('Acme Corp')).toBeInTheDocument();
             expect(screen.getByText('+34912345678')).toBeInTheDocument();
@@ -65,7 +85,7 @@ describe('ClienteSidePanel', () => {
         });
 
         it('muestra link "Ver ficha completa" apuntando a /admin/cartera', async () => {
-            render(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
+            renderWithProviders(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
             await screen.findByText('Acme Corp');
 
             const link = screen.getByRole('link', { name: /ver ficha completa/i });
@@ -76,21 +96,21 @@ describe('ClienteSidePanel', () => {
     describe('manejo de errores', () => {
         it('muestra "Cliente no encontrado" cuando fetch devuelve clientes vacío', async () => {
             vi.mocked(n8nGet).mockResolvedValue({ ok: true, clientes: [] });
-            render(<ClienteSidePanel clienteId={999} onClose={vi.fn()} />);
+            renderWithProviders(<ClienteSidePanel clienteId={999} onClose={vi.fn()} />);
 
             expect(await screen.findByText(/cliente no encontrado/i)).toBeInTheDocument();
         });
 
         it('muestra mensaje de error cuando fetch falla con 500', async () => {
             vi.mocked(n8nGet).mockRejectedValue(new Error('Network error'));
-            render(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
+            renderWithProviders(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
 
             expect(await screen.findByText(/error al cargar datos/i)).toBeInTheDocument();
         });
 
         it('muestra "Cliente no encontrado" cuando fetch devuelve ok:false', async () => {
             vi.mocked(n8nGet).mockResolvedValue({ ok: false, clientes: [] });
-            render(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
+            renderWithProviders(<ClienteSidePanel clienteId={123} onClose={vi.fn()} />);
 
             expect(await screen.findByText(/cliente no encontrado/i)).toBeInTheDocument();
         });
@@ -100,7 +120,7 @@ describe('ClienteSidePanel', () => {
         it('llama onClose cuando se clickea el botón X del header', async () => {
             const onClose = vi.fn();
             const user = userEvent.setup();
-            render(<ClienteSidePanel clienteId={123} onClose={onClose} />);
+            renderWithProviders(<ClienteSidePanel clienteId={123} onClose={onClose} />);
             await screen.findByText('Acme Corp');
 
             const closeBtn = screen.getByRole('button', { name: '' });
@@ -112,7 +132,7 @@ describe('ClienteSidePanel', () => {
         it('llama onClose cuando se clickea el backdrop', async () => {
             const onClose = vi.fn();
             const user = userEvent.setup();
-            const { container } = render(<ClienteSidePanel clienteId={123} onClose={onClose} />);
+            const { container } = renderWithProviders(<ClienteSidePanel clienteId={123} onClose={onClose} />);
             await screen.findByText('Acme Corp');
 
             // El backdrop es el div absolute con bg-black/60

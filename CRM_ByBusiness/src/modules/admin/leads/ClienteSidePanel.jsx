@@ -93,12 +93,12 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                                 </p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><FieldLabel>Telefono</FieldLabel>{FieldValue(cliente.telefono)}</div>
-                                <div><FieldLabel>Email</FieldLabel>{FieldValue(cliente.email)}</div>
+                                <div><FieldLabel>Telefono</FieldLabel><FieldValue>{cliente.telefono}</FieldValue></div>
+                                <div><FieldLabel>Email</FieldLabel><FieldValue>{cliente.email}</FieldValue></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><FieldLabel>Gestor</FieldLabel>{FieldValue(cliente.gestor_nombre)}</div>
-                                <div><FieldLabel>Operador</FieldLabel>{FieldValue(cliente.operador_captacion_nombre || cliente.operador_captacion)}</div>
+                                <div><FieldLabel>Gestor</FieldLabel><FieldValue>{cliente.gestor_nombre}</FieldValue></div>
+                                <div><FieldLabel>Operador</FieldLabel><FieldValue>{cliente.operador_captacion_nombre || cliente.operador_captacion}</FieldValue></div>
                             </div>
                             <div>
                                 <FieldLabel>Estado</FieldLabel>
@@ -117,7 +117,7 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                                 <div><FieldLabel>Notas internas</FieldLabel><p className="text-xs text-slate-400 font-mono mt-1 whitespace-pre-wrap leading-relaxed">{cliente.notas_internas}</p></div>
                             )}
                             <ClienteLeadExtra cliente={cliente} />
-                            <div><FieldLabel>Fecha de alta</FieldLabel>{FieldValue(cliente.created_at ? new Date(cliente.created_at).toLocaleDateString('es-ES') : null)}</div>
+                            <div><FieldLabel>Fecha de alta</FieldLabel><FieldValue>{cliente.created_at ? new Date(cliente.created_at).toLocaleDateString('es-ES') : null}</FieldValue></div>
                         </div>
                     )}
                 </div>
