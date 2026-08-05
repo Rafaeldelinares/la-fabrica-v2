@@ -1,3 +1,4 @@
+// DEPRECATED 2026-08-05 by gbp-ficha-improvements S1 — superseded by tabs/gbp/index.jsx (S2)
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useMutation } from '@tanstack/react-query';

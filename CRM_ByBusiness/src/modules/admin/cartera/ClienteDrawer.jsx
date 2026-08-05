@@ -6,9 +6,8 @@ import RegistrarInteraccionModal from './RegistrarInteraccionModal';
 import TabFicha     from './tabs/TabFicha';
 import TabFacturacion from './tabs/TabFacturacion';
 import TabHistorial from './tabs/TabHistorial';
-import TabGbp            from './tabs/TabGbp';
+import GbpIndex          from './tabs/gbp/index';
 import TabTarjetaDigital from './tabs/TabTarjetaDigital';
-import TabOptimizacionGbp from './tabs/TabOptimizacionGbp';
 import { fmtDias } from '../../../utils/dates';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 import { useRbac } from '../../../shared/auth/useRbac';
@@ -62,10 +61,9 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
   const deleteMutation = useMutation({
     mutationFn: (interaccionId) => n8nPost('crm-interaccion-borrar', { interaccion_id: interaccionId }),
     onSuccess: (data) => {
-      if (data?.ok) refetchTimeline();
-    },
-    onError: () => {
-      // Error handling - could set a local error state here
+      if (data?.ok) {
+        refetchTimeline();
+      }
     },
   });
 
@@ -173,17 +171,7 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
               />
             </>
           )}
-          {activeTab === 'gbp'       && <TabGbp cliente={cliente} n8nUrl={import.meta.env.VITE_N8N_URL} />}
-          {activeTab === 'seo' && (
-            cliente.google_place_id
-                ? <TabOptimizacionGbp clienteId={cliente.id} />
-                : <div className="px-5 py-8 text-center">
-                    <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mb-1">GBP OPTIMIZACIÓN</p>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                        Ingresá el <strong>Google Place ID</strong> en la pestaña Ficha para activar la auditoría GBP.
-                    </p>
-                  </div>
-          )}
+          {activeTab === 'gbp'       && <GbpIndex cliente={cliente} />}
           {activeTab === 'tarjeta'   && <TabTarjetaDigital cliente={cliente} />}
         </div>
       </div>
