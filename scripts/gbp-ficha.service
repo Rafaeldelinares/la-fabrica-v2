@@ -1,0 +1,14 @@
+[Unit]
+Description=GBP Ficha Audit HTTP Wrapper
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/fabrica/scripts
+ExecStart=/usr/bin/python3 -u /opt/fabrica/scripts/gbp_http_wrapper.py --port 8095
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
