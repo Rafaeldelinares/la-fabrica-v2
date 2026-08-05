@@ -119,71 +119,128 @@ def scrape_place_id(page, place_id: str) -> dict:
     if "no se encontro" in visible_text.lower() or "not found" in visible_text.lower():
         return {"error": "not_found"}
 
-    # ── categoria_principal ──────────────────────────────────────────────────
+    # ── categoria_principal + categorias_secundarias ──────────────────────────
+    # Primary selector: button.DkEaL (confirmed working in 2026 GBP DOM)
+    # Fallback: text nodes after h1 containing category-like content
     try:
-        cat_sel = "[class*='DqWL'] span, [class*='category'] span, .垂qML span"
-        cats = page.locator(cat_sel).all_text_contents()
-        if cats:
-            result["categoria_principal"] = cats[0].strip()
-            result["categorias_secundarias"] = [c.strip() for c in cats[1:] if c.strip()]
+        cat_buttons = page.locator("button.DkEaL").all()
+        if cat_buttons:
+            cats = [b.inner_text(timeout=2000).strip() for b in cat_buttons if b.is_visible(timeout=1000) and b.inner_text(timeout=1000).strip()]
+            if cats:
+                result["categoria_principal"] = cats[0]
+                result["categorias_secundarias"] = [c for c in cats[1:] if c]
+        if not result["categoria_principal"]:
+            # Fallback: text content near h1 that looks like a category
+            h1 = page.locator("h1").first
+            if h1.is_visible(timeout=2000):
+                parent = h1.locator("..").first
+                try:
+                    parent_text = parent.inner_text(timeout=1000)
+                    # Look for category text after h1 (typically after rating)
+                    parts = parent_text.split()
+                    # Find "Ferretería" or similar category words near the h1
+                    body_text = page.locator("body").inner_text()
+                    for line in body_text.split("\n"):
+                        line = line.strip()
+                        if line and line != h1.inner_text(timeout=500).strip():
+                            # Skip known non-category lines
+                            skip_words = ["Abierto", "Cerrado", "Confirmado", "Guardado", "Cercano",
+                                          "Cómo llegar", "Compartir", "Teléfono", "Dirección",
+                                          "Añadir", "Escribir", "Sugerir", "Ver fotos"]
+                            if not any(sw in line for sw in skip_words) and len(line) < 80:
+                                result["categoria_principal"] = line
+                                break
+                except Exception:
+                    pass
     except Exception:
         pass
 
     # ── descripcion ───────────────────────────────────────────────────────────
+    # Confirmed selector: div.WeS02d (fontBodyMedium) — contains full description text
+    # Service options like "Compra en tienda", "Brunch" may trail the description
+    # NOTE: Google only shows description in the DOM when the ficha is NOT in limited view.
+    # In limited view (most fichas), the description element is not present → returns None.
     try:
-        desc_sel = "[class*='We818b'] span, [class*='description'], div[class*='fontBody']"
-        for sel in desc_sel.split(", "):
-            try:
-                el = page.locator(sel).first
-                if el.is_visible(timeout=2000):
-                    result["descripcion"] = el.text_content(timeout=2000).strip()[:500] or None
-                    if result["descripcion"]:
-                        break
-            except Exception:
-                continue
+        desc_el = page.locator("div.WeS02d, .WeS02d").first
+        if desc_el.is_visible(timeout=3000):
+            text = desc_el.inner_text(timeout=3000).strip()
+            if text and len(text) > 10:
+                # Filter out service option lines and icon-heavy lines
+                lines = [l.strip() for l in text.split("\n") if l.strip()]
+                skip_phrases = [
+                    "Compra en tienda", "Recogida en tienda", "A domicilio",
+                    "Brunch", "Comida en el local", "Servicios del restaurante",
+                    "Tipos de servicio", "Opciones del servicio",
+                ]
+                cleaned_lines = []
+                for l in lines:
+                    if any(s in l for s in skip_phrases):
+                        continue
+                    # Skip lines that are mostly unicode icon characters
+                    if len(l) > 0 and sum(1 for c in l if ord(c) > 0xE000) > len(l) * 0.5:
+                        continue
+                    if l and len(l) > 10:
+                        cleaned_lines.append(l)
+                if cleaned_lines:
+                    result["descripcion"] = " ".join(cleaned_lines)[:500]
     except Exception:
         pass
 
     # ── horarios: dias cubiertos (simplified — 0-7) ─────────────────────────
+    # Confirmed: table.eK4R0e contains hours with day names in the cells
     try:
-        # Look for day-of-week indicators
-        day_names = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom",
-                     "mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-        # Try to find open hours section
-        hrs_sel = "[class*='hours'] span, [class*='Horario'] span, [class*='GpqB']"
-        hrs_text = ""
-        try:
-            hrs_el = page.locator(hrs_sel).first
-            if hrs_el.is_visible(timeout=2000):
-                hrs_text = hrs_el.text_content(timeout=2000) or ""
-        except Exception:
-            pass
-        # Count days that appear to have schedules
-        days_found = 0
-        for day in day_names[:7]:
-            if day.lower() in page.content().lower():
-                days_found += 1
-        result["horarios_dias_cubiertos"] = min(days_found, 7)
+        day_names = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo",
+                     "lun", "mar", "mié", "jue", "vie", "sáb", "dom",
+                     "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+                     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        # Primary: hours table
+        hrs_table = page.locator("table.eK4R0e")
+        if hrs_table.count() > 0 and hrs_table.first.is_visible(timeout=3000):
+            table_text = hrs_table.first.inner_text(timeout=3000)
+            days_found = sum(1 for d in day_names if d.lower() in table_text.lower())
+            result["horarios_dias_cubiertos"] = min(days_found, 7)
+        else:
+            # Fallback: count day names in body text
+            body = page.locator("body").inner_text()
+            days_found = sum(1 for d in day_names if d.lower() in body.lower())
+            result["horarios_dias_cubiertos"] = min(days_found, 7)
     except Exception:
         pass
 
     # ── rating + reviews ─────────────────────────────────────────────────────
+    # Confirmed working: aria-label containing "estrel" / "star" (e.g. "4,3 estrellas ")
+    # Google shows review count ONLY in the aria-label (e.g. "4,3 estrellas 47 reseñas")
+    # The body text does NOT contain review counts in the limited view
     try:
-        rating_sel = "[role='img'][aria-label*='estrellas'], [role='img'][aria-label*='stars'], span[class*='aMPvhf']"
-        for sel in rating_sel.split(", "):
+        for sel in [
+            # Try combined label first (contains both rating and review count)
+            "[role='img'][aria-label*='estrel' i]",
+            "[role='img'][aria-label*='star' i]",
+        ]:
             try:
                 el = page.locator(sel).first
                 lbl = el.get_attribute("aria-label") or ""
-                if lbl:
-                    m = re.search(r"(\d+[.,]\d+)", lbl.replace(",", "."))
-                    if m:
-                        result["rating_promedio"] = float(m.group(1))
-                        rev_m = re.search(r"(\d+)", lbl.split(str(m.group(1)))[-1])
-                        if rev_m:
-                            result["reviews_count"] = int(rev_m.group(1))
-                        break
+                if not lbl:
+                    continue
+                # Match rating number (e.g. "4,3" or "4.3")
+                m = re.search(r"(\d+[.,]\d+)", lbl.replace(",", "."))
+                if m:
+                    result["rating_promedio"] = float(m.group(1))
+                    # Try to extract review count from same aria-label
+                    # e.g. "4,3 estrellas 47 reseñas" or "4.3 stars 47 reviews"
+                    after_rating = lbl.split(m.group(1))[-1]
+                    rev_m = re.search(r"(\d+)\s*(?:reseña|review)", after_rating, re.IGNORECASE)
+                    if rev_m:
+                        result["reviews_count"] = int(rev_m.group(1))
+                    break
             except Exception:
                 continue
+        # Fallback: look for rating in body text (near h1)
+        if result["rating_promedio"] is None:
+            body = page.locator("body").inner_text()
+            m = re.search(r"(\d+[.,]\d+)", body)
+            if m:
+                result["rating_promedio"] = float(m.group(1).replace(",", "."))
     except Exception:
         pass
 
@@ -225,23 +282,78 @@ def scrape_place_id(page, place_id: str) -> dict:
         pass
 
     # ── atributos ────────────────────────────────────────────────────────────
+    # Google exposes business attributes as text in the ficha:
+    # e.g. "Se identifica como de propietarias mujeres", accessibility features
+    # These appear in the main panel, not in the sidebar/UI chrome.
+    # Count only clear attribute lines (not action buttons or UI elements).
     try:
-        attr_sel = "[class*='attribute'], [class*='atributo'], [class*='Amenity']"
-        attr_els = page.locator(attr_sel).all()
-        result["atributos_seteados"] = len([el for el in attr_els if el.is_visible(timeout=1000)])
+        body = page.locator("body").inner_text()
+        lines = body.split("\n")
+        # High-confidence attribute indicators (clearly business attributes, not UI)
+        attr_indicators = [
+            "se identifica", "propietarias", "mujeres", "hombres",
+            "acceso para sillas", "aparcamiento adaptado", "accesibilidad",
+            "reservas", "reserva", "domicilio", "recogida",
+            "terraza", "mascotas", "wi-fi", "wifi", "comida para llevar",
+            "entrega a domicilio", "vegetariano", "vegano", "sin gluten",
+            "desayuno", "almuerzo", "cena", "café", "bar", "restaurante",
+            "gama", "precio", "veterano", "empresa pequeña",
+            "family-friendly", "children", "kids", "highchair",
+            "gender-neutral", "LGBTQ", "owned by", "women-owned",
+        ]
+        skip_words = [
+            "Añadir", "Escribir", "Sugerir", "Guardar", "Compartir", "Cercano",
+            "Teléfono", "Dirección", "Cómo llegar", "Ver fotos", "Reseña",
+            "Fotos y vídeos", "Añadir fotos", "Mostrar", "Ocultar",
+            "Iniciar sesión", "vista limitada", "Google Maps", "Maps",
+            "Términos", "Privacidad", "Restaurantes", "Hoteles", "Bares",
+            "Cafeterías", "Qué hacer", "Aparcamientos", "Farmacias",
+            "Cajeros", "Transporte", "Descarga", "Maquinaria Tenorio",
+            "Bar Restaurante", "Carretera", "C.", "dirección", "llamar",
+        ]
+        attr_count = 0
+        for line in lines:
+            line = line.strip()
+            if not line or len(line) < 5 or len(line) > 120:
+                continue
+            if any(sw.lower() in line.lower() for sw in skip_words):
+                continue
+            line_lower = line.lower()
+            matches = sum(1 for ind in attr_indicators if ind.lower() in line_lower)
+            if matches > 0:
+                attr_count += 1
+        result["atributos_seteados"] = attr_count
     except Exception:
         pass
 
     # ── reviews respondidas ──────────────────────────────────────────────────
+    # Strategy: if reviews_count > 0, look for "Respondida" badges in the reviews
+    # The percentage requires opening the reviews section
     try:
-        # Look for "Respondida" / "Responded" badges
-        resp_sel = "[class*='reply'], [class*='respondida'], [class*='respuesta']"
-        resp_els = page.locator(resp_sel).all()
         total_reviews = result["reviews_count"]
         if total_reviews > 0:
-            result["reviews_respondidas_pct"] = min(100.0, round(len(resp_els) / total_reviews * 100, 1))
-        else:
-            result["reviews_respondidas_pct"] = 0.0
+            # Look for response badges near review entries
+            # Google shows "Respondida por el propietario" or similar badge
+            resp_patterns = [
+                "[class*='respondida']",
+                "[class*='respuesta']",
+                "[class*='reply']",
+                "[aria-label*='respondida' i]",
+                "[aria-label*='respuesta' i]",
+                "text=Respondida",
+                "text=respondida",
+            ]
+            resp_count = 0
+            for pat in resp_patterns:
+                try:
+                    els = page.locator(pat)
+                    resp_count = len([e for e in els.all() if e.is_visible(timeout=500)])
+                    if resp_count > 0:
+                        break
+                except Exception:
+                    continue
+            result["reviews_respondidas_pct"] = min(100.0, round(resp_count / total_reviews * 100, 1))
+        # If reviews_count is 0, leave at 0.0 (Google doesn't expose count in limited view)
     except Exception:
         pass
 
