@@ -4,32 +4,36 @@ import { X, ExternalLink } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 import ReputacionHistorial from './ReputacionHistorial';
+import KeywordsPanel from '../seo/KeywordsPanel';
 
 const FieldLabel = ({ children: labelText }) => <p className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">{labelText}</p>;
 const FieldValue = ({ children: val }) => <p className="text-sm text-slate-200 font-mono mt-0.5 break-all">{val ?? '—'}</p>;
 
-/** Muestra link "Ver en Google Maps" si el lead tiene CID en historial. */
-const GoogleMapsLink = ({ leadId }) => {
+/** Groups reputacion + google maps link + seo keywords panel. */
+const ClienteLeadExtra = ({ cliente }) => {
     const { data } = useQuery({
-        queryKey: ['reputacion-historial', leadId],
-        queryFn: () => n8nPost('crm-lead-reputacion-historial', { lead_id: leadId }),
-        enabled: !!leadId,
-        staleTime: 60_000,
+        queryKey: ['reputacion-historial', cliente.lead_id],
+        queryFn: () => n8nPost('crm-lead-reputacion-historial', { lead_id: cliente.lead_id }),
+        enabled: !!cliente?.lead_id, staleTime: 60_000,
     });
     const cid = data?.historial?.[0]?.google_cid;
-    if (!cid) return null;
     return (
-        <div className="mt-2">
-            <a href={`https://www.google.com/maps/place/?cid=${encodeURIComponent(cid)}`}
-                target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 font-mono uppercase tracking-widest">
-                <ExternalLink size={10} /> Ver en Google Maps
-            </a>
-        </div>
+        <>
+            <ReputacionHistorial leadId={cliente.lead_id} />
+            {cid && (
+                <div className="mt-2">
+                    <a href={`https://www.google.com/maps/place/?cid=${encodeURIComponent(cid)}`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 font-mono uppercase tracking-widest">
+                        <ExternalLink size={10} /> Ver en Google Maps
+                    </a>
+                </div>
+            )}
+            {cliente.id && <KeywordsPanel clienteId={cliente.id} bybusinessUrl={cliente.bybusiness_url} />}
+        </>
     );
 };
-
-GoogleMapsLink.propTypes = { leadId: PropTypes.number.isRequired };
+ClienteLeadExtra.propTypes = { cliente: PropTypes.object.isRequired };
 
 /**
  * ClienteSidePanel — Slide-in panel showing cliente details from crm-cartera-get.
@@ -98,11 +102,7 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                             </div>
                             <div>
                                 <FieldLabel>Estado</FieldLabel>
-                                <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-widest ${
-                                    cliente.estado === 'activo'
-                                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                        : 'bg-slate-800 text-slate-400 border border-slate-700'
-                                }`}>{cliente.estado ?? '—'}</span>
+                                <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-sm text-[10px] font-black uppercase tracking-widest ${cliente.estado === 'activo' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-800 text-slate-400 border border-slate-700'}`}>{cliente.estado ?? '—'}</span>
                             </div>
                             {cliente.bybusiness_url && (
                                 <div>
@@ -114,18 +114,9 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
                                 </div>
                             )}
                             {cliente.notas_internas && (
-                                <div><FieldLabel>Notas internas</FieldLabel>
-                                    <p className="text-xs text-slate-400 font-mono mt-1 whitespace-pre-wrap leading-relaxed">
-                                        {cliente.notas_internas}
-                                    </p>
-                                </div>
+                                <div><FieldLabel>Notas internas</FieldLabel><p className="text-xs text-slate-400 font-mono mt-1 whitespace-pre-wrap leading-relaxed">{cliente.notas_internas}</p></div>
                             )}
-                            {cliente.lead_id && (
-                                <>
-                                    <ReputacionHistorial leadId={cliente.lead_id} />
-                                    <GoogleMapsLink leadId={cliente.lead_id} />
-                                </>
-                            )}
+                            <ClienteLeadExtra cliente={cliente} />
                             <div><FieldLabel>Fecha de alta</FieldLabel>{FieldValue(cliente.created_at ? new Date(cliente.created_at).toLocaleDateString('es-ES') : null)}</div>
                         </div>
                     )}
