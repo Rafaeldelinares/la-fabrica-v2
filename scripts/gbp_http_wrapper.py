@@ -45,6 +45,62 @@ _user_agent = (
 )
 
 
+def load_cookies(cookies_path="/opt/fabrica/scripts/google_session.json"):
+    """Load EditThisCookie JSON and add to browser context. Returns True on success."""
+    global _context
+    import os
+    if not os.path.exists(cookies_path):
+        sys.stderr.write(f"[init] No cookies file at {cookies_path} — limited-view mode\n")
+        return False
+
+    try:
+        with open(cookies_path) as f:
+            data = json.load(f)
+
+        # Handle both formats
+        if isinstance(data, list):
+            cookies = data
+        elif isinstance(data, dict) and 'cookies' in data:
+            cookies = data['cookies']
+        else:
+            sys.stderr.write(f"[init] Unknown cookies file format: {type(data)}\n")
+            return False
+
+        # Convert EditThisCookie → Playwright format
+        pw_cookies = []
+        for c in cookies:
+            ss = c.get('sameSite', 'unspecified')
+            # Map to Playwright's enum (Strict/Lax/None)
+            if ss not in ('Strict', 'Lax', 'None'):
+                ss = 'None'
+
+            expires = c.get('expirationDate')
+            # Playwright: omit expires entirely for session cookies (None/-1/0)
+            if expires is None or expires <= 0:
+                expires = None
+
+            cookie = {
+                'name': c['name'],
+                'value': c['value'],
+                'domain': c['domain'],
+                'path': c.get('path', '/'),
+                'httpOnly': c.get('httpOnly', False),
+                'secure': c.get('secure', False),
+                'sameSite': ss,
+            }
+            if expires is not None:
+                cookie['expires'] = expires
+
+            pw_cookies.append(cookie)
+
+        _context.add_cookies(pw_cookies)
+        sys.stderr.write(f"[init] Loaded {len(pw_cookies)} cookies from {cookies_path}\n")
+        return True
+    except Exception as e:
+        sys.stderr.write(f"[init] Failed to load cookies: {e}\n")
+        return False
+
+
 def init_browser():
     """Launch Chromium once. Pre-warm with Maps to set cookies."""
     global _pw, _browser, _context
@@ -63,6 +119,9 @@ def init_browser():
         viewport={"width": 1280, "height": 900},
         locale="es-ES",
     )
+
+    # Load session cookies if available
+    load_cookies()
 
     # Pre-warm: visit Maps once to set cookies / pass consent
     page = _context.new_page()
