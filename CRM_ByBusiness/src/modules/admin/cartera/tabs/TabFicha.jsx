@@ -33,11 +33,16 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
   const [guardandoWeb,   setGuardandoWeb]   = useState(false);
   const [guardadoWeb,    setGuardadoWeb]    = useState(false);
   const [errorWeb,       setErrorWeb]       = useState(null);
+  const [googlePlaceId,   setGooglePlaceId]  = useState(cliente.google_place_id || '');
+  const [guardandoGbpId,  setGuardandoGbpId] = useState(false);
+  const [guardadoGbpId,   setGuardadoGbpId]  = useState(false);
+  const [errorGbpId,      setErrorGbpId]     = useState(null);
 
   const timerGuardado     = useRef(null);
   const timerGuardadoGest = useRef(null);
   const timerGuardadoBy   = useRef(null);
   const timerGuardadoWeb  = useRef(null);
+  const timerGuardadoGbp  = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -45,6 +50,7 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
       clearTimeout(timerGuardadoGest.current);
       clearTimeout(timerGuardadoBy.current);
       clearTimeout(timerGuardadoWeb.current);
+      clearTimeout(timerGuardadoGbp.current);
     };
   }, []);
 
@@ -99,6 +105,17 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
       clearTimeout(timerGuardadoWeb.current);
       timerGuardadoWeb.current = setTimeout(() => setGuardadoWeb(false), 2000);
     } catch { setErrorWeb('Error al guardar'); } finally { setGuardandoWeb(false); }
+  };
+
+  const handleSaveGooglePlaceId = async () => {
+    setGuardandoGbpId(true);
+    setErrorGbpId(null);
+    try {
+      await n8nPost('crm-cliente-google-place-id', { cliente_id: cliente.id, google_place_id: googlePlaceId || null }, { baseUrl: n8nUrl });
+      setGuardadoGbpId(true);
+      clearTimeout(timerGuardadoGbp.current);
+      timerGuardadoGbp.current = setTimeout(() => setGuardadoGbpId(false), 2000);
+    } catch { setErrorGbpId('Error al guardar'); } finally { setGuardandoGbpId(false); }
   };
 
   const handleDarDeBaja = async () => {
@@ -223,6 +240,29 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
             </button>
           </div>
           {errorBy && <p className="text-[10px] text-red-400 font-mono">{errorBy}</p>}
+          {/* Google Place ID */}
+          <div className="flex items-center gap-2 mt-1">
+            <Globe size={12} className="text-slate-600 shrink-0" />
+            <input
+              type="text"
+              value={googlePlaceId}
+              onChange={e => { setGooglePlaceId(e.target.value); setGuardadoGbpId(false); }}
+              placeholder="Google Place ID (opcional)"
+              className="flex-1 bg-slate-900 border border-slate-700 rounded-sm px-2 py-1 text-[10px] text-slate-300 font-mono outline-none focus:border-slate-500 transition-colors placeholder:text-slate-700 min-w-0"
+            />
+            <button
+              onClick={handleSaveGooglePlaceId}
+              disabled={guardandoGbpId || googlePlaceId === (cliente.google_place_id || '')}
+              className={`text-[9px] font-mono px-2 py-1 rounded-sm border transition-colors shrink-0 ${
+                guardadoGbpId
+                  ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                  : 'border-slate-700 text-slate-500 hover:text-white hover:border-slate-500 disabled:opacity-30'
+              }`}
+            >
+              {guardadoGbpId ? '✓' : guardandoGbpId ? '…' : 'OK'}
+            </button>
+          </div>
+          {errorGbpId && <p className="text-[10px] text-red-400 font-mono pl-5">{errorGbpId}</p>}
         </div>
       </div>
 

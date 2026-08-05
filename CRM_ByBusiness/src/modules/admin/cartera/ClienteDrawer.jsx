@@ -8,7 +8,7 @@ import TabFacturacion from './tabs/TabFacturacion';
 import TabHistorial from './tabs/TabHistorial';
 import TabGbp            from './tabs/TabGbp';
 import TabTarjetaDigital from './tabs/TabTarjetaDigital';
-import TabSeoLocal from './tabs/TabSeoLocal';
+import TabOptimizacionGbp from './tabs/TabOptimizacionGbp';
 import { fmtDias } from '../../../utils/dates';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 import { useRbac } from '../../../shared/auth/useRbac';
@@ -174,8 +174,15 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
             </>
           )}
           {activeTab === 'gbp'       && <TabGbp cliente={cliente} n8nUrl={import.meta.env.VITE_N8N_URL} />}
-          {activeTab === 'seo' && cliente.bybusiness_url && (
-            <TabSeoLocal clienteId={cliente.id} bybusinessUrl={cliente.bybusiness_url} />
+          {activeTab === 'seo' && (
+            cliente.google_place_id
+                ? <TabOptimizacionGbp clienteId={cliente.id} />
+                : <div className="px-5 py-8 text-center">
+                    <p className="text-[10px] text-slate-500 font-mono uppercase tracking-widest mb-1">GBP OPTIMIZACIÓN</p>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                        Ingresá el <strong>Google Place ID</strong> en la pestaña Ficha para activar la auditoría GBP.
+                    </p>
+                  </div>
           )}
           {activeTab === 'tarjeta'   && <TabTarjetaDigital cliente={cliente} />}
         </div>
