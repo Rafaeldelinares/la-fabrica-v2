@@ -42,12 +42,21 @@ Documento de operación para el día a día del CRM. Última actualización: 202
 
 ### 3.1 Alimentador de reputación (local)
 
-- **Schedule**: `0 */6 * * *` (cada 6 horas: 00:00, 06:00, 12:00, 18:00 UTC).
-- **Script**: `/opt/fabrica/scripts/alimentador_reputacion.py --vps --scraper gosom --batch 50`.
-- **Log**: `/var/log/fabrica/alimentador.log` (logrotate diario, 14 días).
-- **Lo que hace**: toma 50 leads sin rating o con rating > 180 días, llama al motor Go para refrescar, escribe UPDATE en VPS vía SSH + docker exec.
-- **Auditoría**: cada corrida inserta un evento `CRON_RUN` en `crm_bybusiness.sistema.eventos_sistema` con detalles `{cron, batch_size, max_age_days, processed, updated, no_match, no_rating, errors, dry_run}`.
-- **Validación**: tras 2 ciclos (12h), el campo `reputacion_at` de los leads procesados debe estar actualizado.
+- **Schedule**: cada **3 horas**, minuto ~09 UTC (cron name: `alimentador_reputacion_pw`). Definido en n8n Schedule (workflow `CRM_REPUTACION_LEAD` o `CRM_REPUTACION_PROXY` — no en /etc/cron.d/ ni systemd).
+- **Script**: `/opt/fabrica/scripts/alimentador_reputacion_pw.py` (Playwright-based, 706 líneas). El script legacy `alimentador_reputacion.py` (373 líneas) sigue en disco pero no se usa.
+- **Log activo**: `/var/log/fabrica/alimentador_pw.log`. El archivo `alimentador.log` queda con logrotate histórico pero ya no es el activo.
+- **Display timezone**: el CRM muestra la hora en **CEST (UTC+2)**. Los runs UTC reales son 01:09, 04:09, 07:09… = 03:09, 06:09, 09:09 CEST.
+- **Lo que hace**: toma N leads sin rating o con rating > 180 días, llama al motor Go para refrescar reputación vía Playwright + Google Maps, escribe UPDATE en VPS vía SSH + docker exec.
+- **Auditoría**: cada corrida inserta un evento `CRON_RUN` en `crm_bybusiness.sistema.eventos_sistema` con `detalles.cron = 'alimentador_reputacion_pw'` y campos `{cron, batch_size, processed, updated, no_match, no_rating, errors, discovered}`.
+- **Validación**: tras 2 ciclos (6h), el campo `reputacion_at` de los leads procesados debe estar actualizado.
+- **Backfill manual**: corridas manuales pueden disparar bursts de N ejecuciones con `batch_size` menor (ej. 5-15). Útil para limpiar backlog sin esperar el ciclo siguiente.
+- **Verificación rápida**: ver RUNBOOK §7.4 + comando ad-hoc:
+  ```sql
+  SELECT fecha_evento AT TIME ZONE 'UTC', detalles->>'cron', detalles->>'batch_size', detalles->>'processed', detalles->>'updated'
+  FROM sistema.eventos_sistema
+  WHERE tipo_evento='CRON_RUN' AND detalles->>'cron' = 'alimentador_reputacion_pw'
+  ORDER BY fecha_evento DESC LIMIT 10;
+  ```
 
 ### 3.2 Métricas diarias de frescura (VPS)
 
@@ -335,6 +344,7 @@ Para cada sesión nueva, crear un archivo `verification/YYYY-MM-DD-<topic>.md` y
   - `e2e/s14-scraper-config-panel.spec.js`: `require('fs')`/`require('path')` reemplazados por `import` ESM en el top
 - **Túnel `tunnel-n8n-vps.service` confirmado DEAD**: systemd activo pero destino no responde. Container n8n-vps-sqlite no expone puerto al host. MCP `n8n-mcp-vps` usa URL pública. RUNBOOK §1 actualizado.
 - **Sección 7.4 y 7.5 agregadas**: verificación rápida de túneles cross-env y orden de reinicio de La Fábrica.
+- **§3.1 corregida**: alimentador de reputación documentado correctamente. Script actual es `alimentador_reputacion_pw.py` (no `_reputacion.py`); schedule cada 3h UTC (no cada 6h); log activo `alimentador_pw.log`; timezone display CEST. Verificado en DB con eventos `CRON_RUN`.
 
 ### 2026-08-01
 
