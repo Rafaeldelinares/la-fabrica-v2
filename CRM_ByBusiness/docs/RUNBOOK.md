@@ -17,10 +17,10 @@ Documento de operación para el día a día del CRM. Última actualización: 202
 
 - **Scrapers**: `scraper-nano-v2` (puerto 8090), `scraper-heavy-v2` (8091), `scraper-maps-v1` (8094), `gosom-scraper` (8096).
 - **Motor de scraping (Go)**: `monitor-engine.service` en puerto 8092.
-- **Túneles SSH**:
-  - `tunnel-postgres-vps.service` → `localhost:5433` → VPS `:5432`.
-  - `tunnel-monitor.service` → `localhost:5432` → VPS `:8092` (motor).
-  - `tunnel-n8n-vps.service` → `localhost:5679` → VPS `:5678` (no usado activamente).
+- **Túneles SSH** (verificado 2026-08-05):
+  - `tunnel-postgres-vps.service` (forward) → `localhost:5433` → VPS `:5432`. ✅ activo.
+  - `tunnel-monitor.service` (reverse) → expone `0.0.0.0:8092/8090/8091` del local al VPS. ✅ activo.
+  - `tunnel-n8n-vps.service` (forward) → `localhost:5679` → VPS `172.19.0.2:5678`. ⚠️ **DEAD**: systemd activo pero destino no responde (RST). El container n8n actual (`n8n-vps-sqlite`) no tiene port binding al host. Usar MCP `n8n-mcp-vps` que conecta por `https://n8n.ia-bybusiness.online`.
 - **DB monitor cache**: container `postgres-monitor-v2` → DB `reputacion_cache` (puerto 5435).
 
 ---
@@ -162,6 +162,41 @@ ssh -o BatchMode=yes root@72.60.191.179 "touch /var/www/crm.ia-bybusiness.com/as
 2. **Rotación de API keys**: revisar fecha de expiración de la API key de n8n y otros servicios.
 3. **Review de logs**: `tail -1000 /var/log/fabrica/alimentador.log | grep -i error`.
 
+### 7.4 Túneles y conexión local↔VPS (verificación rápida)
+
+Ejecutar tras cualquier reinicio de La Fábrica o VPS:
+
+```bash
+# Estado de túneles systemd
+systemctl is-active tunnel-postgres-vps.service tunnel-monitor.service tunnel-n8n-vps.service
+
+# Túneles forward escuchando en local
+ss -tnlp | grep -E ':(5433|5679)\s' | grep ssh
+
+# Túneles reverse expuestos en VPS
+ssh root@72.60.191.179 'ss -tnlp | grep -E ":(8092|8090|8091)\s"'
+
+# Verificación funcional
+curl -sf http://localhost:5678/healthz && echo "n8n_local: OK"              # n8n local
+PGPASSWORD='Samsung18091809&' psql -h localhost -p 5432 -U rafael -d fabrica -c 'SELECT 1' >/dev/null && echo "pg_fabrica: OK"
+PGPASSWORD='Samsung18091809&' psql -h localhost -p 5432 -d crm_bybusiness -c 'SELECT 1' >/dev/null && echo "pg_crm: OK"
+PGPASSWORD='Samsung18091809&' psql -h localhost -p 5435 -d reputacion_cache -c 'SELECT 1' >/dev/null && echo "pg_monitor: OK"
+PGPASSWORD='<rafael_admin_pw>' psql -h localhost -p 5433 -U rafael_admin -d crm_bybusiness -c 'SELECT 1' >/dev/null && echo "pg_vps_via_tunel: OK"
+```
+
+Si `pg_vps_via_tunel` falla: `systemctl restart tunnel-postgres-vps.service`. Si `tunnel-n8n-vps` falla, **ignorar** — usar `n8n-mcp-vps` (conecta por URL pública).
+
+### 7.5 Procedimiento de reinicio de La Fábrica (orden de arranque)
+
+1. Servicios base: `systemctl status docker postgresql nginx` (los que apliquen)
+2. Postgres local: `pg_isready -h localhost -p 5432`
+3. Postgres monitor: `pg_isready -h localhost -p 5435`
+4. n8n local: `curl -sf http://localhost:5678/healthz`
+5. Scraper containers: `docker ps | grep -E 'scraper-(nano|heavy)'`
+6. Monitor engine (Go): `systemctl status monitor-engine.service`
+7. Túneles SSH: ver §7.4
+8. Verificación cross-env: comando completo de §7.4
+
 ---
 
 ## 8. Solución de problemas comunes
@@ -187,6 +222,16 @@ ssh -o BatchMode=yes root@72.60.191.179 "touch /var/www/crm.ia-bybusiness.com/as
 1. `systemctl status monitor-engine.service tunnel-postgres-vps.service`.
 2. Verificar que `docker ps` muestre `n8n-vps-sqlite`, `fabrica-postgres-1` activos.
 3. Si n8n murió: `ssh root@72.60.191.179 "docker start n8n-vps-sqlite"`.
+
+### Túnel `tunnel-n8n-vps` aparece activo pero no responde
+
+Síntoma: `systemctl status tunnel-n8n-vps.service` dice `active (running)` pero `curl http://localhost:5679/healthz` devuelve error `Conexión reinicializada por la máquina remota` (RST) o timeout.
+
+Causa raíz (confirmada 2026-08-05): El túnel SSH forward apunta a `172.19.0.2:5678` en el VPS, pero el container n8n real (`n8n-vps-sqlite`) **no expone el puerto al host** — solo es accesible vía Traefik en `https://n8n.ia-bybusiness.online`. El túnel es configuración histórica que quedó huérfana.
+
+Workaround: usar el MCP `n8n-mcp-vps` (configurado en `~/.config/opencode/opencode.json`), que conecta directamente a la URL pública con la API key. **No intentar arreglar el túnel** — está así por diseño.
+
+Fix permanente (TODO, no urgente): editar `/etc/systemd/system/tunnel-n8n-vps.service` y cambiar la línea `ExecStart=` para apuntar al container correcto vía SSH `-W` o eliminar el servicio. Mientras tanto, ignorar este túnel en §7.4.
 
 ### Login falla (2FA)
 
@@ -281,6 +326,15 @@ Para cada sesión nueva, crear un archivo `verification/YYYY-MM-DD-<topic>.md` y
 ---
 
 ## Cambios recientes
+
+### 2026-08-05
+
+- **Fix CI E2E Tests** en branch `feat(cartera): tab SEO LOCAL`:
+  - `playwright.config.js`: `webServer.command` cambiado a `npm run preview -- --port 5174 --host`
+  - `vite.config.js`: agregado bloque `preview: { host: true, port: 5174, strictPort: true }` (Vite `host: true` en `server{}` no aplica a `preview{}`)
+  - `e2e/s14-scraper-config-panel.spec.js`: `require('fs')`/`require('path')` reemplazados por `import` ESM en el top
+- **Túnel `tunnel-n8n-vps.service` confirmado DEAD**: systemd activo pero destino no responde. Container n8n-vps-sqlite no expone puerto al host. MCP `n8n-mcp-vps` usa URL pública. RUNBOOK §1 actualizado.
+- **Sección 7.4 y 7.5 agregadas**: verificación rápida de túneles cross-env y orden de reinicio de La Fábrica.
 
 ### 2026-08-01
 
