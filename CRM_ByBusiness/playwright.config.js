@@ -41,7 +41,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
       },
       webServer: {
-        command: 'npm run dev',
+        command: 'npm run preview -- --port 5174 --host',
         url: 'http://localhost:5174',
         reuseExistingServer: !process.env.CI,
         timeout: 120000,
