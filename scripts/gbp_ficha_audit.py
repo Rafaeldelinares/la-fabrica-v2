@@ -99,6 +99,7 @@ def extract_limited_view(page, place_id) -> dict:
     result = {
         "place_id": place_id,
         "format": fmt,
+        "limited_view": False,  # will be set True if "vista limitada" detected
         "categoria_principal": None,
         "categorias_secundarias": [],
         "descripcion": None,
@@ -131,6 +132,18 @@ def extract_limited_view(page, place_id) -> dict:
         return {"error": "captcha"}
     if "no se encontro" in visible_text.lower() or "not found" in visible_text.lower():
         return {"error": "not_found"}
+    # Detect limited view — retry over 2s in case of lazy load
+    for _ in range(4):
+        if "vista limitada" in visible_text.lower():
+            result["limited_view"] = True
+            break
+        page.wait_for_timeout(500)
+        visible_text = page.locator("body").inner_text()
+    else:
+        # Not detected after retries — check if tabs exist (definitive test)
+        # Full GBP has 4+ tabs; limited view has 2 (Vista general + Info)
+        if page.locator("[role='tab']").count() <= 2:
+            result["limited_view"] = True
 
     # ── categoria_principal + categorias_secundarias ──────────────────────────
     try:
@@ -206,6 +219,13 @@ def extract_limited_view(page, place_id) -> dict:
         pass
 
     # ── rating + reviews ─────────────────────────────────────────────────────
+    # Detect limited view from body text (may have changed since initial check)
+    body = page.locator("body").inner_text()
+    is_limited_view = "vista limitada" in body.lower()
+    # Only update if we now detect it (don't overwrite True with False)
+    if is_limited_view:
+        result["limited_view"] = True
+
     try:
         for sel in [
             "[role='img'][aria-label*='estrel' i]",
@@ -227,17 +247,42 @@ def extract_limited_view(page, place_id) -> dict:
             except Exception:
                 continue
         if result["rating_promedio"] is None:
-            body = page.locator("body").inner_text()
             m = re.search(r"(\d+[.,]\d+)", body)
             if m:
                 result["rating_promedio"] = float(m.group(1).replace(",", "."))
+        # Try to extract review count from body text even in limited view
+        # Look for patterns like "4,3 ★ · 4 reseñas" or "4.3 (4 reviews)"
+        if result["reviews_count"] == 0 and not is_limited_view:
+            rev_body_m = re.search(r"(\d+)\s*(?:reseñas|reseña|reviews|review)", body, re.IGNORECASE)
+            if rev_body_m:
+                result["reviews_count"] = int(rev_body_m.group(1))
     except Exception:
         pass
 
     # ── fotos_count + ultima_foto_fecha ─────────────────────────────────────
     try:
-        foto_sel = "[class*='gallery'] img, [class*='fotos'] img, [class*='photo'] img"
-        foto_els = page.locator(foto_sel).all()
+        # In limited view: profile photo via googleusercontent.com
+        # In full view: gallery images with various class patterns
+        foto_selectors = [
+            "img[src*='googleusercontent.com']",   # profile/cover photos
+            "[class*='gallery'] img",
+            "[class*='fotos'] img",
+            "[class*='photo'] img",
+            "[data-photo-id]",
+        ]
+        foto_els = []
+        for sel in foto_selectors:
+            try:
+                els = page.locator(sel).all()
+                # Filter: exclude map tile images (contain /vt/pb= in src)
+                valid = [e for e in els if e.is_visible(timeout=500)
+                         and "/vt/pb=" not in (e.get_attribute("src") or "")]
+                if valid:
+                    foto_els = valid
+                    break
+            except Exception:
+                continue
+
         result["fotos_count"] = len(foto_els)
         for el in reversed(foto_els):
             try:
@@ -249,6 +294,26 @@ def extract_limited_view(page, place_id) -> dict:
                     break
             except Exception:
                 continue
+
+        # Also try: extract photo count from "Ver fotos" button aria-label or nearby text
+        if result["fotos_count"] == 0:
+            for sel in [
+                "[aria-label*='Ver fotos' i]",
+                "button:has-text('Ver fotos')",
+                "a:has-text('Ver fotos')",
+            ]:
+                try:
+                    el = page.locator(sel).first
+                    if el.is_visible(timeout=2000):
+                        # The "Ver fotos" link/button is near the photo section
+                        # Try to find a count number in the vicinity
+                        lbl = el.get_attribute("aria-label") or ""
+                        if lbl:
+                            cnt_m = re.search(r"(\d+)", lbl)
+                            if cnt_m:
+                                result["fotos_count"] = int(cnt_m.group(1))
+                except Exception:
+                    pass
     except Exception:
         pass
 
@@ -336,23 +401,81 @@ def extract_limited_view(page, place_id) -> dict:
 
 def _click_tab(page, label_pattern: str, timeout_ms=8000) -> bool:
     """Click a tab button whose aria-label or text contains label_pattern.
-    Returns True if clicked successfully.
+    Returns True if clicked successfully AND the resulting content is different
+    from the original (i.e., a real tab was clicked, not a CTA button).
+
+    Detection: after clicking, check if role=tab elements exist with matching label
+    or if the body content changed significantly.
     """
+    # First, collect pre-click body text to detect change
+    try:
+        pre_body = page.locator("body").inner_text()[:200]
+    except Exception:
+        pre_body = ""
+
+    # CTA buttons that look like tabs but aren't — exclude these
+    cta_exclude = [
+        "Escribir una reseña",
+        "Añadir fotos y vídeos",
+        "Añadir una foto",
+        "Escribir una opinión",
+    ]
+
     patterns = [
-        f"button[aria-label*='{label_pattern}' i]",
+        f"[role='tab'][aria-label*='{label_pattern}' i]",
+        f"button[aria-label*='{label_pattern}' i]:not([aria-label*='Escribir']):not([aria-label*='Añadir'])"
+        f":not([aria-label*='Más información'])",
         f"a[aria-label*='{label_pattern}' i]",
         f"button:has-text('{label_pattern}')",
-        f"[role='tab'][aria-label*='{label_pattern}' i]",
     ]
+
     for sel in patterns:
         try:
             el = page.locator(sel).first
-            if el.is_visible(timeout=2000):
+            if not el.is_visible(timeout=2000):
+                continue
+            aria_label = el.get_attribute("aria-label") or ""
+            # Skip CTA buttons that are not real tabs
+            if any(cta.lower() in aria_label.lower() for cta in cta_exclude):
+                continue
+            el.click()
+            page.wait_for_timeout(2500)
+
+            # Verify the click actually changed something meaningful
+            # (real tabs change the content area; CTA buttons don't)
+            try:
+                post_body = page.locator("body").inner_text()[:200]
+                body_changed = post_body != pre_body
+                # Also check: do we now have role=tab elements with the pattern?
+                tabs_now = page.locator(f"[role='tab'][aria-label*='{label_pattern}' i]").count()
+                if tabs_now > 0 or body_changed:
+                    return True
+            except Exception:
+                return True  # Assume click worked if no exception
+        except Exception:
+            continue
+
+    # Fallback: try plain button text match without aria-label filter
+    # Only if no previous pattern succeeded
+    plain_patterns = [
+        f"button:has-text('{label_pattern}')",
+    ]
+    for sel in plain_patterns:
+        try:
+            els = page.locator(sel).all()
+            for el in els:
+                if not el.is_visible(timeout=1000):
+                    continue
+                aria_label = el.get_attribute("aria-label") or ""
+                # Exclude CTAs
+                if any(cta.lower() in aria_label.lower() for cta in cta_exclude):
+                    continue
                 el.click()
                 page.wait_for_timeout(2500)
                 return True
         except Exception:
             continue
+
     return False
 
 
@@ -370,10 +493,31 @@ def extract_reviews(page, deep=False) -> dict:
         "reviews_respondidas_pct": 0.0,
     }
     try:
+        # Check for limited view first
+        body = page.locator("body").inner_text()
+        if "vista limitada" in body.lower():
+            # Tabs don't exist in limited view — don't waste time clicking
+            return result
+
         clicked = _click_tab(page, "Reseñ")
         if not clicked:
             return result
         page.wait_for_timeout(2000)
+
+        # After click, verify we actually loaded review content
+        # Look for any of these indicators
+        review_indicators = [
+            "[data-review-id]",
+            "[class*='review']",
+            "[aria-label*='reseña' i]:not(button)",  # review text content
+        ]
+        has_review_content = any(
+            page.locator(ind).count() > 0
+            for ind in review_indicators
+        )
+        if not has_review_content:
+            # Tab clicked but no review content loaded — likely still limited view
+            return result
 
         # Count review cards (Google renders them as divs with reviewer names)
         # Scroll to load more (cap at REVIEWS_SCROLL_CAP in deep mode)
@@ -441,6 +585,11 @@ def extract_photos(page) -> dict:
     """
     result = {"fotos_count": 0, "ultima_foto_fecha": None}
     try:
+        # Check for limited view first
+        body = page.locator("body").inner_text()
+        if "vista limitada" in body.lower():
+            return result
+
         clicked = _click_tab(page, "Foto")
         if not clicked:
             return result
@@ -496,6 +645,11 @@ def extract_posts(page) -> dict:
     """
     result = {"posts_count": 0, "latest_post_date": None}
     try:
+        # Check for limited view first
+        body = page.locator("body").inner_text()
+        if "vista limitada" in body.lower():
+            return result
+
         # Try multiple label variants
         for label in ["Publicacione", "Actualizacione", "Post", "Novedad"]:
             clicked = _click_tab(page, label)
@@ -547,6 +701,11 @@ def extract_qa(page) -> dict:
     """
     result = {"qa_count": 0}
     try:
+        # Check for limited view first
+        body = page.locator("body").inner_text()
+        if "vista limitada" in body.lower():
+            return result
+
         clicked = _click_tab(page, "Pregunta")
         if not clicked:
             return result
@@ -587,22 +746,39 @@ def scrape_full_audit(page, place_id: str, deep=False) -> dict:
     if result.get("error"):
         return result
 
-    # Merge tab extracts
-    try:
-        reviews_data = extract_reviews(page, deep=deep)
-        result.update(reviews_data)
-    except Exception:
-        pass
+    # Merge tab extracts (only if not limited view — tabs don't exist in limited view)
+    if not result.get("limited_view"):
+        try:
+            reviews_data = extract_reviews(page, deep=deep)
+            result.update(reviews_data)
+        except Exception:
+            pass
 
-    try:
-        photos_data = extract_photos(page)
-        # Only update foto fields if tab returned better data
-        if photos_data["fotos_count"] > result.get("fotos_count", 0):
-            result["fotos_count"] = photos_data["fotos_count"]
-        if photos_data["ultima_foto_fecha"]:
-            result["ultima_foto_fecha"] = photos_data["ultima_foto_fecha"]
-    except Exception:
-        pass
+        try:
+            photos_data = extract_photos(page)
+            # Only update foto fields if tab returned better data
+            if photos_data["fotos_count"] > result.get("fotos_count", 0):
+                result["fotos_count"] = photos_data["fotos_count"]
+            if photos_data["ultima_foto_fecha"]:
+                result["ultima_foto_fecha"] = photos_data["ultima_foto_fecha"]
+        except Exception:
+            pass
+
+        try:
+            posts_data = extract_posts(page)
+            if posts_data["posts_count"] > result.get("posts_count", 0):
+                result["posts_count"] = posts_data["posts_count"]
+            if posts_data.get("latest_post_date"):
+                result["latest_post_date"] = posts_data["latest_post_date"]
+        except Exception:
+            pass
+
+        try:
+            qa_data = extract_qa(page)
+            if qa_data["qa_count"] > result.get("qa_count", 0):
+                result["qa_count"] = qa_data["qa_count"]
+        except Exception:
+            pass
 
     try:
         posts_data = extract_posts(page)
