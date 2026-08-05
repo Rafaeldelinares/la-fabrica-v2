@@ -29,16 +29,22 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
   const [guardandoBy,    setGuardandoBy]    = useState(false);
   const [guardadoBy,     setGuardadoBy]     = useState(false);
   const [errorBy,        setErrorBy]        = useState(null);
+  const [web,            setWeb]            = useState(cliente.web || '');
+  const [guardandoWeb,   setGuardandoWeb]   = useState(false);
+  const [guardadoWeb,    setGuardadoWeb]    = useState(false);
+  const [errorWeb,       setErrorWeb]       = useState(null);
 
   const timerGuardado     = useRef(null);
   const timerGuardadoGest = useRef(null);
   const timerGuardadoBy   = useRef(null);
+  const timerGuardadoWeb  = useRef(null);
 
   useEffect(() => {
     return () => {
       clearTimeout(timerGuardado.current);
       clearTimeout(timerGuardadoGest.current);
       clearTimeout(timerGuardadoBy.current);
+      clearTimeout(timerGuardadoWeb.current);
     };
   }, []);
 
@@ -82,6 +88,17 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
       clearTimeout(timerGuardadoBy.current);
       timerGuardadoBy.current = setTimeout(() => setGuardadoBy(false), 2000);
     } catch { setErrorBy('Error al guardar'); } finally { setGuardandoBy(false); }
+  };
+
+  const handleSaveWeb = async () => {
+    setGuardandoWeb(true);
+    setErrorWeb(null);
+    try {
+      await n8nPost('crm-cliente-web', { cliente_id: cliente.id, web: web || null }, { baseUrl: n8nUrl });
+      setGuardadoWeb(true);
+      clearTimeout(timerGuardadoWeb.current);
+      timerGuardadoWeb.current = setTimeout(() => setGuardadoWeb(false), 2000);
+    } catch { setErrorWeb('Error al guardar'); } finally { setGuardandoWeb(false); }
   };
 
   const handleDarDeBaja = async () => {
@@ -150,15 +167,34 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
               <FileText size={12} className="text-slate-600 shrink-0" />CIF: {cliente.cif}
             </div>
           )}
-          {cliente.web && (
-            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
-              <Globe size={12} className="text-slate-600 shrink-0" />
-              <a href={cliente.web.startsWith('http') ? cliente.web : `https://${cliente.web}`}
-                target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 truncate">
-                {cliente.web}
+          <div className="flex items-center gap-2">
+            <Globe size={12} className="text-slate-600 shrink-0" />
+            <input
+              type="url"
+              value={web}
+              onChange={e => { setWeb(e.target.value); setGuardadoWeb(false); }}
+              placeholder="https://ejemplo.com"
+              className="flex-1 bg-slate-900 border border-slate-700 rounded-sm px-2 py-1 text-xs text-slate-300 font-mono outline-none focus:border-slate-500 transition-colors placeholder:text-slate-700 min-w-0"
+            />
+            {web && (
+              <a href={web.startsWith('http') ? web : `https://${web}`} target="_blank" rel="noopener noreferrer"
+                className="text-slate-600 hover:text-slate-400 shrink-0 transition-colors">
+                <ExternalLink size={11} />
               </a>
-            </div>
-          )}
+            )}
+            <button
+              onClick={handleSaveWeb}
+              disabled={guardandoWeb || web === (cliente.web || '')}
+              className={`text-[9px] font-mono px-2 py-1 rounded-sm border transition-colors shrink-0 ${
+                guardadoWeb
+                  ? 'border-emerald-500/30 text-emerald-400 bg-emerald-500/10'
+                  : 'border-slate-700 text-slate-500 hover:text-white hover:border-slate-500 disabled:opacity-30'
+              }`}
+            >
+              {guardadoWeb ? '✓' : guardandoWeb ? '…' : 'OK'}
+            </button>
+          </div>
+          {errorWeb && <p className="text-[10px] text-red-400 font-mono">{errorWeb}</p>}
           <div className="flex items-center gap-2">
             <BadgeCheck size={12} className="text-[#D00000] shrink-0" />
             <input
