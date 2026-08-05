@@ -10,6 +10,20 @@ const scoreColor = (pct) => {
   return 'text-red-400';
 };
 
+/** Format cache age string */
+const cacheAge = (cachedAt) => {
+  if (!cachedAt) return null;
+  const cached = new Date(cachedAt);
+  const now = new Date();
+  const diffMs = now - cached;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffH = Math.floor(diffMin / 60);
+  if (diffMin < 1) return 'ahora';
+  if (diffMin < 60) return `hace ${diffMin}m`;
+  if (diffH < 24) return `hace ${diffH}h`;
+  return cached.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+};
+
 /** Status pill for single-item checks */
 const StatusPill = ({ ok, label }) => (
   <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-sm ${
@@ -30,15 +44,29 @@ const TabOptimizacionGbp = ({ clienteId }) => {
   const [placeId,       setPlaceId]       = useState('');
   const [guardadoPlace, setGuardadoPlace] = useState(false);
   const [errorPlace,    setErrorPlace]    = useState(null);
+  const [forceRefresh,  setForceRefresh]  = useState(false);
   const timerRef = useRef(null);
 
   const scrapeMut = useMutation({
-    mutationFn: (pid) => n8nPost('crm-gbp-ficha-audit', { place_id: pid }),
+    // staleTime 30 min — backend caches for 24h
+    mutationFn: (pid) => n8nPost('crm-gbp-ficha-audit', {
+      place_id: pid,
+      refresh: forceRefresh,
+    }),
+    staleTime: 30 * 60 * 1000,
   });
 
   const handleScrape = () => {
     if (!placeId.trim()) { setErrorPlace('Place ID requerido'); return; }
     setErrorPlace(null);
+    setForceRefresh(false);
+    scrapeMut.mutate(placeId.trim());
+  };
+
+  const handleRefresh = () => {
+    if (!placeId.trim()) { setErrorPlace('Place ID requerido'); return; }
+    setErrorPlace(null);
+    setForceRefresh(true);
     scrapeMut.mutate(placeId.trim());
   };
 
@@ -59,8 +87,11 @@ const TabOptimizacionGbp = ({ clienteId }) => {
 
   const audit     = scrapeMut.data && !scrapeMut.data.error ? scrapeMut.data : null;
   const isLoading = scrapeMut.isPending;
+  const isCached  = audit && audit._cached === true;
+  const cachedAt   = audit && audit._cached_at;
+  const durationMs = audit && audit._scrape_duration_ms;
 
-  // Score calculation
+  // Score calculation — all available signals
   const pctAtributos = audit && audit.atributos_total > 0
     ? Math.round((audit.atributos_seteados / audit.atributos_total) * 100)
     : null;
@@ -69,14 +100,34 @@ const TabOptimizacionGbp = ({ clienteId }) => {
     ? Math.round((audit.reviews_respondidas_pct || 0) * 100)
     : null;
 
-  const tieneHorarios = audit && audit.horarios_dias_cubiertos >= 5;
-  const tieneFotos    = audit && audit.fotos_count >= 3;
-  const tieneDesc     = audit && audit.descripcion && audit.descripcion.length > 50;
-  const tieneQA       = audit && audit.qa_count > 0;
+  const pctFotos = audit && audit.fotos_count >= 10
+    ? 80 : audit && audit.fotos_count >= 3
+    ? 50 : null;
 
-  const itemScore = [pctAtributos, pctReviews].filter(v => v !== null);
-  const avgScore  = itemScore.length > 0
-    ? Math.round(itemScore.reduce((a, b) => a + b, 0) / itemScore.length)
+  const pctDesc = audit && audit.descripcion && audit.descripcion.length > 50
+    ? 80 : audit && audit.descripcion ? 40 : null;
+
+  const pctQA = audit && audit.qa_count > 0 ? 50 : null;
+
+  const pctPosts = audit && audit.posts_count > 0 ? 50 : null;
+
+  const tieneHorarios = audit && audit.horarios_dias_cubiertos >= 5;
+  const tieneFotos    = audit && (audit.fotos_count ?? 0) >= 3;
+  const tieneDesc     = audit && audit.descripcion && audit.descripcion.length > 50;
+  const tieneQA       = (audit?.qa_count ?? 0) > 0;
+
+  // Weighted average: atributos 40%, reviews 30%, fotos 15%, desc 10%, qa/posts 5%
+  const scoreItems = [
+    pctAtributos !== null ? [pctAtributos, 0.40] : null,
+    pctReviews    !== null ? [pctReviews,    0.30] : null,
+    pctFotos     !== null ? [pctFotos,       0.15] : null,
+    pctDesc      !== null ? [pctDesc,         0.10] : null,
+    pctQA        !== null ? [pctQA,           0.03] : null,
+    pctPosts     !== null ? [pctPosts,        0.02] : null,
+  ].filter(Boolean);
+
+  const avgScore = scoreItems.length > 0
+    ? Math.round(scoreItems.reduce((acc, [val, weight]) => acc + val * weight, 0))
     : null;
 
   return (
@@ -109,6 +160,16 @@ const TabOptimizacionGbp = ({ clienteId }) => {
           >
             {isLoading ? '…' : 'Auditar'}
           </button>
+          {audit && (
+            <button
+              onClick={handleRefresh}
+              disabled={isLoading}
+              title="Forzar recarga desde Google (ignora cache)"
+              className="text-[9px] font-mono px-2 py-1 rounded-sm border border-slate-600 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-30 transition-colors shrink-0"
+            >
+              ⟳
+            </button>
+          )}
         </div>
         {errorPlace && <p className="text-[10px] text-red-400 font-mono">{errorPlace}</p>}
       </div>
@@ -117,6 +178,11 @@ const TabOptimizacionGbp = ({ clienteId }) => {
       {isLoading && (
         <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono px-2">
           <span className="animate-pulse text-[8px]">●</span> Extrayendo datos de Google…
+          {durationMs && (
+            <span className="text-slate-600 ml-auto">
+              {Math.round(durationMs / 1000)}s
+            </span>
+          )}
         </div>
       )}
 
@@ -133,6 +199,24 @@ const TabOptimizacionGbp = ({ clienteId }) => {
       {/* ── Audit results ── */}
       {audit && !isLoading && (
         <>
+          {/* Cache status bar */}
+          {isCached && cachedAt && (
+            <div className="flex items-center gap-2 text-[9px] text-slate-600 font-mono px-1">
+              <span>📦</span>
+              <span>Cache: {cacheAge(cachedAt)}</span>
+              {durationMs && (
+                <span className="ml-auto">Scrape: {Math.round(durationMs / 1000)}s</span>
+              )}
+            </div>
+          )}
+          {!isCached && !isLoading && durationMs && (
+            <div className="flex items-center gap-2 text-[9px] text-slate-600 font-mono px-1">
+              <span>🔄</span>
+              <span>Fresh scrape</span>
+              <span className="ml-auto">Scrape: {Math.round(durationMs / 1000)}s</span>
+            </div>
+          )}
+
           {/* KPI cards */}
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-slate-900 border border-slate-800 rounded-sm px-3 py-3 text-center">
@@ -200,8 +284,18 @@ const TabOptimizacionGbp = ({ clienteId }) => {
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono">
               <span className="text-slate-500">Días cubiertos</span>
               <span className="text-slate-300">{audit.horarios_dias_cubiertos ?? '—'}</span>
+              <span className="text-slate-500">Reviews cargadas</span>
+              <span className="text-slate-300">{audit.reviews_count ?? 0}</span>
+              <span className="text-slate-500">Reviews resp.</span>
+              <span className="text-slate-300">{audit.reviews_respondidas_count ?? 0} ({audit.reviews_respondidas_pct ?? 0}%)</span>
+              <span className="text-slate-500">Fotos</span>
+              <span className="text-slate-300">{audit.fotos_count ?? 0}</span>
               <span className="text-slate-500">Última foto</span>
               <span className="text-slate-300">{audit.ultima_foto_fecha || '—'}</span>
+              <span className="text-slate-500">Q&A</span>
+              <span className="text-slate-300">{audit.qa_count ?? 0}</span>
+              <span className="text-slate-500">Posts</span>
+              <span className="text-slate-300">{audit.posts_count ?? 0}</span>
               <span className="text-slate-500">Atributos</span>
               <span className="text-slate-300">{audit.atributos_seteados ?? 0}/{audit.atributos_total ?? 0}</span>
             </div>
