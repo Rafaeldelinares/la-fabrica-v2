@@ -51,3 +51,16 @@ backups/
 monitor-go/main
 monitor-go/monitor-reputacion-go
 engram-vault/
+
+# Python caches (regenerados automáticamente al ejecutar scripts)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Snapshots y proyectos adyacentes en /opt/fabrica/ (no parte del CRM,
+# eran gitlinks huerfanos que ensuciaban el index)
+CRM_ByBusiness-vps-snapshot/
+gentle-sdd-router/
+google-maps-scraper/

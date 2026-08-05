@@ -8,6 +8,7 @@ import TabFacturacion from './tabs/TabFacturacion';
 import TabHistorial from './tabs/TabHistorial';
 import TabGbp            from './tabs/TabGbp';
 import TabTarjetaDigital from './tabs/TabTarjetaDigital';
+import TabSeoLocal from './tabs/TabSeoLocal';
 import { fmtDias } from '../../../utils/dates';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
 import { useRbac } from '../../../shared/auth/useRbac';
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'facturacion', label: 'Facturación' },
   { id: 'historial', label: 'Historial' },
   { id: 'gbp',       label: 'Google Business' },
+  { id: 'seo',       label: 'SEO LOCAL' },
   { id: 'tarjeta',   label: 'Tarjeta Digital' },
 ];
 
@@ -172,6 +174,9 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
             </>
           )}
           {activeTab === 'gbp'       && <TabGbp cliente={cliente} n8nUrl={import.meta.env.VITE_N8N_URL} />}
+          {activeTab === 'seo' && cliente.bybusiness_url && (
+            <TabSeoLocal clienteId={cliente.id} bybusinessUrl={cliente.bybusiness_url} />
+          )}
           {activeTab === 'tarjeta'   && <TabTarjetaDigital cliente={cliente} />}
         </div>
       </div>
