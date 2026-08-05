@@ -33,6 +33,11 @@
 | `seo.nap_baseline` table | ✅ Done | Silent baseline capture on first audit |
 | `seo.admin_alerts` table | ✅ Done | NAP_CHANGE alerts wired up |
 | `AUDIT_PROFILE` job type | ✅ Done | Full NAP extraction + consent handling |
+| `SERP_KEYWORD` job type | ✅ Done | Phase 4 — Playwright + stealth, top 20, alerts |
+| `seo.keywords` table | ✅ Done | Phase 4 — keywords tracked per location |
+| `seo.serp_positions` table | ✅ Done | Phase 4 — historical SERP positions |
+| Auto-seed trigger (keywords) | ✅ Done | Phase 4 — from locations.target_keywords[0] |
+| Auto-enqueue trigger (SERP jobs) | ✅ Done | Phase 4 — on keyword activation |
 | `PULL_REVIEWS` job type | 🔲 Pending | Phase 2 |
 | `RANKING_GRID` job type | 🔲 Pending | Phase 3 |
 | `UPDATE_NAP_BASELINE` job type | 🔲 Pending | Phase 2 |
@@ -201,7 +206,7 @@ python3 scripts/seo_local_engine.py --once --headed
 | `id` | SERIAL | Primary key |
 | `location_id` | INT | FK → `seo.locations` |
 | `google_cid` | VARCHAR(64) | Redundant denorm for join elimination |
-| `job_type` | VARCHAR(50) | AUDIT_PROFILE / PULL_REVIEWS / RANKING_GRID / UPDATE_NAP_BASELINE |
+| `job_type` | VARCHAR(50) | AUDIT_PROFILE / SERP_KEYWORD / PULL_REVIEWS / RANKING_GRID / UPDATE_NAP_BASELINE |
 | `status` | VARCHAR(20) | pending / running / done / failed / skipped |
 | `priority` | INT | 1 (highest) – 10 (lowest) |
 | `scheduled_for` | TIMESTAMPTZ | When to run (default NOW) |
@@ -225,6 +230,12 @@ python3 scripts/seo_local_engine.py --once --headed
 
 ### `seo.nap_baseline`
 Stores the last known NAP state for each location. Compared after each audit to detect changes.
+
+### `seo.keywords`
+See Phase 4 section above.
+
+### `seo.serp_positions`
+See Phase 4 section above.
 
 ### `seo.admin_alerts`
 | Column | Type | Description |
@@ -273,11 +284,86 @@ Or simply run `--seed` — it creates jobs for all monitored locations whose `la
 - Store in `seo.rankings` table (new)
 - `RANK_DROP` alert when position drops below threshold
 
-### Phase 4: Reporting & Dashboard
+### Phase 4: Organic SERP Keyword Tracking
+**Status: ✅ Backend done (Phase 4 Batch 1)**
+
+#### Architecture
+- **Playwright + `playwright-stealth`** (2.0.3) for anti-detection
+- **New browser context per keyword** — incognito-like, no cookies
+- **URL params**: `pws=0&gl=es&hl=es` (no personalization, Spanish results)
+- **Top 20 tracking** — 2 SERP pages queried (positions 1-10 and 11-20)
+- **Frequency**: 1/day per keyword (random hour via scheduled_for jitter)
+
+#### Schema
+
+**`seo.keywords`** — keywords tracked per client location
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | SERIAL | Primary key |
+| `location_id` | INT | FK → `seo.locations` |
+| `client_id` | INT | Denormalized for fast queries |
+| `keyword` | VARCHAR(200) | Search term |
+| `target_domain` | TEXT | Client's website URL |
+| `is_active` | BOOLEAN | Include in scrape cycle |
+| `priority` | INT | 1 (highest) – 10 (lowest) |
+| `created_at`, `updated_at` | TIMESTAMPTZ | Timestamps |
+
+Auto-seeded from `locations.target_keywords[0]` via trigger on INSERT/UPDATE.
+
+**`seo.serp_positions`** — historical SERP positions
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | BIGSERIAL | Primary key |
+| `keyword_id` | INT | FK → `seo.keywords` |
+| `client_id` | INT | Denormalized |
+| `position` | INT | 1–100, NULL = not in top 100 |
+| `page` | INT | 1 (top 10) or 2 (11-20) |
+| `url_found` | TEXT | Actual URL ranking for this keyword |
+| `title` | TEXT | Google result title |
+| `scraped_at` | TIMESTAMPTZ | When scraped |
+
+#### Job Handler Flow
+```
+claim_job() → SERP_KEYWORD job
+  → fetch keyword + target_domain from seo.keywords
+  → launch new browser context (playwright-stealth applied)
+  → scrape_serp_for_keyword(page, keyword, target_domain)
+      → navigate Google SERP with pws=0&gl=es&hl=es
+      → parse top 10 results (page 1)
+      → if target_domain not found → fetch page 2 (positions 11-20)
+      → domain-matched against target_domain
+      → return position (1-20) or None
+  → INSERT seo.serp_positions (position, page, url_found, title)
+  → check_serp_alerts() — two-tier
+  → complete_job(done)
+```
+
+#### Alert Thresholds
+| Level | Condition | Action |
+|-------|-----------|--------|
+| **CRITICAL** | Position drops >5 in 1 day | Insert `RANK_DROP` alert |
+| **CRITICAL** | Position > 20 (exits top 20) | Insert `RANK_DROP` alert |
+| **WARNING** | Drop >3 vs 7-day average | Insert `RANK_DROP` alert |
+
+#### Auto-enqueue Trigger
+When a keyword is created or activated, `trg_auto_enqueue_serp_job` fires and inserts a `SERP_KEYWORD` job with `scheduled_for = NOW() + random(0-15 min)` to spread load.
+
+#### Tuning Notes
+- **Personalization**: `pws=0` disables Google account personalization. `gl=es&hl=es` forces Spanish/Spain results.
+- **Anti-detection**: `playwright-stealth` patches `navigator.webdriver`, `navigator.plugins`, `chrome.runtime`, etc. Also sets `--disable-blink-features=AutomationControlled` launch arg.
+- **Storage state**: context state is persisted per-keyword at `/var/lib/fabrica/playwright-seo/serp_{keyword_id}.json` — reduces consent dialog friction on repeat runs.
+- **SERP selectors**: the JS extraction uses multiple fallback selectors (`div.g`, `div.MjjYud`, etc.) to handle Google UI changes.
+
+#### Known Limitations
+- No CAPTCHA handling (Google may still detect; rate-limit if seeing 403s)
+- Position is based on organic result order — may shift if Google adds knowledge panels, ads, or featured snippets above results
+- Domain matching is hostname-only — `https://example.com/page` and `https://example.com/other` both match `example.com`
+
+### Phase 5: Reporting & Dashboard
 - KPI summaries (average rating, review velocity, ranking trends)
 - Integration with existing CRM dashboards
 
-### Phase 5 — CRM UI Integration (future)
+### Phase 6 — CRM UI Integration (future)
 - "Add to SEO monitoring" button in `ClienteDrawer.jsx` (clientes side panel) — only shown if the cliente doesn't already have a seo.locations entry
 - Display the seo.locations health inline: last_audit_at, NAP baseline diff, open alerts
 - Manual override: allow toggling is_monitored from the CRM
