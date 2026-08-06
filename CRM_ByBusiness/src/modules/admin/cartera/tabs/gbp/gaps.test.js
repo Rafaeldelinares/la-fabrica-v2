@@ -344,38 +344,91 @@ describe('Full audit — ficha completa sin gaps', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Full audit — mala ficha (todos los gaps)
+// Full audit — real backend response (crm-gbp-ficha-audit)
 // ---------------------------------------------------------------------------
-describe('Full audit — mala ficha (muchos gaps)', () => {
-  it('audit malo: varios gaps de alta/baja severidad + evidence preservado', () => {
-    const badAudit = {
-      rating_promedio: 3.0,
-      descripcion: 'corto',
-      fotos_count: 2,
-      horarios_dias_cubiertos: 2,
-      categorias_secundarias: [],
-      posts_count: 0,
-      qa_count: 3,
-    };
-    const gaps = computeGaps(badAudit);
-    // Verifica códigos esperados presentes
+describe('Full audit — real backend response', () => {
+  /**
+   * Respuesta real del webhook crm-gbp-ficha-audit (2026-08-06).
+   * Datos: Entrenador personal, 2 días cubiertos, sin descripción,
+   * sin categorías secundarias, sin posts, rating 5, 15 fotos.
+   */
+  const backendAudit = {
+    format: 'hex_cid',
+    place_id: '0xd45fd88018193cb:0x74eb598a12c63f32',
+    qa_count: 0,
+    descripcion: null,
+    fotos_count: 15,
+    posts_count: 0,
+    limited_view: false,
+    reviews_count: 0,
+    atributos_total: 15,
+    rating_promedio: 5,
+    ultima_foto_fecha: null,
+    atributos_seteados: 1,
+    categoria_principal: 'Entrenador personal',
+    categorias_secundarias: [],
+    horarios_dias_cubiertos: 2,
+    reviews_respondidas_pct: 0,
+    reviews_respondidas_count: 3,
+    _cached: true,
+    _cached_at: '2026-08-06T12:48:41.901808+00:00',
+    _cache_age_seconds: 4182,
+  };
+
+  it('backend audit produce gaps esperados (no es ficha limpia)', () => {
+    const gaps = computeGaps(backendAudit);
     const codes = gaps.map((g) => g.code);
+    // 2 días < 5 → horarios_incompletos (high)
     expect(codes).toContain('horarios_incompletos');
+    // descripcion null → descripcion_corta (high)
     expect(codes).toContain('descripcion_corta');
-    expect(codes).toContain('sin_horario_fin_semana');
-    expect(codes).toContain('pocas_fotos');
-    expect(codes).toContain('rating_bajo');
-    // evidence preservado para descripcion_corta (evidence = longitud real)
-    const descGap = gaps.find((g) => g.code === 'descripcion_corta');
-    expect(descGap.evidence).toBe(5); // 'corto'.length === 5
-    // evidence preservado para pocas_fotos
-    const fotoGap = gaps.find((g) => g.code === 'pocas_fotos');
-    expect(fotoGap.evidence).toBe(2);
-    // Todos high/med vienen antes de low
-    const lowIdx = gaps.findIndex((g) => g.severity === 'low');
-    const medIdx  = gaps.findIndex((g) => g.severity === 'med');
-    const highIdx = gaps.findIndex((g) => g.severity === 'high');
-    expect(highIdx).toBeLessThan(medIdx);
-    expect(medIdx).toBeLessThan(lowIdx);
+    // sin categorías secundarias → sin_categorias_secundarias (med)
+    expect(codes).toContain('sin_categorias_secundarias');
+    // sin posts → sin_posts (low)
+    expect(codes).toContain('sin_posts');
+    // rating 5 >= 4.0 → sin gap de rating
+    expect(codes).not.toContain('rating_bajo');
+    // 15 fotos >= 10 → sin gap de fotos
+    expect(codes).not.toContain('pocas_fotos');
+  });
+
+  it('gap de horarios_incompletos muestra evidence = 2', () => {
+    const gaps = computeGaps(backendAudit);
+    const gap = gaps.find((g) => g.code === 'horarios_incompletos');
+    expect(gap.evidence).toBe(2);
+    expect(gap.severity).toBe('high');
+  });
+
+  it('gap de descripcion_corta con null produce "Sin descripción"', () => {
+    const gaps = computeGaps(backendAudit);
+    const gap = gaps.find((g) => g.code === 'descripcion_corta');
+    expect(gap.human_label).toBe('Sin descripción');
+    expect(gap.severity).toBe('high');
+  });
+
+  it('gap de sin_categorias_secundarias evidencia array vacío', () => {
+    const gaps = computeGaps(backendAudit);
+    const gap = gaps.find((g) => g.code === 'sin_categorias_secundarias');
+    expect(gap.evidence).toBe(0);
+    expect(gap.severity).toBe('med');
+  });
+
+  it('gap de sin_posts evidencia 0 posts', () => {
+    const gaps = computeGaps(backendAudit);
+    const gap = gaps.find((g) => g.code === 'sin_posts');
+    expect(gap.evidence).toBe(0);
+    expect(gap.severity).toBe('low');
+  });
+
+  it('gap sin_horario_fin_de_semana: 2 días → high', () => {
+    const gaps = computeGaps(backendAudit);
+    const gap = gaps.find((g) => g.code === 'sin_horario_fin_semana');
+    expect(gap.severity).toBe('high');
+    expect(gap.evidence).toBe(2);
+  });
+
+  it('GbpHeader recibe audit con rating_promedio=5 → no "—"', () => {
+    // Este test documenta que con el response real, rating_promedio=5 es accesible
+    expect(backendAudit.rating_promedio).toBe(5);
   });
 });

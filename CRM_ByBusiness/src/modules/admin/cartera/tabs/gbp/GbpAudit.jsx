@@ -24,12 +24,15 @@ const GbpAudit = ({ placeId, onAuditComplete }) => {
     setNotif(null);
     clearTimeout(notifTimer.current);
     try {
-      const data = await runAudit(placeId.trim(), { refresh: false });
-      if (data?.success !== false) {
-        onAuditComplete?.(data);
+      const raw = await runAudit(placeId.trim(), { refresh: false });
+      // El webhook responde { ok, data: {...} } o bien el objeto plano de auditoría.
+      // También puede devolver null si el body está vacío.
+      const auditPayload = raw?.data ?? raw ?? null;
+      if (auditPayload) {
+        onAuditComplete?.(auditPayload);
         setNotif({ type: 'success', message: 'Auditoría ejecutada correctamente.' });
       } else {
-        setNotif({ type: 'error', message: data?.error || 'Error en la auditoría.' });
+        setNotif({ type: 'error', message: raw?.error || 'Error en la auditoría.' });
       }
     } catch (err) {
       setNotif({ type: 'error', message: err?.message || 'Error al ejecutar auditoría.' });
