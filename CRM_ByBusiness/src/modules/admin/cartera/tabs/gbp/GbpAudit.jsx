@@ -44,12 +44,14 @@ const GbpAudit = ({ placeId, onAuditComplete }) => {
         <button
           onClick={handleRunAudit}
           disabled={!canAudit || isPending || !placeId?.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded-sm border border-[#D00000]/30 text-[#D00000]/70 hover:text-[#D00000] hover:border-[#D00000]/60 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest rounded-sm border border-[#D00000]/30 text-[#D00000]/70 hover:text-[#D00000] hover:border-[#D00000]/60 transition-colors disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed"
         >
           {isPending ? '…' : 'Auditar'}
         </button>
-        {placeId && !placeId.trim() && (
-          <span className="text-[9px] text-slate-600 font-mono">Place ID requerido</span>
+        {!placeId?.trim() && (
+          <span className="text-[9px] text-amber-400 font-mono">
+            ⚠ No hay place_id — agregá uno abajo en Gestión place_id
+          </span>
         )}
       </div>
       {notif && (
