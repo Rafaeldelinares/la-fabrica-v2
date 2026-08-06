@@ -9,7 +9,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Star, Package } from 'lucide-react';
-import { cacheAge, scoreColorClass } from './gaps';
+import { cacheAge, scoreColorClass } from './pure/gaps';
 
 /**
  * @param {{ audit: object|null }} props

@@ -6,7 +6,7 @@
  * @since gbp-ficha-improvements S4 (2026-08-06)
  */
 import { describe, it, expect } from 'vitest';
-import { computeGaps, THRESHOLDS } from './gaps';
+import { computeGaps, THRESHOLDS } from './pure/gaps';
 
 describe('computeGaps() — null / error guard', () => {
   it('devuelve [] para null', () => {

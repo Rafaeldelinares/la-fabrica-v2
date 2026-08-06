@@ -6,7 +6,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { Star, MessageSquare, Camera } from 'lucide-react';
-import { computeGaps } from './gaps';
+import { computeGaps } from './pure/gaps';
 
 const Pill = ({ ok, label }) => (
   <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded-sm ${
