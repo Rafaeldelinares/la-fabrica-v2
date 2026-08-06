@@ -1,5 +1,6 @@
 /**
- * GbpFichaActual — Current GBP audit display.
+ * GbpFichaActual — Current GBP audit display + top-5 gap recommendations.
+ * Sub-components: Pill, RecomendacionesList.
  * @since gbp-ficha-improvements S2 (2026-08-05)
  */
 import React from 'react';
@@ -13,14 +14,29 @@ const Pill = ({ ok, label }) => (
        : 'bg-slate-800 text-slate-500 border border-slate-700'
   }`}>{ok ? '✓' : '–'} {label}</span>
 );
-
 Pill.propTypes = { ok: PropTypes.bool, label: PropTypes.string.isRequired };
 
-/**
- * GbpFichaActual — Displays the current GBP audit data and top-5 gap recommendations.
- *
- * @param {{ audit: object|null }} props
- */
+const RecomendacionesList = ({ gaps }) => gaps.length === 0 ? (
+  <p className="text-[10px] text-emerald-400 font-mono">Sin recomendaciones — ficha en buen estado</p>
+) : (
+  <div className="flex flex-col gap-0.5">
+    {gaps.slice(0, 5).map((gap) => {
+      const dotClass =
+        gap.severity === 'high' ? 'bg-red-400' :
+        gap.severity === 'med'  ? 'bg-amber-400' : 'bg-slate-500';
+      return (
+        <div key={gap.code} className="flex items-center gap-2 py-0.5">
+          <span className={`w-1.5 h-1.5 rounded-sm flex-shrink-0 ${dotClass}`} />
+          <span className="text-[10px] font-mono text-slate-500">{gap.code}</span>
+          <span className="text-xs text-slate-300 flex-1">{gap.human_label}</span>
+          <span className="text-[10px] font-mono text-slate-600">{gap.evidence ?? ''}</span>
+        </div>
+      );
+    })}
+  </div>
+);
+RecomendacionesList.propTypes = { gaps: PropTypes.arrayOf(PropTypes.object).isRequired };
+
 const GbpFichaActual = ({ audit }) => {
   if (!audit) {
     return (
@@ -29,18 +45,16 @@ const GbpFichaActual = ({ audit }) => {
       </p>
     );
   }
-
   const tieneHorarios = (audit.horarios_dias_cubiertos ?? 0) >= 5;
   const tieneFotos    = (audit.fotos_count ?? 0) >= 3;
   const tieneDesc     = audit.descripcion && audit.descripcion.length > 50;
   const tieneQA       = (audit.qa_count ?? 0) > 0;
   const tienePosts    = (audit.posts_count ?? 0) > 0;
-  const pctAtributos  = audit.atributos_total > 0
+  const pctAtributos = audit.atributos_total > 0
     ? Math.round((audit.atributos_seteados / audit.atributos_total) * 100) : null;
   const pctReviews    = audit.reviews_count > 0
     ? Math.round((audit.reviews_respondidas_pct || 0) * 100) : null;
   const gaps = computeGaps(audit);
-
   return (
     <div className="flex flex-col gap-4 py-1">
       {audit.categoria_principal && (
@@ -59,7 +73,6 @@ const GbpFichaActual = ({ audit }) => {
           )}
         </div>
       )}
-
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-slate-900 border border-slate-800 rounded-sm px-2 py-2 text-center">
           <p className="text-[9px] text-slate-600 font-mono uppercase tracking-widest flex items-center justify-center gap-1">
@@ -87,7 +100,6 @@ const GbpFichaActual = ({ audit }) => {
           </p>
         </div>
       </div>
-
       <div className="flex flex-col gap-1.5">
         <span className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">Checklist</span>
         <div className="flex flex-wrap gap-1.5">
@@ -102,7 +114,6 @@ const GbpFichaActual = ({ audit }) => {
             label={pctReviews !== null ? `Resp. ${pctReviews}%` : 'Reviews'} />
         </div>
       </div>
-
       <div className="flex flex-col gap-1">
         <span className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">Detalles</span>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-mono">
@@ -120,35 +131,12 @@ const GbpFichaActual = ({ audit }) => {
           <span className="text-slate-300">{audit.atributos_seteados ?? 0}/{audit.atributos_total ?? 0}</span>
         </div>
       </div>
-
-      {/** Recomendaciones: top-5 gaps sorted high → med → low */}
       <div className="flex flex-col gap-1">
         <span className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">Recomendaciones</span>
-        {gaps.length === 0 ? (
-          <p className="text-[10px] text-emerald-400 font-mono">Sin recomendaciones — ficha en buen estado</p>
-        ) : (
-          <div className="flex flex-col gap-0.5">
-            {gaps.slice(0, 5).map((gap) => {
-              const dotClass =
-                gap.severity === 'high' ? 'bg-red-400' :
-                gap.severity === 'med'  ? 'bg-amber-400' : 'bg-slate-500';
-              return (
-                <div key={gap.code} className="flex items-center gap-2 py-0.5">
-                  <span className={`w-1.5 h-1.5 rounded-sm flex-shrink-0 ${dotClass}`} />
-                  <span className="text-[10px] font-mono text-slate-500">{gap.code}</span>
-                  <span className="text-xs text-slate-300 flex-1">{gap.human_label}</span>
-                  <span className="text-[10px] font-mono text-slate-600">
-                    {gap.evidence ?? ''}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <RecomendacionesList gaps={gaps} />
       </div>
     </div>
   );
 };
-
 GbpFichaActual.propTypes = { audit: PropTypes.object };
 export default GbpFichaActual;
