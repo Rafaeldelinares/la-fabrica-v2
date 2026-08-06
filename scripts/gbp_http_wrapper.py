@@ -20,10 +20,16 @@ On local dev, uses psycopg2 direct connection.
 import argparse
 import json
 import os
+import re as _extract_re
 import sys
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
+
+# ── Google Maps URL regex patterns ─────────────────────────────────────────────
+PLACE_ID_RE = _extract_re.compile(r'1s(ChIJ[A-Za-z0-9_-]+)')
+HEX_CID_RE  = _extract_re.compile(r'1s(0x[0-9a-fA-F]+:0x[0-9a-fA-F]+)')
+DEC_CID_RE  = _extract_re.compile(r'1s(\d{10,20})')
 
 # ── Config ────────────────────────────────────────────────────────────────────
 CACHE_TTL_SECONDS = 86400  # 24 hours
@@ -266,6 +272,23 @@ def do_scrape(place_id: str, deep: bool = False) -> dict:
         page.close()
 
 
+# ── Place ID extraction ─────────────────────────────────────────────────────────
+
+def extract_place_id_from_url(url: str):
+    """Parse a Google Maps URL and return (place_id, format)."""
+    if not url:
+        return None, 'empty_url'
+    for pattern, fmt in [
+        (PLACE_ID_RE, 'place_id'),
+        (HEX_CID_RE,  'hex_cid'),
+        (DEC_CID_RE,  'decimal_cid'),
+    ]:
+        m = pattern.search(url)
+        if m:
+            return m.group(1), fmt
+    return None, 'unrecognized'
+
+
 # ── HTTP Handler ───────────────────────────────────────────────────────────────
 
 class Handler(BaseHTTPRequestHandler):
@@ -276,6 +299,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(json.dumps(obj, ensure_ascii=False).encode())
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path != '/extract-place-id':
+            return self.send_json({"error": "not_found"}, 404)
+        length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(length).decode('utf-8') if length else ''
+        try:
+            payload = json.loads(body) if body else {}
+        except Exception:
+            return self.send_json({"error": "invalid_json"}, 400)
+        url = payload.get('url', '').strip()
+        place_id, fmt = extract_place_id_from_url(url)
+        if not place_id:
+            return self.send_json({"error": fmt or "unrecognized", "url_received": url[:200]}, 400)
+        return self.send_json({"place_id": place_id, "format": fmt})
 
     def do_GET(self):
         parsed = urlparse(self.path)
