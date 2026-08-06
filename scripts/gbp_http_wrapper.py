@@ -28,6 +28,7 @@ from urllib.parse import urlparse, parse_qs
 # ── Config ────────────────────────────────────────────────────────────────────
 CACHE_TTL_SECONDS = 86400  # 24 hours
 SCRAPE_TIMEOUT_SEC = 60
+DEFAULT_AUDIT_SOURCE = 'manual'
 
 # Load scrape functions from sibling script
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -192,6 +193,66 @@ def save_cache(place_id: str, cliente_id, audit_data: dict, duration_ms: int):
         sys.stderr.write(f"[gbp_wrapper] cache save error: {e}\n")
 
 
+def save_history(place_id: str, cliente_id, audit_data: dict, duration_ms: int,
+                 audit_source: str = DEFAULT_AUDIT_SOURCE):
+    """INSERT append-only row into clientes.gbp_audit_history."""
+    try:
+        conn = _get_db_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO clientes.gbp_audit_history "
+            "(place_id, cliente_id, audit_data, scrape_duration_ms, audit_source) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (place_id, cliente_id, json.dumps(audit_data), duration_ms, audit_source),
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        sys.stderr.write(f"[gbp_wrapper] history save error: {e}\n")
+
+
+def get_recent_history(place_id: str):
+    """Return the latest history row if audited_at < 24h ago, else None."""
+    try:
+        conn = _get_db_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT audit_data, audited_at FROM clientes.gbp_audit_history "
+            "WHERE place_id = %s AND audited_at > NOW() - INTERVAL '24 hours' "
+            "ORDER BY audited_at DESC LIMIT 1",
+            (place_id,)
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row:
+            return row[0], row[1]
+        return None, None
+    except Exception as e:
+        sys.stderr.write(f"[gbp_wrapper] history get error: {e}\n")
+        return None, None
+
+
+def probe_db_connection():
+    """Startup probe: verify both cache and history tables are reachable."""
+    try:
+        conn = _get_db_conn()
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM clientes.gbp_audit_cache LIMIT 1")
+        cur.execute("SELECT MAX(audited_at) FROM clientes.gbp_audit_history")
+        last_hist = cur.fetchone()[0]
+        cur.close()
+        conn.close()
+        sys.stderr.write(
+            f"[gbp_wrapper] probe OK — history rows exist, last at {last_hist}\n"
+        )
+        return True
+    except Exception as e:
+        sys.stderr.write(f"[gbp_wrapper] probe FAILED (WARN, non-fatal): {e}\n")
+        return False
+
+
 def do_scrape(place_id: str, deep: bool = False) -> dict:
     """Scrape using the persistent browser context. Returns audit dict."""
     page = _context.new_page()
@@ -227,6 +288,17 @@ class Handler(BaseHTTPRequestHandler):
                 "uptime_seconds": uptime,
             })
 
+        if parsed.path == "/history":
+            params = parse_qs(parsed.query)
+            place_id = params.get("place_id", [None])[0]
+            limit = int(params.get("limit", ["10"])[0])
+            return self._history_response(place_id, limit)
+
+        if parsed.path == "/drift":
+            params = parse_qs(parsed.query)
+            place_id = params.get("place_id", [None])[0]
+            return self._drift_response(place_id)
+
         if parsed.path != "/run":
             return self.send_json({"error": "not_found"}, 404)
 
@@ -237,10 +309,11 @@ class Handler(BaseHTTPRequestHandler):
 
         refresh = params.get("refresh", ["false"])[0] == "true"
         deep = params.get("deep", ["false"])[0] == "true"
+        source = params.get("source", [DEFAULT_AUDIT_SOURCE])[0]
 
-        # ── Cache check (skip if refresh=true) ─────────────────────────────────
+        # ── Cache check via history table (skip if refresh=true) ───────────────
         if not refresh:
-            cached_data, cached_at = get_cache(place_id)
+            cached_data, cached_at = get_recent_history(place_id)
             if cached_data:
                 age_seconds = time.time() - cached_at.timestamp()
                 return self.send_json({
@@ -257,12 +330,107 @@ class Handler(BaseHTTPRequestHandler):
 
         if "error" not in data:
             save_cache(place_id, None, data, duration_ms)
+            save_history(place_id, None, data, duration_ms, source)
 
         return self.send_json({
             **data,
             "_cached": False,
             "_scrape_duration_ms": duration_ms,
         })
+
+    def _history_response(self, place_id: str, limit: int = 10):
+        """Return last N history rows for place_id as JSON array."""
+        if not place_id:
+            return self.send_json({"error": "place_id required"}, 400)
+        try:
+            conn = _get_db_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT audit_id, place_id, cliente_id, audit_data, audit_source, "
+                "scrape_duration_ms, audited_at "
+                "FROM clientes.gbp_audit_history "
+                "WHERE place_id = %s "
+                "ORDER BY audited_at DESC LIMIT %s",
+                (place_id, limit)
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+            result = [
+                {
+                    "audit_id": r[0],
+                    "place_id": r[1],
+                    "cliente_id": r[2],
+                    "audit_data": r[3],
+                    "audit_source": r[4],
+                    "scrape_duration_ms": r[5],
+                    "audited_at": r[6].isoformat() if r[6] else None,
+                }
+                for r in rows
+            ]
+            return self.send_json({"ok": True, "place_id": place_id, "history": result})
+        except Exception as e:
+            sys.stderr.write(f"[gbp_wrapper] history response error: {e}\n")
+            return self.send_json({"error": str(e)}, 500)
+
+    def _drift_response(self, place_id: str):
+        """Compute drift between last two history rows for place_id."""
+        if not place_id:
+            return self.send_json({"error": "place_id required"}, 400)
+        try:
+            conn = _get_db_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT audit_id, audit_data, audited_at FROM clientes.gbp_audit_history "
+                "WHERE place_id = %s ORDER BY audited_at DESC LIMIT 2",
+                (place_id,)
+            )
+            rows = cur.fetchall()
+            cur.close()
+            conn.close()
+
+            if len(rows) < 2:
+                return self.send_json({
+                    "place_id": place_id,
+                    "has_previous": False,
+                })
+
+            prev_row, curr_row = rows[1], rows[0]
+            prev_data = prev_row[1]
+            curr_data = curr_row[1]
+
+            def safe_int(getter, key, default=0):
+                v = getter(key)
+                return int(v) if v is not None else default
+
+            fotos_delta = safe_int(lambda k: curr_data.get(k), 'fotos_count') - \
+                          safe_int(lambda k: prev_data.get(k), 'fotos_count')
+            reviews_delta = safe_int(lambda k: curr_data.get(k), 'reviews_count') - \
+                            safe_int(lambda k, d=0: prev_data.get(k, d), 'reviews_count')
+            rating_delta = round(
+                (float(curr_data.get('rating') or 0) - float(prev_data.get('rating') or 0)), 2
+            )
+            qa_delta = safe_int(lambda k: curr_data.get(k), 'qa_count') - \
+                       safe_int(lambda k: prev_data.get(k), 'qa_count')
+            desc_changed = (curr_data.get('descripcion') or '') != (prev_data.get('descripcion') or '')
+
+            return self.send_json({
+                "place_id": place_id,
+                "audits_compared": 2,
+                "periodo": {
+                    "from": prev_row[2].isoformat(),
+                    "to": curr_row[2].isoformat(),
+                },
+                "fotos_added": max(0, fotos_delta),
+                "reviews_count_delta": reviews_delta,
+                "rating_delta": rating_delta,
+                "reviews_respondidas_delta": qa_delta,
+                "descripcion_changed": desc_changed,
+                "has_previous": True,
+            })
+        except Exception as e:
+            sys.stderr.write(f"[gbp_wrapper] drift response error: {e}\n")
+            return self.send_json({"error": str(e)}, 500)
 
     def log_message(self, format, *args):
         sys.stderr.write(f"[gbp_wrapper] {format % args}\n")
@@ -280,5 +448,6 @@ if __name__ == "__main__":
 
     sys.stderr.write("[gbp_wrapper] Initializing browser...\n")
     init_browser()
+    probe_db_connection()
     sys.stderr.write(f"[gbp_wrapper] Starting server on {args.bind}:{args.port}\n")
     HTTPServer((args.bind, args.port), Handler).serve_forever()
