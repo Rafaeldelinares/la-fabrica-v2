@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import PropTypes from 'prop-types';
-import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, MapPin, BadgeCheck } from 'lucide-react';
+import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, MapPin, BadgeCheck, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import Card from '../../../shared/ui/Card';
 import EmptyState from '../../../shared/ui/EmptyState';
@@ -70,11 +70,36 @@ const CarteraPanel = () => {
   const [pagina, setPagina]             = useState(1);
   const [error, setError]               = useState('');
 
-  useEffect(() => {
-    n8nGet('crm-cartera-get')
+  // Filtros por dimensión de cartera (provincia, localidad, sector)
+  const [filtroProvincia, setFiltroProvincia] = useState('');
+  const [filtroLocalidad, setFiltroLocalidad] = useState('');
+  const [filtroSector, setFiltroSector]         = useState('');
+
+  // Debounce timers para evitar refetch en cada keystroke
+  const debounceProvincia = useRef(null);
+  const debounceLocalidad = useRef(null);
+  const debounceSector    = useRef(null);
+
+  const fetchCartera = (filters = {}) => {
+    const params = {};
+    if (filters.provincia) params.provincia = filters.provincia;
+    if (filters.localidad) params.localidad = filters.localidad;
+    if (filters.sector)    params.sector    = filters.sector;
+    n8nGet('crm-cartera-get', Object.keys(params).length ? params : undefined)
       .then(data => { if (data.ok) setClientes(data.clientes); else setError('Error al cargar la cartera — respuesta inesperada'); })
       .catch(() => { setClientes([]); setError('Error al cargar la cartera — comprueba la conexión'); });
-  }, []);
+  };
+
+  // Refetch when backend filters change
+  useEffect(() => {
+    fetchCartera({ provincia: filtroProvincia, localidad: filtroLocalidad, sector: filtroSector });
+  }, [filtroProvincia, filtroLocalidad, filtroSector]); // eslint-disable-line react-hooks/set-state-in-effect
+
+  const handleLimpiarFiltros = () => {
+    setFiltroProvincia('');
+    setFiltroLocalidad('');
+    setFiltroSector('');
+  };
 
   const aniosDisponibles = useMemo(() => {
     if (!clientes) return [];
@@ -172,39 +197,68 @@ const CarteraPanel = () => {
         )}
 
         {/* Header */}
-        <div className="flex items-center justify-between shrink-0">
-          <h2 className="text-sm font-black text-white uppercase tracking-widest">CARTERA DE CLIENTES</h2>
-          <div className="flex items-center gap-2">
-            <select
-              value={filtroAnio}
-              onChange={e => setFiltroAnio(e.target.value)}
-              className={`bg-slate-900 border rounded-sm px-3 py-1.5 text-[10px] font-mono outline-none transition-colors cursor-pointer ${
-                filtroAnio
-                  ? 'border-[#D00000]/40 text-white bg-[#D00000]/5'
-                  : 'border-slate-800 text-slate-500 hover:border-slate-700'
-              }`}
-            >
-              <option value="">Todos los años</option>
-              {aniosDisponibles.map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-            <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-sm px-3 py-1.5">
-              <Search size={13} className="text-slate-500" />
-              <input
-                type="text"
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                placeholder="Buscar cliente…"
-                className="bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-600 font-mono w-36"
-              />
+        <div className="flex flex-col gap-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-black text-white uppercase tracking-widest">CARTERA DE CLIENTES</h2>
+            <div className="flex items-center gap-2">
+              <select
+                value={filtroAnio}
+                onChange={e => setFiltroAnio(e.target.value)}
+                className={`bg-slate-900 border rounded-sm px-3 py-1.5 text-[10px] font-mono outline-none transition-colors cursor-pointer ${
+                  filtroAnio
+                    ? 'border-[#D00000]/40 text-white bg-[#D00000]/5'
+                    : 'border-slate-800 text-slate-500 hover:border-slate-700'
+                }`}
+              >
+                <option value="">Todos los años</option>
+                {aniosDisponibles.map(a => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+              <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 rounded-sm px-3 py-1.5">
+                <Search size={13} className="text-slate-500" />
+                <input
+                  type="text"
+                  value={busqueda}
+                  onChange={e => setBusqueda(e.target.value)}
+                  placeholder="Buscar cliente…"
+                  className="bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-600 font-mono w-36"
+                />
+              </div>
+              <button
+                onClick={() => { setNuevoCliente(true); setSeleccionado(null); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D00000]/10 hover:bg-[#D00000]/20 border border-[#D00000]/30 hover:border-[#D00000]/60 text-[#D00000] text-[10px] font-mono uppercase tracking-widest rounded-sm transition-colors"
+              >
+                <Plus size={12} /> Nueva empresa
+              </button>
             </div>
-            <button
-              onClick={() => { setNuevoCliente(true); setSeleccionado(null); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D00000]/10 hover:bg-[#D00000]/20 border border-[#D00000]/30 hover:border-[#D00000]/60 text-[#D00000] text-[10px] font-mono uppercase tracking-widest rounded-sm transition-colors"
-            >
-              <Plus size={12} /> Nueva empresa
-            </button>
+          </div>
+
+          {/* Filtros por provincia, localidad, sector */}
+          <div className="flex items-center gap-2">
+            {[
+              { value: filtroProvincia, setValue: setFiltroProvincia, placeholder: 'Provincia' },
+              { value: filtroLocalidad, setValue: setFiltroLocalidad, placeholder: 'Localidad' },
+              { value: filtroSector,    setValue: setFiltroSector,    placeholder: 'Sector' },
+            ].map(({ value, setValue, placeholder }) => (
+              <input
+                key={placeholder}
+                type="text"
+                value={value}
+                onChange={e => setValue(e.target.value)}
+                placeholder={placeholder}
+                className="bg-slate-900 border border-slate-700 rounded-sm text-xs text-slate-300 font-mono px-3 py-1.5 w-36 outline-none placeholder:text-slate-600 focus:border-slate-500 transition-colors"
+              />
+            ))}
+            {(filtroProvincia || filtroLocalidad || filtroSector) && (
+              <button
+                onClick={handleLimpiarFiltros}
+                className="flex items-center gap-1 px-2 py-1.5 text-[10px] font-mono text-slate-500 hover:text-slate-300 border border-slate-800 hover:border-slate-600 rounded-sm transition-colors"
+                title="Limpiar filtros"
+              >
+                <X size={10} /> Limpiar
+              </button>
+            )}
           </div>
         </div>
 
