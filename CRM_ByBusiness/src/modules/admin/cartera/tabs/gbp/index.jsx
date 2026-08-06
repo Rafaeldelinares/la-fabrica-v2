@@ -11,7 +11,7 @@
  *
  * @since gbp-ficha-improvements S2 (2026-08-05)
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import { useRbac } from '../../../../../shared/auth/useRbac';
 import AccessDenied from '../../../../../shared/ui/AccessDenied';
@@ -67,9 +67,23 @@ export default function GbpIndex({ cliente }) {
   const { data: fichasData, isLoading: loadingFichas } = useGbpFichas(cliente.id);
   const fichas = fichasData?.ok ? (fichasData.fichas ?? []) : [];
 
-  // Current ficha selection
-  const fichaActual = fichas.length > 0 ? fichas[selectedIdx] : null;
-  const placeId = fichaActual?.google_cid || cliente.google_place_id || '';
+  // Current ficha selection — synthesize from cliente.google_place_id if fichas empty
+  const fichaActual = useMemo(() => {
+    if (fichas.length > 0) return fichas[selectedIdx];
+    if (cliente.google_place_id) {
+      return {
+        id: null,
+        google_cid: cliente.google_place_id,
+        tipo: 'principal',
+        gmaps_nombre: cliente.nombre_comercial || '',
+        gmaps_rating: null,
+        gmaps_reseñas: null,
+        gms_last_updated: null,
+      };
+    }
+    return null;
+  }, [fichas, selectedIdx, cliente.google_place_id, cliente.nombre_comercial]);
+  const placeId = fichaActual?.google_cid || '';
 
   const toggle = (id) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
 
