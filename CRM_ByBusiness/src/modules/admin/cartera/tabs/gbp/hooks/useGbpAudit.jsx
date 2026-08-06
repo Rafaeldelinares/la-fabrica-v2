@@ -2,7 +2,7 @@
  * useGbpAudit — mutation hook for running a GBP audit.
  *
  * Wraps useN8nMutation for the crm-gbp-ficha-audit webhook.
- * RBAC check (gbp.write) is done inside the handler per spec REQ-2.
+ * RBAC guard is in the GbpAudit component (useRbac.can('gbp.read')).
  *
  * @since gbp-ficha-improvements S2 (2026-08-05)
  */
