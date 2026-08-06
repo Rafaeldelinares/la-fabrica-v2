@@ -1,53 +1,45 @@
 /**
- * tabs/gbp/index.jsx
+ * tabs/gbp/index.jsx — S2 entry point.
  *
- * GBP unified tab entry point — replaces TabOptimizacionGbp and TabGbp.
- * All sub-components live in this directory (S2 implementation).
+ * Unified GBP tab composing 5 collapsible sub-components:
+ * GbpHeader, GbpFichaActual, GbpAudit, GbpHistorico, GbpGestionPlaceId.
+ *
+ * RBAC: requires gbp.read (admin+supervisor). Write actions gate internally
+ * with useRbac.can('gbp.write') — no "trust the parent" pattern.
+ *
  * GGA: ≤150 LOC per sub-component file.
  *
- * RBAC: requires gbp.read (admin+supervisor). Write actions (audit, save place_id)
- * gate internally with useRbac.can('gbp.write') — no "trust the parent" pattern.
- *
- * @since gbp-ficha-improvements S1 (2026-08-05)
+ * @since gbp-ficha-improvements S2 (2026-08-05)
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useRbac } from '../../../../../shared/auth/useRbac';
 import AccessDenied from '../../../../../shared/ui/AccessDenied';
+import GbpHeader from './GbpHeader';
+import GbpFichaActual from './GbpFichaActual';
+import GbpAudit from './GbpAudit';
+import GbpHistorico from './GbpHistorico';
+import GbpGestionPlaceId from './GbpGestionPlaceId';
+import { useGbpFichas } from './hooks/useGbpFichas';
+import { useGbpAudit } from './hooks/useGbpAudit';
 
-/** Section collapse state defaults: Header + FichaActual open, rest collapsed */
+/** Section collapse defaults: Header + FichaActual open */
 const DEFAULT_OPEN = { header: true, fichaActual: true, audit: false, historico: false, gestion: false };
 
-/**
- * Collapsible section wrapper.
- * @param {string} id - Section identifier
- * @param {boolean} isOpen - Whether section is expanded
- * @param {Function} onToggle - Toggle callback
- * @param {string} title - Section header label
- * @param {React.ReactNode} children - Section body
- */
-function Section({ id, isOpen, onToggle, title, children }) {
-  return (
-    <div className="border border-slate-800 rounded-sm">
-      <button
-        type="button"
-        onClick={() => onToggle(id)}
-        className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-slate-900 transition-colors"
-      >
-        <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">
-          {title}
-        </span>
-        <span className="text-slate-600 text-xs">{isOpen ? '▾' : '▸'}</span>
-      </button>
-      {isOpen && (
-        <div className="px-3 pb-3">
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
+/** Collapsible section wrapper */
+const Section = ({ id, isOpen, onToggle, title, children }) => (
+  <div className="border border-slate-800 rounded-sm">
+    <button
+      type="button"
+      onClick={() => onToggle(id)}
+      className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-slate-900 transition-colors"
+    >
+      <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{title}</span>
+      <span className="text-slate-600 text-xs">{isOpen ? '▾' : '▸'}</span>
+    </button>
+    {isOpen && <div className="px-3 pb-3">{children}</div>}
+  </div>
+);
 Section.propTypes = {
   id: PropTypes.string.isRequired,
   isOpen: PropTypes.bool.isRequired,
@@ -57,61 +49,87 @@ Section.propTypes = {
 };
 
 /**
- * GBP tab — S1 scaffold.
- * Renders 5 collapsible sections (empty placeholders until S2).
- * RBAC early-return: operador sees AccessDenied.
+ * GBP unified tab.
+ * @param {{ cliente: object }} props
  */
 export default function GbpIndex({ cliente }) {
   const rbac = useRbac();
-  const [open, setOpen] = useState(DEFAULT_OPEN);
 
   if (!rbac.can('gbp.read')) {
     return <AccessDenied permission="gbp.read" />;
   }
 
-  const toggle = (id) => setOpen(prev => ({ ...prev, [id]: !prev[id] }));
+  const [open,        setOpen]        = useState(DEFAULT_OPEN);
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const [auditData,   setAuditData]   = useState(null);
+
+  // Fetch fichas for this cliente
+  const { data: fichasData, isLoading: loadingFichas } = useGbpFichas(cliente.id);
+  const fichas = fichasData?.ok ? (fichasData.fichas ?? []) : [];
+
+  // Current ficha selection
+  const fichaActual = fichas.length > 0 ? fichas[selectedIdx] : null;
+  const placeId = fichaActual?.google_cid || cliente.google_place_id || '';
+
+  const toggle = (id) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const handleAuditComplete = useCallback((data) => {
+    setAuditData(data);
+  }, []);
+
+  if (loadingFichas) {
+    return (
+      <div className="flex flex-col gap-3 px-3 py-4">
+        {[1, 2].map((i) => (
+          <div key={i} className="h-12 bg-slate-800/40 rounded-sm animate-pulse" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 px-3 py-4">
       <Section id="header" isOpen={open.header} onToggle={toggle} title="Header">
-        {/* S2: score + cache status pill — placeholder */}
-        <p className="text-[10px] text-slate-600 font-mono py-2">
-          Place ID: <span className="text-slate-400">{cliente?.google_place_id || '—'}</span>
-        </p>
+        <GbpHeader audit={auditData || (fichaActual ? {
+          place_id: placeId,
+          rating_promedio: fichaActual.gmaps_rating,
+          reviews_count: fichaActual.gmaps_reseñas,
+          _cached: true,
+          _cached_at: fichaActual.gms_last_updated,
+        } : null)} />
+        {fichas.length > 1 && (
+          <div className="flex gap-1.5 mt-2 flex-wrap">
+            {fichas.map((f, i) => (
+              <button key={f.id || i} onClick={() => setSelectedIdx(i)}
+                className={`px-2 py-1 rounded-sm text-[9px] font-mono border transition-colors ${
+                  selectedIdx === i
+                    ? 'bg-slate-800 border-slate-600 text-white'
+                    : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:text-slate-300'
+                }`}>
+                {f.tipo || 'principal'} {f.google_cid ? f.google_cid.slice(0, 8) + '…' : ''}
+              </button>
+            ))}
+          </div>
+        )}
       </Section>
 
       <Section id="fichaActual" isOpen={open.fichaActual} onToggle={toggle} title="Ficha actual">
-        {/* S2: current audit display + top-5 gaps — placeholder */}
-        <p className="text-[10px] text-slate-600 font-mono py-2">
-          Sin datos — ejecute Auditar para cargar la ficha.
-        </p>
+        <GbpFichaActual audit={auditData} />
       </Section>
 
       <Section id="audit" isOpen={open.audit} onToggle={toggle} title="Audit">
-        {/* S2: run-audit mutation — placeholder */}
-        <p className="text-[10px] text-slate-600 font-mono py-2">
-          Sin auditoría ejecutada.
-        </p>
+        <GbpAudit placeId={placeId} onAuditComplete={handleAuditComplete} />
       </Section>
 
       <Section id="historico" isOpen={open.historico} onToggle={toggle} title="Histórico">
-        {/* S3: drift timeline — placeholder */}
-        <p className="text-[10px] text-slate-600 font-mono py-2">
-          Sin histórico disponible.
-        </p>
+        <GbpHistorico placeId={placeId} />
       </Section>
 
       <Section id="gestion" isOpen={open.gestion} onToggle={toggle} title="Gestión place_id">
-        {/* S2: place_id edit + save — placeholder */}
-        <p className="text-[10px] text-slate-600 font-mono py-2">
-          Place ID: <span className="text-slate-400">{cliente?.google_place_id || '—'}</span>
-        </p>
+        <GbpGestionPlaceId clienteId={cliente.id} initialPlaceId={placeId} />
       </Section>
     </div>
   );
 }
 
-GbpIndex.propTypes = {
-  /** Cliente object from ClienteDrawer */
-  cliente: PropTypes.object.isRequired,
-};
+GbpIndex.propTypes = { cliente: PropTypes.object.isRequired };
