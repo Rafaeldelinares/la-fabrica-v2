@@ -61,7 +61,7 @@ const GbpGestionPlaceId = ({ clienteId, initialPlaceId = null }) => {
           <button
             onClick={handleSavePlaceId}
             disabled={saving || !placeId.trim()}
-            className="shrink-0 text-[9px] font-mono px-2.5 py-1.5 rounded-sm border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-30 transition-colors"
+            className="shrink-0 text-[9px] font-mono px-2.5 py-1.5 rounded-sm border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 disabled:bg-slate-800 disabled:border-slate-700 disabled:text-slate-500 transition-colors"
           >
             {guardado ? '✓' : saving ? '…' : 'Guardar'}
           </button>
