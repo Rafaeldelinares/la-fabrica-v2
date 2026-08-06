@@ -1,149 +1,100 @@
 /**
  * Cliente n8n — centraliza todas las llamadas al BFF.
- *
  * Exporta funciones de fetch (n8nFetch, n8nGet, n8nPost) y hooks React Query
  * (useN8nQuery, useN8nMutation). También expone n8nHealthCheck para heartbeat.
- *
  * URL base: VITE_N8N_URL (ej. https://n8n.ia-bybusiness.online/webhook)
  * Reintentos: 1 reintento automático ante fallo de red (no ante timeout).
  */
 import { useQuery, useMutation } from '@tanstack/react-query';
-
 import { validateEnvVar } from '../utils/envValidation';
 
-/** @type {string} */
-const BASE_URL = validateEnvVar('VITE_N8N_URL');
-
-const TIMEOUT_MS     = 12_000;
+const BASE_URL    = validateEnvVar('VITE_N8N_URL');
+const TIMEOUT_MS  = 12_000;
 const RETRY_DELAY_MS = 600;
 
-/**
- * Fetch con timeout controlado por AbortController.
- * @param {string}      url
- * @param {RequestInit} options
- * @returns {Promise<Response>}
- */
-function fetchWithTimeout(url, options) {
-  const controller = new AbortController();
-  const timerId    = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  return fetch(url, { ...options, signal: controller.signal })
-    .finally(() => clearTimeout(timerId));
-}
+/** Delay con cleanup automático via Promise resolve. */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Obtiene el rol del usuario desde localStorage. */
+const getUserRole = () => {
+  try {
+    const stored = localStorage.getItem('op_user');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.role || parsed.rol || '';
+    }
+  } catch (err) {
+    // localStorage no disponible o datos corruptos — fallback a vacío
+    console.warn('[getUserRole] localStorage no disponible:', err?.message);
+  }
+  return '';
+};
+
+/** Fetch con timeout controlado por AbortController. */
+const fetchWithTimeout = (url, options) => {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_MS);
+  return fetch(url, { ...options, signal: abortController.signal }).finally(() => clearTimeout(timeoutId));
+};
 
 /**
  * Llamada base a un webhook de n8n con 1 reintento automático.
- * @param {string}      path    - ruta del webhook (ej. 'crm-leads-get') OR URL absoluta
- * @param {RequestInit & { baseUrl?: string }} [options]  - baseUrl override
- * @returns {Promise<unknown>}
+ * @param {string} path - ruta del webhook o URL absoluta
+ * @param {RequestInit & { baseUrl?: string }} [options]
  */
 export async function n8nFetch(path, options = {}) {
-  // Aceptar URL absoluta (si el path empieza con http:// o https://)
-  // o usar baseUrl override (para workflows en instancias n8n distintas).
-  let url;
-  if (/^https?:\/\//.test(path)) {
-    url = path;
-  } else {
-    const base = options.baseUrl ?? BASE_URL;
-    url = `${base}/${path}`;
-  }
-  const init = {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+  const isAbsoluteUrl = /^https?:\/\//.test(path);
+  const url = isAbsoluteUrl ? path : `${options.baseUrl ?? BASE_URL}/${path}`;
+  const fetchInit = {
     ...options,
+    headers: { ...options.headers, 'Content-Type': 'application/json', 'x-user-role': getUserRole() },
   };
 
   let lastError;
   for (let attempt = 0; attempt < 2; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+    if (attempt > 0) await sleep(RETRY_DELAY_MS);
     try {
-      const res = await fetchWithTimeout(url, init);
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        throw new Error(`n8n ${res.status}: ${body || res.statusText}`);
-      }
-      // Si el body está vacío, devolver null en vez de tirar SyntaxError en res.json().
-      // Casos: workflows que responden 200 sin datos (ej. crm-llamada-activa sin llamada activa).
+      const res = await fetchWithTimeout(url, fetchInit);
+      if (!res.ok) throw new Error(`n8n ${res.status}: ${(await res.text().catch(() => '')) || res.statusText}`);
       const text = await res.text();
-      if (!text) return null;
-      return JSON.parse(text);
+      return text ? JSON.parse(text) : null;
     } catch (err) {
       lastError = err;
-      if (err.name === 'AbortError') break; // timeout — no reintentar
+      if (err.name === 'AbortError') break;
     }
   }
   throw lastError;
 }
 
-/**
- * POST a un webhook de n8n.
- * @param {string}  path
- * @param {unknown} [body]
- * @param {{ baseUrl?: string }} [options]  - baseUrl override
- * @returns {Promise<unknown>}
- */
+/** POST a un webhook de n8n. */
 export const n8nPost = (path, body, options = {}) =>
   n8nFetch(path, { ...options, method: 'POST', body: JSON.stringify(body) });
 
-/**
- * GET a un webhook de n8n con query params opcionales.
- * @param {string}                 path
- * @param {Record<string, string>} [params]
- * @param {{ baseUrl?: string }}    [options]  - baseUrl override
- * @returns {Promise<unknown>}
- */
-export const n8nGet = (path, params, options = {}) => {
-  const qs = params ? '?' + new URLSearchParams(params).toString() : '';
-  return n8nFetch(path + qs, { ...options, method: 'GET' });
-};
+/** GET a un webhook de n8n con query params opcionales. */
+export const n8nGet = (path, params, options = {}) =>
+  n8nFetch(`${path}${params ? '?' + new URLSearchParams(params) : ''}`, { ...options, method: 'GET' });
 
-/**
- * Verifica que n8n está disponible.
- * Cualquier respuesta HTTP (incluso 404) significa que n8n vive.
- * Solo un error de red o timeout devuelve false.
- * @returns {Promise<boolean>}
- */
+/** Verifica que n8n está disponible. */
 export async function n8nHealthCheck() {
-  const controller = new AbortController();
-  const timerId    = setTimeout(() => controller.abort(), 5_000);
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => abortController.abort(), 5_000);
   try {
-    // mode: 'no-cors' evita bloqueo CORS para webhooks no registrados.
-    // Con respuesta opaca, status === 0 (< 500 → true). Sin red → throw → false.
-    await fetch(`${BASE_URL}/crm-health`, {
-      method: 'GET',
-      mode:   'no-cors',
-      signal: controller.signal,
-    });
+    await fetch(`${BASE_URL}/crm-health`, { method: 'GET', mode: 'no-cors', signal: abortController.signal });
     return true;
-  } catch {
+  } catch (err) {
+    console.warn('[n8nHealthCheck] n8n no disponible:', err?.message);
     return false;
   } finally {
-    clearTimeout(timerId);
+    clearTimeout(timeoutId);
   }
 }
 
-/**
- * Hook React Query para consultas GET a n8n.
- * @param {string[]} queryKey
- * @param {string}   path
- * @param {object}   [queryOptions]
- * @param {object}   [queryOptions.params] - query string params passed to n8nGet
- * @param {function} [queryOptions.queryFn] - optional override for the query function
- */
+/** Hook React Query para consultas GET a n8n. */
 export const useN8nQuery = (queryKey, path, queryOptions = {}) => {
-  const { params, queryFn, ...rest } = queryOptions
-  return useQuery({
-    queryKey,
-    queryFn: queryFn ?? (() => n8nGet(path, params)),
-    ...rest,
-  })
-}
+  const { params, queryFn, ...rest } = queryOptions;
+  return useQuery({ queryKey, queryFn: queryFn ?? (() => n8nGet(path, params)), ...rest });
+};
 
-/**
- * Hook React Query para mutaciones POST a n8n.
- * @param {string} path
- * @param {object} [mutationOptions]
- */
+/** Hook React Query para mutaciones POST a n8n. */
 export const useN8nMutation = (path, mutationOptions = {}) =>
-  useMutation({
-    mutationFn: (data) => n8nPost(path, data),
-    ...mutationOptions,
-  });
+  useMutation({ mutationFn: (data) => n8nPost(path, data), ...mutationOptions });
