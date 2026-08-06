@@ -14,6 +14,13 @@ const Pill = ({ ok, label }) => (
   }`}>{ok ? '✓' : '–'} {label}</span>
 );
 
+Pill.propTypes = { ok: PropTypes.bool, label: PropTypes.string.isRequired };
+
+/**
+ * GbpFichaActual — Displays the current GBP audit data and top-5 gap recommendations.
+ *
+ * @param {{ audit: object|null }} props
+ */
 const GbpFichaActual = ({ audit }) => {
   if (!audit) {
     return (
@@ -114,11 +121,31 @@ const GbpFichaActual = ({ audit }) => {
         </div>
       </div>
 
-      {gaps.length === 0 && (
-        <p className="text-[10px] text-emerald-500/70 font-mono text-center py-2">
-          Sin gaps detectados — ficha completa
-        </p>
-      )}
+      {/** Recomendaciones: top-5 gaps sorted high → med → low */}
+      <div className="flex flex-col gap-1">
+        <span className="text-[10px] text-slate-600 font-mono uppercase tracking-widest">Recomendaciones</span>
+        {gaps.length === 0 ? (
+          <p className="text-[10px] text-emerald-400 font-mono">Sin recomendaciones — ficha en buen estado</p>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {gaps.slice(0, 5).map((gap) => {
+              const dotClass =
+                gap.severity === 'high' ? 'bg-red-400' :
+                gap.severity === 'med'  ? 'bg-amber-400' : 'bg-slate-500';
+              return (
+                <div key={gap.code} className="flex items-center gap-2 py-0.5">
+                  <span className={`w-1.5 h-1.5 rounded-sm flex-shrink-0 ${dotClass}`} />
+                  <span className="text-[10px] font-mono text-slate-500">{gap.code}</span>
+                  <span className="text-xs text-slate-300 flex-1">{gap.human_label}</span>
+                  <span className="text-[10px] font-mono text-slate-600">
+                    {gap.evidence ?? ''}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
