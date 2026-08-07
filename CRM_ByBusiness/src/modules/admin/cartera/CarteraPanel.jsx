@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, MapPin, BadgeCheck, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
 import Card from '../../../shared/ui/Card';
+import Combobox from '../../../shared/ui/Combobox';
 import EmptyState from '../../../shared/ui/EmptyState';
 // Lazy — ClienteDrawer is 216 kB and only mounts when user opens a client.
 // Splitting this shaves the largest lazy chunk by ~5x.
@@ -74,6 +75,8 @@ const CarteraPanel = () => {
   const [filtroProvincia, setFiltroProvincia] = useState('');
   const [filtroLocalidad, setFiltroLocalidad] = useState('');
   const [filtroSector, setFiltroSector]         = useState('');
+  // Facetas para los combobox de filtro
+  const [facets, setFacets] = useState({ provincia: [], localidad: [], actividad: [] });
 
   // Debounce timers para evitar refetch en cada keystroke
   const debounceProvincia = useRef(null);
@@ -86,7 +89,14 @@ const CarteraPanel = () => {
     if (filters.localidad) params.localidad = filters.localidad;
     if (filters.sector)    params.sector    = filters.sector;
     n8nGet('crm-cartera-get', Object.keys(params).length ? params : undefined)
-      .then(data => { if (data.ok) setClientes(data.clientes); else setError('Error al cargar la cartera — respuesta inesperada'); })
+      .then(data => {
+        if (data.ok) {
+          setClientes(data.clientes);
+          setFacets(data.facets || { provincia: [], localidad: [], actividad: [] });
+        } else {
+          setError('Error al cargar la cartera — respuesta inesperada');
+        }
+      })
       .catch(() => { setClientes([]); setError('Error al cargar la cartera — comprueba la conexión'); });
   };
 
@@ -236,20 +246,24 @@ const CarteraPanel = () => {
 
           {/* Filtros por provincia, localidad, sector */}
           <div className="flex items-center gap-2">
-            {[
-              { value: filtroProvincia, setValue: setFiltroProvincia, placeholder: 'Provincia' },
-              { value: filtroLocalidad, setValue: setFiltroLocalidad, placeholder: 'Localidad' },
-              { value: filtroSector,    setValue: setFiltroSector,    placeholder: 'Sector' },
-            ].map(({ value, setValue, placeholder }) => (
-              <input
-                key={placeholder}
-                type="text"
-                value={value}
-                onChange={e => setValue(e.target.value)}
-                placeholder={placeholder}
-                className="bg-slate-900 border border-slate-700 rounded-sm text-xs text-slate-300 font-mono px-3 py-1.5 w-36 outline-none placeholder:text-slate-600 focus:border-slate-500 transition-colors"
-              />
-            ))}
+            <Combobox
+              value={filtroProvincia}
+              onChange={setFiltroProvincia}
+              options={facets.provincia}
+              placeholder="Provincia"
+            />
+            <Combobox
+              value={filtroLocalidad}
+              onChange={setFiltroLocalidad}
+              options={facets.localidad}
+              placeholder="Localidad"
+            />
+            <Combobox
+              value={filtroSector}
+              onChange={setFiltroSector}
+              options={facets.actividad}
+              placeholder="Sector"
+            />
             {(filtroProvincia || filtroLocalidad || filtroSector) && (
               <button
                 onClick={handleLimpiarFiltros}
