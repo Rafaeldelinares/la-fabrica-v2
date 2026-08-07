@@ -124,6 +124,9 @@ const TabFicha = ({ cliente, n8nUrl, onGestorChanged, onClienteBaja }) => {
     try {
       const data = await n8nPost('crm-cliente-baja', { cliente_id: cliente.id, tipo: confirmBaja }, { baseUrl: n8nUrl });
       if (data.ok) { onClienteBaja?.(); }
+      else if (data.error === 'tiene_dependencias') {
+        setErrorBaja(data.message || 'No se puede eliminar porque tiene dependencias. Usá Dar de baja en su lugar.');
+      }
       else { setErrorBaja('Error al procesar'); }
     } catch { setErrorBaja('Error de conexión'); } finally { setDandoBaja(false); }
   };
