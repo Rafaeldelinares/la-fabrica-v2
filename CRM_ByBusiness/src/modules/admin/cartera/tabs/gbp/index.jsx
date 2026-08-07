@@ -20,11 +20,12 @@ import GbpFichaActual from './GbpFichaActual';
 import GbpAudit from './GbpAudit';
 import GbpHistorico from './GbpHistorico';
 import GbpGestionPlaceId from './GbpGestionPlaceId';
+import GbpCompetitiveAnalysis from './GbpCompetitiveAnalysis';
 import { useGbpFichas } from './hooks/useGbpFichas';
 import { useGbpAudit } from './hooks/useGbpAudit';
 
 /** Section collapse defaults: Header + FichaActual open */
-const DEFAULT_OPEN = { header: true, fichaActual: true, audit: false, historico: false, gestion: false };
+const DEFAULT_OPEN = { header: true, fichaActual: true, audit: false, historico: false, gestion: false, competitive: false };
 
 /** Collapsible section wrapper */
 const Section = ({ id, isOpen, onToggle, title, children }) => (
@@ -133,6 +134,10 @@ export default function GbpIndex({ cliente }) {
 
       <Section id="audit" isOpen={open.audit} onToggle={toggle} title="Audit">
         <GbpAudit placeId={placeId} onAuditComplete={handleAuditComplete} />
+      </Section>
+
+      <Section id="competitive" isOpen={open.competitive} onToggle={toggle} title="Comparar con sector">
+        <GbpCompetitiveAnalysis clienteId={cliente.id} existingAudit={auditData} />
       </Section>
 
       <Section id="historico" isOpen={open.historico} onToggle={toggle} title="Histórico">
