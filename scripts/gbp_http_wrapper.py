@@ -302,8 +302,14 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
-        if parsed.path != '/extract-place-id':
-            return self.send_json({"error": "not_found"}, 404)
+        if parsed.path == '/extract-place-id':
+            return self._extract_place_id()
+        if parsed.path == '/search-by-name':
+            return self._search_by_name()
+        return self.send_json({"error": "not_found"}, 404)
+
+    def _extract_place_id(self):
+        """Parse place_id from a Google Maps URL."""
         length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(length).decode('utf-8') if length else ''
         try:
@@ -315,6 +321,202 @@ class Handler(BaseHTTPRequestHandler):
         if not place_id:
             return self.send_json({"error": fmt or "unrecognized", "url_received": url[:200]}, 400)
         return self.send_json({"place_id": place_id, "format": fmt})
+
+    def _search_by_name(self):
+        """Search Google Maps by business name + location, return top 5 candidates.
+
+        Strategy: Google Maps auto-redirects to the best match when confident.
+        We detect this redirect via wait_for_url and extract place_id from the URL.
+        """
+        import re as _re
+
+        length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(length).decode('utf-8') if length else ''
+        try:
+            payload = json.loads(body) if body else {}
+        except Exception:
+            return self.send_json({"error": "invalid_json"}, 400)
+
+        name = (payload.get('name') or '').strip()
+        locality = (payload.get('locality') or '').strip()
+        provincia = (payload.get('provincia') or '').strip()
+        address = (payload.get('address') or '').strip()
+
+        if not name:
+            return self.send_json({"error": "name is required"}, 400)
+
+        # Build search query
+        parts = [name]
+        if locality:
+            parts.append(locality)
+        if provincia and provincia.lower() not in (locality or '').lower():
+            parts.append(provincia)
+        if address:
+            parts.append(address)
+        query = ' '.join(parts)
+        encoded = query.replace(' ', '+')
+        search_url = f"https://www.google.com/maps/search/{encoded}"
+
+        page = _context.new_page()
+        try:
+            page.goto(search_url, timeout=30000, wait_until='domcontentloaded')
+
+            # Wait for either redirect to /place/ OR for search results to load
+            # Google Maps redirects when it has a strong single match
+            try:
+                page.wait_for_url(lambda url: '/place/' in url, timeout=8000)
+                redirected = True
+            except Exception:
+                redirected = False
+                # Give search results time to render
+                time.sleep(3)
+
+            final_url = page.url
+            candidates = []
+
+            if redirected:
+                # ── Case 1: Direct redirect to place page ────────────────────────
+                # Extract place_id: the URL pattern is
+                # /place/Name/@lat,lng,z/data=!...!...!1sPLACE_ID!...
+                place_id = None
+                m = _re.search(r'!1s([^!]+)', final_url)
+                if m:
+                    place_id = m.group(1)
+                else:
+                    m = _re.search(r'/place/[^/]+/([A-Za-z0-9_-]+)', final_url)
+                    if m:
+                        place_id = m.group(1)
+
+                page_title = page.title().replace(' - Google Maps', '').strip()
+
+                # Try to get rating
+                rating = None
+                try:
+                    rating_el = page.query_selector('.aMPvhf, [class*="rating"] span, [aria-label*="star"]')
+                    if rating_el:
+                        rating_text = rating_el.get_attribute('aria-label') or rating_el.inner_text()
+                        rating_m = _re.search(r'(\d[.,]?\d)', rating_text)
+                        if rating_m:
+                            rating = float(rating_m.group(1).replace(',', '.'))
+                except Exception:
+                    pass
+
+                # Try to get reviews count
+                reviews = None
+                try:
+                    reviews_el = page.query_selector('[aria-label*="opinión"], [aria-label*="review"]')
+                    if reviews_el:
+                        reviews_text = reviews_el.get_attribute('aria-label') or ''
+                        reviews_m = _re.search(r'([\d.,]+)\s*(?:opinión|review)', reviews_text)
+                        if reviews_m:
+                            reviews = int(reviews_m.group(1).replace('.', '').replace(',', ''))
+                except Exception:
+                    pass
+
+                # Try to get address (only on direct place page, not redirected)
+                address_text = ''
+                try:
+                    addr_el = page.query_selector('[data-item-id="address"] .Io6YTe, button[data-item-id="address"] .Io6YTe, [aria-label*="Dirección"] .Io6YTe, .rogA2c .Io6YTe')
+                    if addr_el:
+                        address_text = addr_el.inner_text().strip()
+                except Exception:
+                    pass
+
+                if place_id:
+                    candidates.append({
+                        'name': page_title,
+                        'place_id': place_id,
+                        'address': address_text,
+                        'rating': rating,
+                        'reviews': reviews,
+                        'score': None,
+                    })
+
+                return self.send_json({'candidates': candidates, '_redirected': True})
+
+            # ── Case 2: Multiple results — parse the search feed ───────────────
+            # These pages show results without redirecting
+            try:
+                page.wait_for_selector('[role="feed"]', timeout=8000)
+            except Exception:
+                time.sleep(2)
+
+            # Get all place links from the feed
+            cards = page.query_selector_all('[data-result-index]')
+            if not cards:
+                feed = page.query_selector('[role="feed"]')
+                if feed:
+                    cards = feed.query_selector_all('a[href*="/place/"]')
+
+            for card in cards[:5]:
+                try:
+                    href = card.get_attribute('href') or ''
+
+                    # Extract place_id from href
+                    place_id = None
+                    m = _re.search(r'!1s([^!]+)', href)
+                    if m:
+                        place_id = m.group(1)
+                    else:
+                        m = _re.search(r'/place/[^/]+/([A-Za-z0-9_-]+)', href)
+                        if m:
+                            place_id = m.group(1)
+                        else:
+                            m = _re.search(r'ftid=([A-Za-z0-9_-]+)', href)
+                            if m:
+                                place_id = m.group(1)
+
+                    # Get name
+                    candidate_name = (card.get_attribute('aria-label') or '').strip()
+                    if not candidate_name:
+                        name_el = card.query_selector('.qBF1Pd, .fontHeadlineSmall, [class*="title"]')
+                        if name_el:
+                            candidate_name = name_el.inner_text().strip()
+
+                    if not candidate_name:
+                        continue
+
+                    # Get address
+                    address_text = ''
+                    addr_el = card.query_selector('.rllt__address, [class*="address"]')
+                    if addr_el:
+                        address_text = addr_el.inner_text().strip()
+
+                    # Get rating and reviews
+                    rating = None
+                    reviews = None
+                    try:
+                        rating_el = card.query_selector('[aria-label*="star"], [aria-label*="estrel"]')
+                        if rating_el:
+                            rating_text = rating_el.get_attribute('aria-label') or ''
+                            rating_m = _re.search(r'(\d[.,]?\d)', rating_text)
+                            if rating_m:
+                                rating = float(rating_m.group(1).replace(',', '.'))
+                            reviews_m = _re.search(r'([\d.,]+)\s*(?:opinión|review)', rating_text)
+                            if reviews_m:
+                                reviews = int(reviews_m.group(1).replace('.', '').replace(',', ''))
+                    except Exception:
+                        pass
+
+                    candidates.append({
+                        'name': candidate_name,
+                        'place_id': place_id,
+                        'address': address_text,
+                        'rating': rating,
+                        'reviews': reviews,
+                        'score': None,
+                    })
+                except Exception as e:
+                    sys.stderr.write(f"[search-by-name] card parse error: {e}\n")
+                    continue
+
+            return self.send_json({'candidates': candidates})
+
+        except Exception as e:
+            sys.stderr.write(f"[search-by-name] error: {e}\n")
+            return self.send_json({'error': str(e), 'candidates': []}, 500)
+        finally:
+            page.close()
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -349,6 +551,9 @@ class Handler(BaseHTTPRequestHandler):
         refresh = params.get("refresh", ["false"])[0] == "true"
         deep = params.get("deep", ["false"])[0] == "true"
         source = params.get("source", [DEFAULT_AUDIT_SOURCE])[0]
+        # cliente_id is optional — pass it from the caller so save_history can link the audit to the cliente
+        cliente_id_raw = params.get("cliente_id", [None])[0]
+        cliente_id = int(cliente_id_raw) if cliente_id_raw and str(cliente_id_raw).isdigit() else None
 
         # ── Cache check via history table (skip if refresh=true) ───────────────
         if not refresh:
@@ -368,8 +573,8 @@ class Handler(BaseHTTPRequestHandler):
         duration_ms = int((time.time() - t0) * 1000)
 
         if "error" not in data:
-            save_cache(place_id, None, data, duration_ms)
-            save_history(place_id, None, data, duration_ms, source)
+            save_cache(place_id, cliente_id, data, duration_ms)
+            save_history(place_id, cliente_id, data, duration_ms, source)
 
         return self.send_json({
             **data,
