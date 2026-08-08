@@ -1,0 +1,356 @@
+#!/usr/bin/env python3
+"""
+pre_audit_v2_resume.py — Reanuda el pre-audit GBP batch desde donde quedó.
+
+Consume los clientes activos con google_cid que NO tienen fila en
+clientes.gbp_audit_history posterior al 2026-08-07 19:00:00 (cuando arrancó
+el batch original), y llama al wrapper local /run con refresh=true para que
+scrapee y guarde baseline.
+
+Persistencia:
+  - State: /opt/fabrica/state/pre_audit_v2_resume.json
+  - Log:   /opt/fabrica/logs/pre_audit_v2_resume.log
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import signal
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+
+import psycopg2
+
+WRAPPER_URL = "http://localhost:8095/run"
+WRAPPER_SCRIPT = Path("/opt/fabrica/scripts/gbp_http_wrapper.py")
+STATE_PATH = Path("/opt/fabrica/state/pre_audit_v2_resume.json")
+LOG_PATH = Path("/opt/fabrica/logs/pre_audit_v2_resume.log")
+SOURCE_TAG = "pre-audit-v2-resume"
+BATCH_START_THRESHOLD = "2026-08-07 19:00:00"
+
+DEFAULT_CHUNK = 50
+
+
+def read_db_dsn() -> str:
+    """
+    Build a psycopg2 DSN either from env PG_DSN or by parsing the production
+    wrapper's connection block. Avoids hardcoding secrets in this script.
+    """
+    env = os.environ.get("PG_DSN")
+    if env:
+        return env
+
+    if not WRAPPER_SCRIPT.exists():
+        raise RuntimeError(f"PG_DSN not set and wrapper not found at {WRAPPER_SCRIPT}")
+
+    import re
+    src = WRAPPER_SCRIPT.read_text(encoding="utf-8")
+    # Find the _get_db_conn() block and extract the psycopg2.connect(...) kwargs
+    block = re.search(r"def _get_db_conn\(\):.*?psycopg2\.connect\((.*?)\)", src, re.DOTALL)
+    if not block:
+        raise RuntimeError("could not parse _get_db_conn() from wrapper")
+
+    inner = block.group(1)
+    pairs = {}
+    for m in re.finditer(r'(\w+)\s*=\s*(".*?"|\'.*?\'|\d+)', inner):
+        key, raw = m.group(1), m.group(2)
+        # Strip quotes from string literals
+        val = raw[1:-1] if raw[0] in '"\'' else raw
+        pairs[key] = val
+
+    return (
+        f"host={pairs.get('host','localhost')} "
+        f"port={pairs.get('port','5433')} "
+        f"dbname={pairs.get('dbname','crm_bybusiness')} "
+        f"user={pairs.get('user','rafael_admin')} "
+        f"password={pairs.get('password')} "
+        f"connect_timeout=10"
+    )
+REQUEST_TIMEOUT_S = 300  # 5 min, peor caso observado: 256s
+INTER_REQUEST_SLEEP_S = 1.5
+
+
+def log(line: str) -> None:
+    """Append a timestamped line to the log file and stdout."""
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    msg = f"[{ts}] {line}"
+    print(msg, flush=True)
+    with LOG_PATH.open("a", encoding="utf-8") as fh:
+        fh.write(msg + "\n")
+
+
+def load_state() -> dict[str, Any]:
+    if STATE_PATH.exists():
+        try:
+            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            log(f"state file corrupted, starting fresh: {STATE_PATH}")
+    return {
+        "started_at": None,
+        "finished_at": None,
+        "processed": [],
+        "failed": [],
+        "in_flight": None,
+    }
+
+
+def save_state(state: dict[str, Any]) -> None:
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(STATE_PATH)
+
+
+def fetch_pending(cur) -> list[tuple[int, str, str]]:
+    """Return [(id, nombre_comercial, google_cid)] for clients not yet processed by this batch."""
+    cur.execute(
+        """
+        SELECT c.id, c.nombre_comercial, c.google_cid
+        FROM clientes.clientes c
+        WHERE c.estado = 'activo'
+          AND c.google_cid IS NOT NULL AND c.google_cid != ''
+          AND NOT EXISTS (
+            SELECT 1 FROM clientes.gbp_audit_history h
+            WHERE h.cliente_id = c.id
+              AND h.audited_at >= %s
+          )
+        ORDER BY c.id
+        """,
+        (BATCH_START_THRESHOLD,),
+    )
+    return [(r[0], r[1], r[2]) for r in cur.fetchall()]
+
+
+def call_wrapper(cliente_id: int, place_id: str) -> dict[str, Any]:
+    """Hit /run with refresh=true. Returns parsed JSON or raises."""
+    params = urlencode({
+        "place_id": place_id,
+        "refresh": "true",
+        "cliente_id": cliente_id,
+        "source": SOURCE_TAG,
+    })
+    req = Request(f"{WRAPPER_URL}?{params}", method="GET")
+    with urlopen(req, timeout=REQUEST_TIMEOUT_S) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def call_wrapper_with_retry(cliente_id: int, place_id: str, attempts: int = 2) -> dict[str, Any]:
+    last_err: Exception | None = None
+    for n in range(1, attempts + 1):
+        try:
+            return call_wrapper(cliente_id, place_id)
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as e:
+            last_err = e
+            log(f"  retry {n}/{attempts} failed for cliente {cliente_id}: {type(e).__name__}: {e}")
+            if n < attempts:
+                time.sleep(5)
+    raise last_err  # type: ignore[misc]
+
+
+def verify_persisted(cur, cliente_id: int, window_seconds: int = 60) -> bool:
+    """
+    Confirm a row exists in gbp_audit_history for this cliente with our source
+    tag, audited within the last `window_seconds`. Catches silent INSERT
+    failures (e.g. CHECK constraint violation) that the wrapper swallows.
+    """
+    cur.execute(
+        """
+        SELECT 1 FROM clientes.gbp_audit_history
+        WHERE cliente_id = %s
+          AND audit_source = %s
+          AND audited_at > NOW() - (%s || ' seconds')::interval
+        LIMIT 1
+        """,
+        (cliente_id, SOURCE_TAG, str(window_seconds)),
+    )
+    return cur.fetchone() is not None
+
+
+_shutdown_requested = False
+
+
+def handle_signal(signum, frame):
+    global _shutdown_requested
+    _shutdown_requested = True
+    log(f"signal {signum} received, finishing current cliente then exit")
+
+
+def run(chunk_size: int, max_clientes: int | None, ids_filter: set[int] | None = None) -> int:
+    signal.signal(signal.SIGINT, handle_signal)
+    signal.signal(signal.SIGTERM, handle_signal)
+
+    state = load_state()
+    processed_set = set(state.get("processed", []))
+    failed_set = {f["cliente_id"] for f in state.get("failed", [])}
+
+    # Open one connection for the whole run (sanity check + main loop)
+    conn = psycopg2.connect(read_db_dsn())
+    conn.autocommit = True
+    cur = conn.cursor()
+
+    # Sanity-check the processed list against the DB: if a cliente marked as
+    # processed is not actually in gbp_audit_history with our source tag, drop
+    # it from processed so it gets re-processed this run.
+    if processed_set:
+        cur.execute(
+            """
+            SELECT cliente_id FROM clientes.gbp_audit_history
+            WHERE cliente_id = ANY(%s) AND audit_source = %s
+            """,
+            (list(processed_set), SOURCE_TAG),
+        )
+        actually_present = {r[0] for r in cur.fetchall()}
+        ghost = processed_set - actually_present
+        if ghost:
+            log(f"sanity: {len(ghost)} clientes in state.processed are not in DB (likely silent INSERT failures): {sorted(ghost)[:10]}{'...' if len(ghost)>10 else ''}")
+            processed_set &= actually_present
+            state["processed"] = sorted(processed_set)
+            save_state(state)
+
+    if state.get("in_flight"):
+        # Resume: this cliente was being processed when we died; mark as failed with note
+        recovered = state["in_flight"]
+        log(f"recovered in_flight cliente {recovered['cliente_id']} from previous run; will re-process")
+        processed_set.discard(recovered["cliente_id"])
+    state["in_flight"] = None
+
+    if state.get("started_at") is None:
+        state["started_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        save_state(state)
+        log(f"=== pre_audit_v2_resume started ===")
+    else:
+        log(f"=== resuming previous run, started_at={state['started_at']} ===")
+
+    pending = fetch_pending(cur)
+    log(f"clients pending: {len(pending)} (already_processed={len(processed_set)}, failed={len(failed_set)})")
+
+    # Surgical --ids filter: scopes pending to the filter set and removes those
+    # IDs from failed_set so a recovery batch re-processes them instead of
+    # skipping them. Must run BEFORE todo is built.
+    if ids_filter is not None:
+        before_pending = len(pending)
+        pending = [c for c in pending if c[0] in ids_filter]
+        failed_set -= ids_filter
+        log(f"--ids filter applied: pending={before_pending} -> {len(pending)}, failed_set reduced to {len(failed_set)}")
+
+    todo = [c for c in pending if c[0] not in processed_set and c[0] not in failed_set]
+
+    if max_clientes is not None:
+        todo = todo[:max_clientes]
+        log(f"limiting to first {max_clientes} clientes for this chunk")
+
+    log(f"will process {len(todo)} clientes in this run (chunk_size={chunk_size})")
+
+    ok = 0
+    err = 0
+    t_run_start = time.time()
+
+    for idx, (cliente_id, nombre, google_cid) in enumerate(todo, start=1):
+        if _shutdown_requested:
+            log("shutdown requested, stopping loop")
+            break
+
+        # Chunk boundary: log progress so far, then continue
+        if chunk_size and (idx - 1) > 0 and (idx - 1) % chunk_size == 0:
+            elapsed = time.time() - t_run_start
+            rate = (idx - 1) / elapsed if elapsed > 0 else 0
+            remaining = (len(todo) - (idx - 1)) / rate if rate > 0 else 0
+            log(
+                f"-- chunk checkpoint: {idx-1}/{len(todo)} done, "
+                f"ok={ok}, err={err}, "
+                f"elapsed={elapsed:.0f}s, "
+                f"rate={rate:.2f} clientes/s, "
+                f"ETA={remaining:.0f}s --"
+            )
+
+        log(f"[{idx}/{len(todo)}] cliente {cliente_id} '{nombre}' google_cid='{google_cid[:40]}...'")
+        state["in_flight"] = {"cliente_id": cliente_id, "started_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+        save_state(state)
+
+        t0 = time.time()
+        try:
+            data = call_wrapper_with_retry(cliente_id, google_cid)
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if "error" in data:
+                err += 1
+                state["failed"].append({
+                    "cliente_id": cliente_id,
+                    "nombre": nombre,
+                    "google_cid": google_cid,
+                    "error": data["error"],
+                    "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                })
+                log(f"  -> wrapper error: {data['error']} (after {elapsed_ms}ms)")
+            else:
+                rating = data.get("rating_promedio")
+                fotos = data.get("fotos_count")
+                # Verify the row actually landed in DB (wrapper can fail INSERT silently)
+                if not verify_persisted(cur, cliente_id):
+                    err += 1
+                    state["failed"].append({
+                        "cliente_id": cliente_id,
+                        "nombre": nombre,
+                        "google_cid": google_cid,
+                        "error": "persist_verify_failed (wrapper returned ok but row not in gbp_audit_history)",
+                        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                    })
+                    log(f"  -> PERSIST FAILED ({elapsed_ms}ms) rating={rating} fotos={fotos} — row missing in DB")
+                else:
+                    ok += 1
+                    state["processed"].append(cliente_id)
+                    log(f"  -> ok ({elapsed_ms}ms) rating={rating} fotos={fotos}")
+        except Exception as e:
+            err += 1
+            state["failed"].append({
+                "cliente_id": cliente_id,
+                "nombre": nombre,
+                "google_cid": google_cid,
+                "error": f"{type(e).__name__}: {e}",
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            })
+            log(f"  -> failed: {type(e).__name__}: {e}")
+        finally:
+            state["in_flight"] = None
+            save_state(state)
+            time.sleep(INTER_REQUEST_SLEEP_S)
+
+    state["finished_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    save_state(state)
+
+    elapsed_total = time.time() - t_run_start
+    log(
+        f"=== run finished: ok={ok}, err={err}, "
+        f"elapsed={elapsed_total:.0f}s ({elapsed_total/60:.1f}min) ==="
+    )
+
+    cur.close()
+    conn.close()
+    return 0 if err == 0 else 1
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--chunk", type=int, default=DEFAULT_CHUNK,
+                   help=f"checkpoint log every N clientes (default {DEFAULT_CHUNK})")
+    p.add_argument("--max", type=int, default=None,
+                   help="limit total clientes processed this run (for smoke testing)")
+    p.add_argument("--ids", type=str, default=None,
+                   help="comma-separated cliente IDs to process (bypasses failed_set filter; for recovery batches)")
+    args = p.parse_args()
+    ids_filter: set[int] | None = None
+    if args.ids:
+        ids_filter = {int(x.strip()) for x in args.ids.split(",") if x.strip()}
+        if not ids_filter:
+            raise SystemExit("--ids provided but no valid integer IDs parsed")
+    return run(args.chunk, args.max, ids_filter)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
