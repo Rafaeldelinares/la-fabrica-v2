@@ -1,8 +1,9 @@
 /**
  * tabs/gbp/index.jsx — S2 entry point.
  *
- * Unified GBP tab composing 5 collapsible sub-components:
- * GbpHeader, GbpFichaActual, GbpAudit, GbpHistorico, GbpGestionPlaceId.
+ * Unified GBP tab composing 7 collapsible sub-components:
+ * GbpHeader, GbpFichaActual, GbpAudit, GbpCompetitiveConfig,
+ * GbpCompetitiveAnalysis, GbpHistorico, GbpGestionPlaceId.
  *
  * RBAC: requires gbp.read (admin+supervisor). Write actions gate internally
  * with useRbac.can('gbp.write') — no "trust the parent" pattern.
@@ -10,6 +11,8 @@
  * GGA: ≤150 LOC per sub-component file.
  *
  * @since gbp-ficha-improvements S2 (2026-08-05)
+ * @updated competitive-config-s1 (2026-08-09) — moved hooks above
+ *           conditional returns to satisfy react-hooks/rules-of-hooks.
  */
 import React, { useState, useCallback, useMemo } from 'react';
 import PropTypes from 'prop-types';
@@ -21,11 +24,11 @@ import GbpAudit from './GbpAudit';
 import GbpHistorico from './GbpHistorico';
 import GbpGestionPlaceId from './GbpGestionPlaceId';
 import GbpCompetitiveAnalysis from './GbpCompetitiveAnalysis';
+import GbpCompetitiveConfig from './GbpCompetitiveConfig';
 import { useGbpFichas } from './hooks/useGbpFichas';
-import { useGbpAudit } from './hooks/useGbpAudit';
 
 /** Section collapse defaults: Header + FichaActual open */
-const DEFAULT_OPEN = { header: true, fichaActual: true, audit: false, historico: false, gestion: false, competitive: false };
+const DEFAULT_OPEN = { header: true, fichaActual: true, audit: false, historico: false, gestion: false, competitive: false, competitiveConfig: false };
 
 /** Collapsible section wrapper */
 const Section = ({ id, isOpen, onToggle, title, children }) => (
@@ -36,7 +39,7 @@ const Section = ({ id, isOpen, onToggle, title, children }) => (
       className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-slate-900 transition-colors"
     >
       <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{title}</span>
-      <span className="text-slate-600 text-xs">{isOpen ? '▾' : '▸'}</span>
+      <span className="text-slate-600 text-xs">{isOpen ? '▾' : '�'}</span>
     </button>
     {isOpen && <div className="px-3 pb-3">{children}</div>}
   </div>
@@ -51,24 +54,27 @@ Section.propTypes = {
 
 /**
  * GBP unified tab.
+ *
+ * Hook order (REQUIRED — do not reorder):
+ *   1. useRbac, useState x3, useGbpFichas (data), useMemo, useCallback
+ *   2. Conditional returns / JSX (no hooks below this line)
+ *
  * @param {{ cliente: object }} props
  */
 export default function GbpIndex({ cliente }) {
+  // ─── Hooks (always called, in this exact order) ─────────────────────────
   const rbac = useRbac();
-
-  if (!rbac.can('gbp.read')) {
-    return <AccessDenied permission="gbp.read" />;
-  }
 
   const [open,        setOpen]        = useState(DEFAULT_OPEN);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [auditData,   setAuditData]   = useState(null);
 
-  // Fetch fichas for this cliente
   const { data: fichasData, isLoading: loadingFichas } = useGbpFichas(cliente.id);
-  const fichas = fichasData?.ok ? (fichasData.fichas ?? []) : [];
+  const fichas = useMemo(
+    () => (fichasData?.ok ? (fichasData.fichas ?? []) : []),
+    [fichasData]
+  );
 
-  // Current ficha selection — synthesize from cliente.google_place_id if fichas empty
   const fichaActual = useMemo(() => {
     if (fichas.length > 0) return fichas[selectedIdx];
     if (cliente.google_place_id) {
@@ -84,13 +90,17 @@ export default function GbpIndex({ cliente }) {
     }
     return null;
   }, [fichas, selectedIdx, cliente.google_place_id, cliente.nombre_comercial]);
-  const placeId = fichaActual?.google_cid || '';
 
   const toggle = (id) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
-
   const handleAuditComplete = useCallback((data) => {
     setAuditData(data);
   }, []);
+  // ─── End of hooks ────────────────────────────────────────────────────────
+
+  // ─── Conditional returns (AFTER all hooks) ──────────────────────────────
+  if (!rbac.can('gbp.read')) {
+    return <AccessDenied permission="gbp.read" />;
+  }
 
   if (loadingFichas) {
     return (
@@ -101,6 +111,9 @@ export default function GbpIndex({ cliente }) {
       </div>
     );
   }
+
+  const placeId = fichaActual?.google_cid || '';
+  // ─── Main render ────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col gap-3 px-3 py-4">
@@ -134,6 +147,10 @@ export default function GbpIndex({ cliente }) {
 
       <Section id="audit" isOpen={open.audit} onToggle={toggle} title="Audit">
         <GbpAudit placeId={placeId} onAuditComplete={handleAuditComplete} />
+      </Section>
+
+      <Section id="competitiveConfig" isOpen={open.competitiveConfig} onToggle={toggle} title="Config. análisis competitivo">
+        <GbpCompetitiveConfig cliente={cliente} />
       </Section>
 
       <Section id="competitive" isOpen={open.competitive} onToggle={toggle} title="Comparar con sector">

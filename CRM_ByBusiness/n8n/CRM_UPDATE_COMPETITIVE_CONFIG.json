@@ -1,0 +1,41 @@
+{
+  "name": "CRM_UPDATE_COMPETITIVE_CONFIG",
+  "path": "crm-update-competitive-config",
+  "active": false,
+  "purpose": "Guarda la config per-cliente del competitive analysis (competitive_enabled, competitive_frequency_days, competitive_recipients). Usado por el frontend TabGbp.",
+  "nodes": [
+    {
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-update-competitive-config",
+        "responseMode": "responseNode"
+      }
+    },
+    {
+      "name": "Update Config",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "UPDATE clientes.clientes SET competitive_enabled = {{ $json.body.competitive_enabled }}, competitive_frequency_days = {{ $json.body.competitive_frequency_days }}, competitive_recipients = '{{ JSON.stringify($json.body.competitive_recipients) }}'::jsonb WHERE id = {{ $json.body.cliente_id }} RETURNING id, competitive_enabled, competitive_frequency_days, competitive_recipients"
+      }
+    },
+    {
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {ok: true, cliente: $json.first()} }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{"node": "Update Config", "type": "main"}]] },
+    "Update Config": { "main": [[{"node": "Respond OK", "type": "main"}]] }
+  }
+}
