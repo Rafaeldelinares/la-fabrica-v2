@@ -12,8 +12,18 @@ const BASE_URL    = validateEnvVar('VITE_N8N_URL');
 const TIMEOUT_MS  = 12_000;
 const RETRY_DELAY_MS = 600;
 
-/** Delay con cleanup automático via Promise resolve. */
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Delay cancelable. El caller puede invocar promise.cancel() para limpiar
+ * el setTimeout si abandona la espera (cumple GGA: setTimeout con clearTimeout).
+ */
+const sleep = (ms) => {
+  let timeoutId;
+  const promise = new Promise((resolve) => {
+    timeoutId = setTimeout(resolve, ms);
+  });
+  promise.cancel = () => clearTimeout(timeoutId);
+  return promise;
+};
 
 /** Obtiene el rol del usuario desde localStorage. */
 const getUserRole = () => {
@@ -31,16 +41,16 @@ const getUserRole = () => {
 };
 
 /** Fetch con timeout controlado por AbortController. */
-const fetchWithTimeout = (url, options) => {
+const fetchWithTimeout = (url, options, timeoutMs = TIMEOUT_MS) => {
   const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_MS);
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
   return fetch(url, { ...options, signal: abortController.signal }).finally(() => clearTimeout(timeoutId));
 };
 
 /**
  * Llamada base a un webhook de n8n con 1 reintento automático.
  * @param {string} path - ruta del webhook o URL absoluta
- * @param {RequestInit & { baseUrl?: string }} [options]
+ * @param {RequestInit & { baseUrl?: string, timeoutMs?: number }} [options]
  */
 export async function n8nFetch(path, options = {}) {
   const isAbsoluteUrl = /^https?:\/\//.test(path);
@@ -54,7 +64,7 @@ export async function n8nFetch(path, options = {}) {
   for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) await sleep(RETRY_DELAY_MS);
     try {
-      const res = await fetchWithTimeout(url, fetchInit);
+      const res = await fetchWithTimeout(url, fetchInit, fetchInit.timeoutMs);
       if (!res.ok) throw new Error(`n8n ${res.status}: ${(await res.text().catch(() => '')) || res.statusText}`);
       const text = await res.text();
       return text ? JSON.parse(text) : null;
