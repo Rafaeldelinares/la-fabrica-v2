@@ -88,7 +88,7 @@ const CarteraPanel = () => {
     if (filters.provincia) params.provincia = filters.provincia;
     if (filters.localidad) params.localidad = filters.localidad;
     if (filters.sector)    params.sector    = filters.sector;
-    n8nGet('crm-cartera-get', Object.keys(params).length ? params : undefined)
+    n8nGet('crm-cartera-get', Object.keys(params).length ? params : undefined, { timeoutMs: 60000 })
       .then(data => {
         if (data.ok) {
           setClientes(data.clientes);
@@ -499,7 +499,7 @@ const CarteraPanel = () => {
                 onCreado={(cliente) => {
                   setNuevoCliente(false);
                   // Recargar cartera e ir directamente al novo cliente
-                  n8nGet('crm-cartera-get')
+                  n8nGet('crm-cartera-get', undefined, { timeoutMs: 60000 })
                     .then(data => {
                       if (data.ok) {
                         setClientes(data.clientes);
