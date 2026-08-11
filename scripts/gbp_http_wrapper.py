@@ -240,6 +240,50 @@ def get_recent_history(place_id: str):
         return None, None
 
 
+def get_latest_history(place_id: str):
+    """Return the most recent audit_data dict for place_id (any age), or None.
+
+    A diferencia de get_recent_history (ventana de 24h), esta consulta NO
+    filtra por antigüedad: se usa para comparar drift entre el último audit
+    conocido y un scrape nuevo en /run (smart-save).
+    """
+    try:
+        conn = _get_db_conn()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT audit_data FROM clientes.gbp_audit_history "
+            "WHERE place_id = %s ORDER BY audited_at DESC LIMIT 1",
+            (place_id,)
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        return row[0] if row else None
+    except Exception as e:
+        sys.stderr.write(f"[gbp_wrapper] latest history lookup error: {e}\n")
+        return None
+
+
+def _audit_data_has_drift(prev: dict, curr: dict) -> bool:
+    """True si los campos clave del audit cambiaron entre prev y curr.
+
+    Mismo set de campos que _drift_response (rating, reviews_count,
+    fotos_count, qa_count, descripcion). Usado por el smart-save en /run:
+    solo insertar fila en history cuando hay drift real.
+    """
+    if not prev:
+        return True
+    for field in ("rating", "reviews_count", "fotos_count", "qa_count"):
+        pv = prev.get(field)
+        cv = curr.get(field)
+        if field == "rating":
+            if round(float(pv or 0), 2) != round(float(cv or 0), 2):
+                return True
+        elif (pv or 0) != (cv or 0):
+            return True
+    return (prev.get("descripcion") or "") != (curr.get("descripcion") or "")
+
+
 def probe_db_connection():
     """Startup probe: verify both cache and history tables are reachable."""
     try:
@@ -574,7 +618,14 @@ class Handler(BaseHTTPRequestHandler):
 
         if "error" not in data:
             save_cache(place_id, cliente_id, data, duration_ms)
-            save_history(place_id, cliente_id, data, duration_ms, source)
+            # ── Smart save: el cache siempre refleja el estado actual; el
+            # historial es append-only y solo inserta fila nueva cuando hay
+            # drift real vs el último audit (rating, reviews_count, fotos_count,
+            # qa_count, descripcion). Si no hay drift, evitamos duplicados por
+            # scrapes idénticos y dejamos el histórico limpio.
+            last_audit_data = get_latest_history(place_id)
+            if last_audit_data is None or _audit_data_has_drift(last_audit_data, data):
+                save_history(place_id, cliente_id, data, duration_ms, source)
 
         return self.send_json({
             **data,
