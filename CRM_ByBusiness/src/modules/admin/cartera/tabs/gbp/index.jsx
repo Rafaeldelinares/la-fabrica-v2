@@ -14,7 +14,7 @@
  * @updated competitive-config-s1 (2026-08-09) — moved hooks above
  *           conditional returns to satisfy react-hooks/rules-of-hooks.
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useRbac } from '../../../../../shared/auth/useRbac';
 import AccessDenied from '../../../../../shared/ui/AccessDenied';
@@ -67,7 +67,13 @@ export default function GbpIndex({ cliente }) {
 
   const [open,        setOpen]        = useState(DEFAULT_OPEN);
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [auditData,   setAuditData]   = useState(null);
+  const [auditData,   setAuditData]   = useState(() => {
+    // Restaurar desde sessionStorage para que persista entre navegaciones/recargas
+    try {
+      const cached = sessionStorage.getItem(`gbp-audit-${cliente.id}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch (e) { return null; }
+  });
 
   const { data: fichasData, isLoading: loadingFichas } = useGbpFichas(cliente.id);
   const fichas = useMemo(
@@ -94,7 +100,22 @@ export default function GbpIndex({ cliente }) {
   const toggle = (id) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
   const handleAuditComplete = useCallback((data) => {
     setAuditData(data);
-  }, []);
+    // Persistir en sessionStorage para que sobreviva navegaciones y recargas del drawer
+    try {
+      if (data) {
+        sessionStorage.setItem(`gbp-audit-${cliente.id}`, JSON.stringify(data));
+      } else {
+        sessionStorage.removeItem(`gbp-audit-${cliente.id}`);
+      }
+    } catch (e) { /* sessionStorage no disponible */ }
+  }, [cliente.id]);
+
+  // Si cambia el cliente seleccionado, limpiar audit cache
+  useEffect(() => {
+    return () => {
+      try { sessionStorage.removeItem(`gbp-audit-${cliente.id}`); } catch (e) {}
+    };
+  }, [cliente.id]);
   // ─── End of hooks ────────────────────────────────────────────────────────
 
   // ─── Conditional returns (AFTER all hooks) ──────────────────────────────
