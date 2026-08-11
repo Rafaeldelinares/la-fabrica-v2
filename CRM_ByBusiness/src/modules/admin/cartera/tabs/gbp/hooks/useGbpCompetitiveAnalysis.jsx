@@ -15,8 +15,8 @@ import { n8nPost } from '../../../../../../shared/hooks/useN8n';
 export const useGbpCompetitiveAnalysis = (clienteId) => {
   return useQuery({
     queryKey: ['gbp-competitive', clienteId],
-    queryFn: () => n8nPost('crm-gbp-competitive-analysis', { cliente_id: Number(clienteId) }),
-    staleTime: 60 * 60 * 1_000, // 60 min — competitive data is slow-changing
+    queryFn: () => n8nPost('crm-gbp-competitive-analysis', { cliente_id: Number(clienteId) }, { timeoutMs: 90000 }),
+    staleTime: 5 * 60 * 1_000, // 5 min — reduced from 60min so "Auditar ahora" always fetches fresh
     enabled: Boolean(clienteId),
     retry: 1,
   });

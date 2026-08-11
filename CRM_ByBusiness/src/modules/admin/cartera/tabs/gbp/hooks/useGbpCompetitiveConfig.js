@@ -96,7 +96,11 @@ export const useGbpCompetitiveConfig = (clienteId, canRead, canWrite) => {
     setEditRecipients((editRecipients || []).filter((r) => r !== email));
   }, [editRecipients]);
 
-  const runNow = useCallback(() => refetch(), [refetch]);
+  const runNow = useCallback(() => {
+    // Invalidate cache + force refetch even if data is "fresh" dentro de staleTime
+    queryClient.invalidateQueries({ queryKey: ['gbp-competitive', clienteId] });
+    return refetch({ cancelRefetch: false });
+  }, [refetch, queryClient, clienteId]);
 
   return {
     cfg,
