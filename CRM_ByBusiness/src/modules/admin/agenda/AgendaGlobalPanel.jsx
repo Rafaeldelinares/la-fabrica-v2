@@ -5,7 +5,7 @@ import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth,
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import './agenda-calendar.css';
-import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive, Search, Mail, CheckCircle2, Activity } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Calendar as CalIcon, Phone, Users, MessageSquare, Star, Wrench, CalendarClock, ExternalLink, HardDrive, Search, Mail, CheckCircle2, Activity, AlertTriangle, Eye, CheckCircle } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useAuth } from '../../../modules/auth/AuthContext';
 import { useRbac } from '../../../shared/auth/useRbac';
@@ -421,6 +421,13 @@ const AgendaGlobalPanel = () => {
     staleTime: 60_000,
   });
 
+  // React Query: alertas GBP
+  const { data: alertasData } = useQuery({
+    queryKey: ['gbp-alertas'],
+    queryFn: () => n8nGet('crm-gbp-alertas-get'),
+    staleTime: 30_000,
+  });
+
   // React Query: detalle de cliente para abrir desde agenda
   const [clienteDetalleId, setClienteDetalleId] = useState(null);
   const { data: clienteDetalleData } = useQuery({
@@ -664,6 +671,102 @@ const AgendaGlobalPanel = () => {
               </button>
             );
           })}
+
+          {/* Alertas GBP — solo admins ven GBP alarms */}
+          {can('agenda.gbp.alarms') && (
+            <div className="mt-4 shrink-0">
+              {/* Contadores semanales */}
+              {(() => {
+                const alertas = alertasData?.alertas || [];
+                const ahora = new Date();
+                const hace7d = new Date(ahora.getTime() - 7 * 86400000);
+                const nuevas = alertas.filter(a => a.estado === 'NEW' && new Date(a.created_at) >= hace7d).length;
+                const pendientes = alertas.filter(a => a.estado === 'ACKNOWLEDGED').length;
+                const resueltas = alertas.filter(a => a.estado === 'RESOLVED' || (a.resolved_at && new Date(a.resolved_at) >= hace7d)).length;
+                return (
+                  <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono font-black mb-1">
+                    Alertas GBP ·
+                    <span className="text-red-400">{nuevas} nuevas</span>
+                    {' · '}
+                    <span className="text-amber-400">{pendientes} pend.</span>
+                    {' · '}
+                    <span className="text-emerald-400">{resueltas} resueltas</span>
+                  </p>
+                );
+              })()}
+              <p className="text-[9px] text-slate-600 uppercase tracking-widest font-mono font-black mb-2">
+                {(alertasData?.alertas || []).length} total
+              </p>
+              {(!alertasData?.ok || alertasData?.alertas?.length === 0) ? (
+                <p className="text-[10px] text-slate-700 font-mono">Sin alertas pendientes</p>
+              ) : (
+                alertasData.alertas.slice(0, 5).map(alerta => {
+                  const estadoColors = {
+                    NEW:         { badge: 'bg-red-900/40 text-red-400 border-red-800/50',  icon: AlertTriangle },
+                    ACKNOWLEDGED: { badge: 'bg-amber-900/40 text-amber-400 border-amber-800/50', icon: Eye },
+                    RESOLVED:     { badge: 'bg-emerald-900/40 text-emerald-400 border-emerald-800/50', icon: CheckCircle },
+                    STALE:        { badge: 'bg-slate-800/40 text-slate-400 border-slate-700/50', icon: AlertTriangle },
+                  };
+                  const estado = alerta.estado || 'NEW';
+                  const { badge, icon: EstadoIcon } = estadoColors[estado] || estadoColors.NEW;
+                  return (
+                    <div
+                      key={alerta.id}
+                      className="py-2 border-b border-slate-900 hover:bg-slate-900/30 transition-colors"
+                    >
+                      <div className="flex items-start gap-1.5 mb-1">
+                        <EstadoIcon size={9} className={`mt-0.5 shrink-0 ${estado === 'NEW' ? 'text-red-400' : estado === 'ACKNOWLEDGED' ? 'text-amber-400' : estado === 'RESOLVED' ? 'text-emerald-400' : 'text-slate-500'}`} />
+                        <button
+                          onClick={() => abrirClienteDesdeAgenda(alerta.cliente_id)}
+                          className="flex-1 text-left min-w-0"
+                        >
+                          <p className="text-[10px] font-mono text-slate-300 truncate leading-tight hover:text-blue-400 transition-colors">{alerta.nombre_comercial}</p>
+                        </button>
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-1 py-0.5 rounded-sm border font-mono shrink-0 ${badge}`}>
+                          {estado}
+                        </span>
+                      </div>
+                      <p className="text-[9px] font-mono text-[#D00000] ml-2">{alerta.tipo}</p>
+                      <p className="text-[9px] font-mono text-slate-600 ml-2 truncate">{alerta.mensaje}</p>
+                      {/* Action buttons */}
+                      <div className="flex gap-1.5 mt-1.5 ml-2">
+                        {estado === 'NEW' && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await n8nPost('crm-gbp-alerta-ack', { id: alerta.id });
+                              } catch (_) {}
+                            }}
+                            className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-amber-700/40 text-amber-400 hover:bg-amber-900/20 transition-colors"
+                          >
+                            Revisado
+                          </button>
+                        )}
+                        <button
+                          onClick={() => abrirClienteDesdeAgenda(alerta.cliente_id)}
+                          className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-slate-700/40 text-slate-400 hover:bg-slate-800/40 transition-colors"
+                        >
+                          Ver ficha
+                        </button>
+                        {estado !== 'RESOLVED' && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await n8nPost('crm-gbp-alerta-resolve', { id: alerta.id });
+                              } catch (_) {}
+                            }}
+                            className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-emerald-700/40 text-emerald-400 hover:bg-emerald-900/20 transition-colors"
+                          >
+                            Resuelto
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
 
           {/* Freshness config — lead contactability threshold */}
           <div className="mt-4 shrink-0">
