@@ -1,0 +1,393 @@
+{
+  "name": "CRM_GBP_CAPTURE_PLACE_ID_BATCH",
+  "nodes": [
+    {
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        100,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crm-gbp-capture-place-id-batch",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "crm-gbp-capture-place-id-batch"
+    },
+    {
+      "id": "cron",
+      "name": "Cron",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        100,
+        600
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "week",
+              "hour": 2,
+              "minute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pg_load",
+      "name": "Load Clientes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        340,
+        400
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "SELECT\n  c.id,\n  c.nombre_comercial,\n  c.localidad,\n  c.provincia,\n  c.direccion,\n  c.telefono,\n  c.google_cid,\n  COALESCE(c.google_place_id, '') AS google_place_id\nFROM clientes.clientes c\nWHERE c.estado = 'activo'\n  AND (\n    c.google_cid IS NULL\n    OR c.google_cid = ''\n    OR TRIM(c.google_place_id) = ''\n    OR c.google_place_id IS NULL\n  )\nLIMIT 1000"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "id": "split",
+      "name": "SplitInBatches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        580,
+        400
+      ],
+      "parameters": {
+        "batchSize": 1
+      }
+    },
+    {
+      "id": "code_payload",
+      "name": "Build Search Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        820,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Build search payload for the current cliente\nconst cliente = $input.first().json;\n\nconst name = (cliente.nombre_comercial || '').trim();\nconst locality = (cliente.localidad || '').trim();\nconst provincia = (cliente.provincia || '').trim();\nconst address = (cliente.direccion || '').trim();\n\nif (!name) {\n  return [{ json: { skipped: true, reason: 'empty_name', cliente } }];\n}\n\nreturn [{ json: {\n  cliente,\n  searchPayload: { name, locality, provincia, address }\n} }];"
+      }
+    },
+    {
+      "id": "http_search",
+      "name": "Search by Name",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://172.17.0.1:8095/search-by-name",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": "json",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.searchPayload.name }}"
+            },
+            {
+              "name": "locality",
+              "value": "={{ $json.searchPayload.locality }}"
+            },
+            {
+              "name": "provincia",
+              "value": "={{ $json.searchPayload.provincia }}"
+            },
+            {
+              "name": "address",
+              "value": "={{ $json.searchPayload.address }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 45000
+        }
+      }
+    },
+    {
+      "id": "code_score",
+      "name": "Score Candidates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        400
+      ],
+      "parameters": {
+        "jsCode": "// Score search candidates against the cliente\nconst raw = $input.first().json;\nconst wrapperResponse = raw; // HTTP Request returns body as json\nconst cliente = raw.cliente;\nconst candidates = wrapperResponse.candidates || [];\n\nfunction normalize(s) {\n  if (!s) return '';\n  return s.toLowerCase()\n    .normalize('NFD')\n    .replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/['']/g, \"'\")\n    .trim();\n}\n\nfunction levenshtein(a, b) {\n  if (!a || !b) return 0;\n  const m = a.length, n = b.length;\n  if (m === 0) return n === 0 ? 1 : 0;\n  if (n === 0) return 0;\n  const dp = Array.from({length: m+1}, () => new Array(n+1).fill(0));\n  for (let i = 0; i <= m; i++) dp[i][0] = i;\n  for (let j = 0; j <= n; j++) dp[0][j] = j;\n  for (let i = 1; i <= m; i++) {\n    for (let j = 1; j <= n; j++) {\n      const cost = a[i-1] === b[j-1] ? 0 : 1;\n      dp[i][j] = Math.min(dp[i-1][j] + 1, dp[i][j-1] + 1, dp[i-1][j-1] + cost);\n    }\n  }\n  return 1 - (dp[m][n] / Math.max(m, n));\n}\n\nfunction scoreName(clientName, candidateName) {\n  const nc = normalize(clientName);\n  const cc = normalize(candidateName);\n  if (!nc || !cc) return 0;\n  if (nc === cc) return 1.0;\n  if (cc.includes(nc) || nc.includes(cc)) return 0.85;\n  return levenshtein(nc, cc);\n}\n\nfunction scoreMatch(cliente, candidate) {\n  const nameScore = scoreName(cliente.nombre_comercial || '', candidate.name || '');\n  \n  const clienteLocality = normalize(cliente.localidad || '');\n  const clienteProvincia = normalize(cliente.provincia || '');\n  const candidateAddress = normalize(candidate.address || '');\n  \n  const localityMatch = clienteLocality && candidateAddress.includes(clienteLocality) ? 1 : 0;\n  const provinciaMatch = clienteProvincia && candidateAddress.includes(clienteProvincia) ? 0.5 : 0;\n  \n  let phoneMatch = 0;\n  const clientePhone = (cliente.telefono || '').replace(/\\D/g, '');\n  if (clientePhone && clientePhone.length >= 6) {\n    if (candidate.address && candidate.address.includes(cliente.telefono)) {\n      phoneMatch = 0.2;\n    }\n  }\n  \n  const rawScore = 0.55 * nameScore + 0.25 * (localityMatch || provinciaMatch) + 0.1 * phoneMatch;\n  const finalScore = nameScore > 0.92 ? Math.min(1.0, rawScore + 0.1) : rawScore;\n  \n  return {\n    score: Math.round(finalScore * 100) / 100,\n    nameScore: Math.round(nameScore * 100) / 100,\n    localityMatch,\n    provinciaMatch,\n    phoneMatch,\n  };\n}\n\nconst scored = candidates.map(c => ({...c, ...scoreMatch(cliente, c)}));\nscored.sort((a, b) => b.score - a.score);\n\nconst best = scored[0];\nconst threshold = 0.65;\n\nif (!best || best.score < threshold) {\n  return [{ json: {\n    cliente,\n    matched: false,\n    bestCandidate: best || null,\n    candidatesScored: scored.slice(0, 3),\n    threshold,\n    message: 'No candidate above threshold',\n  } }];\n}\n\nreturn [{ json: {\n  cliente,\n  matched: true,\n  bestCandidate: best,\n  candidatesScored: scored.slice(0, 3),\n  threshold,\n  message: 'Match found: ' + best.name + ' (score: ' + best.score + ')',\n} }];"
+      }
+    },
+    {
+      "id": "if_match",
+      "name": "IF matched",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        400
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "score-condition",
+              "leftValue": "={{ $json.matched }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "pg_update",
+      "name": "UPDATE Google CID",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        1780,
+        300
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "UPDATE clientes.clientes\nSET\n  google_cid = '{{ $json.bestCandidate.place_id }}',\n  google_place_id = 'cid:' || '{{ $json.bestCandidate.place_id }}',\n  gmaps_nombre = '{{ $json.bestCandidate.name }}',\n  gmaps_rating = {{ $json.bestCandidate.rating != null ? $json.bestCandidate.rating : 'NULL' }},\n  gmaps_last_updated = NOW(),\n  gmaps_pendiente_validar = false\nWHERE id = {{ $json.cliente.id }}"
+      },
+      "credentials": {
+        "postgres": {
+          "id": "8NbamWrMdRexLNwa",
+          "name": "PostgreSQL VPS"
+        }
+      }
+    },
+    {
+      "id": "noop_nomatch",
+      "name": "No Match",
+      "type": "n8n-nodes-base.noOp",
+      "position": [
+        1780,
+        520
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "delay",
+      "name": "Delay 1.5s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        2020,
+        400
+      ],
+      "parameters": {
+        "amount": 1500,
+        "unit": "milliseconds"
+      }
+    },
+    {
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2260,
+        400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: \"done\", workflow: \"CRM_GBP_CAPTURE_PLACE_ID_BATCH\" }) }}"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Load Clientes",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Cron": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Load Clientes",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Load Clientes": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "SplitInBatches",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "SplitInBatches": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Build Search Payload",
+            "type": "main"
+          }
+        ]
+      ],
+      "done": [
+        [
+          {
+            "index": 0,
+            "node": "Respond",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Build Search Payload": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Search by Name",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Search by Name": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Score Candidates",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Score Candidates": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "IF matched",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "IF matched": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "UPDATE Google CID",
+            "type": "main"
+          }
+        ],
+        [
+          {
+            "index": 0,
+            "node": "No Match",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "UPDATE Google CID": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Delay 1.5s",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "No Match": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "Delay 1.5s",
+            "type": "main"
+          }
+        ]
+      ]
+    },
+    "Delay 1.5s": {
+      "main": [
+        [
+          {
+            "index": 0,
+            "node": "SplitInBatches",
+            "type": "main"
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "saveExecutionProgress": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "tags": [],
+  "meta": {},
+  "pinData": {}
+}
