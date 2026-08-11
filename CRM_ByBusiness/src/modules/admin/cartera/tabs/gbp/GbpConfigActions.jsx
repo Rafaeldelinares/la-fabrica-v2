@@ -13,6 +13,7 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
+import { RefreshCw } from 'lucide-react';
 import { freqLabel } from './utils/freqLabel';
 
 export default function GbpConfigActions({
@@ -28,7 +29,14 @@ export default function GbpConfigActions({
           disabled={!canWrite || !isDirty || isSaving}
           className="text-[10px] font-mono uppercase tracking-widest rounded-sm border border-emerald-800 bg-emerald-500/10 text-emerald-400 px-3 py-1.5 hover:bg-emerald-500/20 hover:border-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
-          {isSaving ? 'Guardando…' : 'Guardar config'}
+          {isSaving ? (
+            <>
+              <RefreshCw size={11} className="animate-spin mr-1" />
+              Guardando…
+            </>
+          ) : (
+            'Guardar config'
+          )}
         </button>
         <button
           type="button"
@@ -36,7 +44,17 @@ export default function GbpConfigActions({
           disabled={isRunning}
           className="text-[10px] font-mono uppercase tracking-widest rounded-sm border border-[#D00000]/30 text-[#D00000]/70 px-3 py-1.5 hover:text-[#D00000] hover:border-[#D00000]/60 disabled:opacity-40 transition-colors"
         >
-          {isRunning ? 'Ejecutando…' : 'Ejecutar análisis ahora'}
+          {isRunning ? (
+            <>
+              <RefreshCw size={11} className="animate-spin" />
+              Ejecutando análisis competitivo…
+            </>
+          ) : (
+            <>
+              <RefreshCw size={11} />
+              Ejecutar análisis ahora
+            </>
+          )}
         </button>
         {isDirty && (
           <span className="text-[9px] font-mono text-amber-400">
