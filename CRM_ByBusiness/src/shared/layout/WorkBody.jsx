@@ -28,6 +28,7 @@ const GbpPanel          = lazy(() => import('../../modules/admin/gbp/GbpPanel'))
 const GestoriaPanel     = lazy(() => import('../../modules/admin/facturacion/GestoriaPanel'));
 const ScraperStatusPanel = lazy(() => import('../../modules/admin/scraper/ScraperStatusPanel'));
 const ScraperConfigPanel = lazy(() => import('../../modules/admin/scraper/ScraperConfigPanel'));
+const XiaomiCookiesPanel = lazy(() => import('../../modules/admin/scraper/XiaomiCookiesPanel'));
 const BackupPanel = lazy(() => import('../../modules/admin/backup/BackupPanel'));
 const AdminAuditPanel = lazy(() => import('../../modules/admin/auditoria/AdminAuditPanel'));
 
@@ -65,6 +66,7 @@ const WorkBody = ({ activeTab, setActiveTab }) => {
               <div className="flex flex-col gap-4 h-full">
                 <ScraperStatusPanel />
                 <ScraperConfigPanel />
+                <XiaomiCookiesPanel />
               </div>
             )}
             {activeTab === 'LEADS_GESTON' && <LeadsLandingPanel />}
