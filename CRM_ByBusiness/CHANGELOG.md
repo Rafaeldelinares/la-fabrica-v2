@@ -205,6 +205,24 @@ Resiliencia y bootstrap del Xiaomi-12 (worker nato de cron + scrapers):
   (termux capabilities = 0). Ver `infra/xiaomi/README.md` para opciones
   (Magisk root, app Android, mantener LAN).
 
+### Audit competencia — fixed + sprint nuevo (2026-08-12)
+
+**Fixes aplicados hoy**:
+- `db_query.py`: docker exec ahora usa `-i` flag (sin esto, stdin a psql no se
+  procesaba — bug raíz de los 16 INSERTs que parecían OK pero no persistían).
+  Cambió 0 → **16 clientes con competencia en DB** después de ejecutar el script.
+- Backfill categoria: 511 clientes con categoria real (era 1).
+- Garbage filter: detecta UI labels tipo "Selecciona tus fechas para ver los mejores precios"
+  y los skipea correctamente.
+
+**Sprint nuevo**: `openspec/changes/2026-08-12-categoria-sugerencias/`
+- Sugerencias de categoría GBP desde análisis de competidores
+- Wrapper devuelve top 10 (no 1) + categoria_principal de cada uno
+- Detector heurístico "específico > genérico" basado en keywords + longitud
+- UI en ficha cliente con botón "Marcar como implementado"
+- Tracking automático via re-scrape semanal
+- Effort estimado: ~10-12h
+
 ### Frontend — Gbp ficha redesign Stage 2 completo (2026-08-12)
 
 - **`GbpSectorCard.jsx`** — Fix import path (6→5 niveles `../`). Build
