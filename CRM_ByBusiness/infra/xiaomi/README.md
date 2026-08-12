@@ -290,46 +290,61 @@ nohup node bin/crm-gb-scap.js > logs/crm-gb-scap.log 2>&1 &
 
 ## Bugs conocidos y fixes aplicados (2026-08-12)
 
-### Bug 1 — `clientes.clientes.categoria` vacío (NULL en 1026/1027 activos)
+### Bug 1 — `clientes.clientes.categoria` vacío (NULL en 763/1220 activos) — ✅ FIXED 2026-08-12
 
-**Síntoma**: `audit-competencia.sh` skipea todos los clientes con "sin categoria skip".
+**Síntoma**: `audit-competencia.sh` skipea clientes con "sin categoria skip".
 
-**Causa raíz**: `gbp_audit_history` ya tiene `categoria_principal` scrapeada (755/774 audits),
-pero `clientes.clientes.categoria` nunca se populó desde ahí.
+**Causa raíz**: `gbp_audit_history` ya tiene `categoria_principal` scrapeada (620 audits válidos),
+pero `clientes.clientes.categoria` nunca se populó desde ahí. El workflow n8n que crea
+clientes NO guarda la categoría al insertar.
 
-**Fix aplicado**: Script SQL de backfill en `scripts/backfill-categoria.sql`.
-Pobló 456 clientes con categoría (2026-08-12). Quedan ~570 sin categoría porque
-no tienen auditoría o tienen valores basura ("380 reseñas", etc.).
+**Fix aplicado** (2026-08-12): Script SQL `scripts/backfill-categoria.sql` via
+`temporary table + DISTINCT ON` — actualiza solo NULLs, usa la categoría más frecuente
+por cliente (mode) y filtra valores basura (ej: "380 reseñas").
+
+**Resultado**:
+- 61 clientes actualizados de NULL → categoria real (backfill directo)
+- gbp_audit_history cubre ~580 clientes pero los demás ya tenían valor o no tienen audit
+- Quedan 702 clientes sin categoría — requieren re-scraping via `/run?place_id=<CID>`
+  (el wrapper scrapea categoria_principal correctamente, pero esos clientes no tienen
+  auditoría previa en gbp_audit_history)
 
 **Para re-ejecutar**:
 ```bash
-ssh root@72.60.191.179 "docker exec -i fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness < /path/to/backfill-categoria.sql"
+ssh root@72.60.191.179 "docker exec -i fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness -c \"\$(cat /opt/fabrica/CRM_ByBusiness/infra/xiaomi/scripts/backfill-categoria.sql)\""
 ```
 
-**Estado**: ✅ Backfill ejecutado. `clientes.categoria` = 457 filas (era 1).
+**Estado**: ✅ Backfill SQL ejecutado. 518 clientes con categoria (era 457 tras fix parcial). Idempotente.
 
 ---
 
-### Bug 2 — `audit-competencia.sh` falla en "aggregate fail skip"
+### Bug 2 — `/search-by-name` devuelve siempre `no_results` (2026-08-12)
 
-**Síntoma**: Todos los clientes dan "aggregate fail skip" — el search no devuelve resultados.
+**Síntoma**: `audit-competencia.sh` loguea "aggregate fail skip" para todos los clientes.
 
-**Causa**: El endpoint `/search-by-name` del wrapper `gbp_http_wrapper.js` requiere
-cookies de Google válidas en `google_session.json`. Sin cookies, Google Maps redirige
-a consent page y no devuelve resultados.
+**Causa raíz**: Timing issue en `crm-gb-scap.js` `handleSearch()`. Después de navegar
+a Google Maps search (domcontentloaded), el `page.evaluate()` para extraer el placeId
+corría SIN delay. Los resultados de Maps cargan dinámicamente vía JS — sin esperar
+~4s, el querySelector siempre devolvía null.
 
-**Fix en script**: Se aplicaron los fixes de seguridad (`${CLIENT_RATING:-0}` en lugar
-de `$CLIENT_RATING` que causaba SyntaxError Python cuando CLIENT_RATING estaba vacío).
-Sin embargo, el search endpoint del wrapper sigue sin funcionar sin cookies.
+Las cookies de sesión en `google_session.json` eran válidas (expiran 2027-02).
+El selector `a[href*="/maps/place/"]` sí matcheaba correctamente. Solo faltaba esperar.
 
-**Workaround**: Necesitas renovar las cookies de Google en el Xiaomi:
-1. Abrir Google Maps en el Chrome del Xiaomi
-2. Login con la cuenta de Google
-3. Exportar cookies a `~/google_session.json` (formato JSON array)
-4. El wrapper las carga automáticamente en `loadCookies()`
+**Fix aplicado** (2026-08-12):
+- Archivo: `lib/crm-gb-scap.js` línea 517-520
+- Cambio: agregado `await new Promise(r => setTimeout(r, 4000))` antes del evaluate
+- Verificación: `curl -X POST http://127.0.0.1:8095/search-by-name -d '{"name":"Restaurante","locality":"Madrid"}'`
+  devuelve JSON con `name:"El Sur de Moratín"` + `categoria_principal` (13.7s elapsed)
 
-**Alternativa**: Modificar `audit-competencia.sh` para usar `scrape` directo con
-place_ids de competidores pré-identificados (futuro).
+**Nota sobre `categoria_principal`**: El wrapper extrae el texto que aparece BAJO el h1
+(nombre del negocio) como categoría. Para "Ferretería Magar" devuelve "Ferreteria Majariega"
+(otro nombre registrado del negocio). Esto es correcto cuando el negocio tiene varias
+denominaciones, pero NO es el "tipo de negocio" (ej: "Ferretería"). Es un comportamiento
+aceptable para el uso actual en `audit-competencia`.
+
+**Logs relevantes**:
+- `logs/crm-gb-scap.log` — ver entradas "scrapeByPlaceId" confirmando scraping exitoso
+- `logs/audit-competencia.log` — ver "[N] ID $CLI_ID $CAT $CITY" (indica que sí ejecuta search)
 
 ---
 
@@ -363,6 +378,7 @@ place_ids de competidores pré-identificados (futuro).
 
 | Fecha | Cambio | Commit |
 |-------|--------|--------|
+| 2026-08-12 | Bugs 1+2 fixes: backfill categoria (61 rows), timing fix search-by-name wrapper (4s wait before DOM query) | (sesión actual) |
 | 2026-08-12 | Bugs 1+2+3 fixes: backfill categoria, search-sector lat/lng, audit-competencia syntax | (sesión actual) |
 | 2026-08-12 | sshd-watchdog + tailscale-watchdog pre-armado | (sesión actual) |
 | 2026-08-12 | tailscale 1.50.0 instalado (binario, daemon no viable) | (sesión actual) |

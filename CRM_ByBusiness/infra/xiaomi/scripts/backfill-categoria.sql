@@ -1,14 +1,16 @@
 -- backfill-categoria.sql
 -- Populates clientes.clientes.categoria from gbp_audit_history.
 -- Idempotent: only updates rows where categoria is NULL or different.
--- Run via: docker exec -i fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness < backfill-categoria.sql
+-- Run via:
+--   ssh root@72.60.191.179 "docker exec -i fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness -c \"$(cat backfill-categoria.sql)\""
 --
--- Why: 1026/1027 active clientes had categoria=NULL (2026-08-12).
---       The audit wrapper already scrapes categoria_principal and stores it in
---       clientes.gbp_audit_history (755 of 774 audits have it).
---       This script propagates it back to clientes.clientes.
+-- Why: The wrapper (crm-gb-scap.js) correctly scrapes categoria_principal via
+--       /run endpoint, but the n8n workflow that creates clientes does NOT save it.
+--       Source: gbp_audit_history.audit_data->>'categoria_principal'
+--       ~580 clientes tienen audits con categoria_principal.
 --
--- Excludes garbage values like "380 reseñas", "3 reseñas", etc.
+-- Excludes garbage values like "380 reseñas", "3 reseñas", etc. that are
+-- scraped from Google Maps UI labels (not actual business categories).
 -- Uses MODE (most frequent category per cliente) to handle inconsistencies.
 
 WITH categoria_audit AS (
@@ -21,14 +23,16 @@ WITH categoria_audit AS (
     -- Exclude known garbage values scraped from Google Maps UI labels
     AND (ah.audit_data->>'categoria_principal') NOT IN (
       '',
-      ' Selecciona tus fechas para ver los mejores precios',
       '380 reseñas', '3 reseñas', '4 reseñas', '5 reseñas',
-      '2 reseñas', '1 reseñas'
+      '2 reseñas', '1 reseñas',
+      'Selecciona tus fechas para ver los mejores precios'
     )
     AND LENGTH(ah.audit_data->>'categoria_principal') > 3
     AND LENGTH(ah.audit_data->>'categoria_principal') < 80
     -- Exclude strings that look like review counts, not categories
     AND (ah.audit_data->>'categoria_principal') !~ '^\d+\s*(reseñ|review)'
+    -- Exclude composite values that include review counts (e.g. "4.5 (380 reseñas)")
+    AND (ah.audit_data->>'categoria_principal') !~ '^[0-9.,]+\s*\('
 ),
 cat_moda AS (
   SELECT cliente_id, cat, COUNT(*) AS freq
@@ -37,6 +41,7 @@ cat_moda AS (
   ORDER BY cliente_id, freq DESC
 ),
 cat_best AS (
+  -- Pick the most frequent category per cliente (mode)
   SELECT DISTINCT ON (cliente_id) cliente_id, cat
   FROM cat_moda
   ORDER BY cliente_id, freq DESC
