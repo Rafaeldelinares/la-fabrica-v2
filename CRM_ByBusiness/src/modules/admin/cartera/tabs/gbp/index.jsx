@@ -1,74 +1,45 @@
 /**
- * tabs/gbp/index.jsx — S2 entry point.
+ * GbpIndex — Entry point del tab GBP dentro de ClienteDrawer.
  *
- * Unified GBP tab composing 7 collapsible sub-components:
- * GbpHeader, GbpFichaActual, GbpAudit, GbpCompetitiveConfig,
- * GbpCompetitiveAnalysis, GbpHistorico, GbpGestionPlaceId.
+ * Refactor (2026-08-12) — Sidebar layout con 6 items navegables:
+ *   - Resumen: GbpHeader + GbpFichaActual (vista principal)
+ *   - Auditoría: GbpAuditTrail (timeline snapshots)
+ *   - Actividad: GbpHeatmapActividad (popular_times 24×7)
+ *   - Sector: GbpSectorCard (comparación vs sector)
+ *   - Config: GbpCompetitiveConfig + GbpConfigActions
+ *   - Place ID: GbpGestionPlaceId
  *
- * RBAC: requires gbp.read (admin+supervisor). Write actions gate internally
- * with useRbac.can('gbp.write') — no "trust the parent" pattern.
- *
- * GGA: ≤150 LOC per sub-component file.
+ * Mantiene export default + props `{ cliente }` (compat con ClienteDrawer).
  *
  * @since gbp-ficha-improvements S2 (2026-08-05)
- * @updated competitive-config-s1 (2026-08-09) — moved hooks above
- *           conditional returns to satisfy react-hooks/rules-of-hooks.
+ * @updated gbp-ficha-redesign 2026-08-12 (sidebar layout)
  */
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { useRbac } from '../../../../../shared/auth/useRbac';
 import AccessDenied from '../../../../../shared/ui/AccessDenied';
+import GbpFichaLayout from './GbpFichaLayout';
+import GbpSidebarItems from './GbpSidebarItems';
 import GbpHeader from './GbpHeader';
 import GbpFichaActual from './GbpFichaActual';
 import GbpAudit from './GbpAudit';
-import GbpHistorico from './GbpHistorico';
+import GbpAuditTrail from './GbpAuditTrail';
 import GbpGestionPlaceId from './GbpGestionPlaceId';
-import GbpCompetitiveAnalysis from './GbpCompetitiveAnalysis';
 import GbpCompetitiveConfig from './GbpCompetitiveConfig';
+import GbpConfigActions from './GbpConfigActions';
+import GbpHeatmapActividad from './GbpHeatmapActividad';
+import GbpSectorCard from './GbpSectorCard';
 import { useGbpFichas } from './hooks/useGbpFichas';
+import { useGbpAuditHistory } from './hooks/useGbpAuditHistory';
 
-/** Section collapse defaults: Header + FichaActual open */
-const DEFAULT_OPEN = { header: true, fichaActual: true, audit: false, historico: false, gestion: false, competitive: false, competitiveConfig: false };
+const DEFAULT_ITEM = 'resumen';
 
-/** Collapsible section wrapper */
-const Section = ({ id, isOpen, onToggle, title, children }) => (
-  <div className="border border-slate-800 rounded-sm">
-    <button
-      type="button"
-      onClick={() => onToggle(id)}
-      className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-slate-900 transition-colors"
-    >
-      <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400">{title}</span>
-      <span className="text-slate-600 text-xs">{isOpen ? '▾' : '�'}</span>
-    </button>
-    {isOpen && <div className="px-3 pb-3">{children}</div>}
-  </div>
-);
-Section.propTypes = {
-  id: PropTypes.string.isRequired,
-  isOpen: PropTypes.bool.isRequired,
-  onToggle: PropTypes.func.isRequired,
-  title: PropTypes.string.isRequired,
-  children: PropTypes.node,
-};
-
-/**
- * GBP unified tab.
- *
- * Hook order (REQUIRED — do not reorder):
- *   1. useRbac, useState x3, useGbpFichas (data), useMemo, useCallback
- *   2. Conditional returns / JSX (no hooks below this line)
- *
- * @param {{ cliente: object }} props
- */
-export default function GbpIndex({ cliente }) {
+const GbpIndex = ({ cliente }) => {
   // ─── Hooks (always called, in this exact order) ─────────────────────────
   const rbac = useRbac();
 
-  const [open,        setOpen]        = useState(DEFAULT_OPEN);
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  const [auditData,   setAuditData]   = useState(() => {
-    // Restaurar desde sessionStorage para que persista entre navegaciones/recargas
+  const [activeItem,  setActiveItem]  = useState(DEFAULT_ITEM);
+  const [auditData,    setAuditData]    = useState(() => {
     try {
       const cached = sessionStorage.getItem(`gbp-audit-${cliente.id}`);
       return cached ? JSON.parse(cached) : null;
@@ -81,12 +52,19 @@ export default function GbpIndex({ cliente }) {
     [fichasData]
   );
 
+  // Audit history hook (for sidebar badge + audit view)
+  // useGbpAuditHistory expects placeId (cliente.google_cid).
+  const { data: auditHistoryData } = useGbpAuditHistory(cliente.google_cid);
+  const snapshots = auditHistoryData?.ok
+    ? (auditHistoryData.snapshots ?? [])
+    : [];
+
   const fichaActual = useMemo(() => {
-    if (fichas.length > 0) return fichas[selectedIdx];
-    if (cliente.google_place_id) {
+    if (fichas.length > 0) return fichas[0];
+    if (cliente.google_cid) {
       return {
         id: null,
-        google_cid: cliente.google_place_id,
+        google_cid: cliente.google_cid,
         tipo: 'principal',
         gmaps_nombre: cliente.nombre_comercial || '',
         gmaps_rating: null,
@@ -95,12 +73,18 @@ export default function GbpIndex({ cliente }) {
       };
     }
     return null;
-  }, [fichas, selectedIdx, cliente.google_place_id, cliente.nombre_comercial]);
+  }, [fichas, cliente.google_cid, cliente.nombre_comercial]);
 
-  const toggle = (id) => setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+  // Sidebar items with live badges
+  const sidebarItems = useMemo(
+    () => GbpSidebarItems({ snapshotCount: snapshots.length, sectorCount: 0 }),
+    [snapshots.length]
+  );
+
+  const handleItemChange = useCallback((itemId) => setActiveItem(itemId), []);
+
   const handleAuditComplete = useCallback((data) => {
     setAuditData(data);
-    // Persistir en sessionStorage para que sobreviva navegaciones y recargas del drawer
     try {
       if (data) {
         sessionStorage.setItem(`gbp-audit-${cliente.id}`, JSON.stringify(data));
@@ -110,13 +94,12 @@ export default function GbpIndex({ cliente }) {
     } catch (e) { /* sessionStorage no disponible */ }
   }, [cliente.id]);
 
-  // Si cambia el cliente seleccionado, limpiar audit cache
+  // Cleanup on cliente change
   useEffect(() => {
     return () => {
       try { sessionStorage.removeItem(`gbp-audit-${cliente.id}`); } catch (e) {}
     };
   }, [cliente.id]);
-  // ─── End of hooks ────────────────────────────────────────────────────────
 
   // ─── Conditional returns (AFTER all hooks) ──────────────────────────────
   if (!rbac.can('gbp.read')) {
@@ -134,59 +117,71 @@ export default function GbpIndex({ cliente }) {
   }
 
   const placeId = fichaActual?.google_cid || '';
+
   // ─── Main render ────────────────────────────────────────────────────────
-
   return (
-    <div className="flex flex-col gap-3 px-3 py-4">
-      <Section id="header" isOpen={open.header} onToggle={toggle} title="Header">
-        <GbpHeader audit={auditData || (fichaActual ? {
-          place_id: placeId,
-          rating_promedio: fichaActual.gmaps_rating,
-          reviews_count: fichaActual.gmaps_reseñas,
-          _cached: true,
-          _cached_at: fichaActual.gms_last_updated,
-        } : null)} />
-        {fichas.length > 1 && (
-          <div className="flex gap-1.5 mt-2 flex-wrap">
-            {fichas.map((f, i) => (
-              <button key={f.id || i} onClick={() => setSelectedIdx(i)}
-                className={`px-2 py-1 rounded-sm text-[9px] font-mono border transition-colors ${
-                  selectedIdx === i
-                    ? 'bg-slate-800 border-slate-600 text-white'
-                    : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:text-slate-300'
-                }`}>
-                {f.tipo || 'principal'} {f.google_cid ? f.google_cid.slice(0, 8) + '…' : ''}
-              </button>
-            ))}
-          </div>
-        )}
-      </Section>
+    <GbpFichaLayout
+      items={sidebarItems}
+      activeItem={activeItem}
+      onItemChange={handleItemChange}
+    >
+      {activeItem === 'resumen' && (
+        <div>
+          <GbpHeader
+            audit={auditData || (fichaActual ? {
+              place_id: placeId,
+              rating: fichaActual.gmaps_rating,
+              reviews_count: fichaActual.gmaps_reseñas,
+              _cached: true,
+              _cached_at: fichaActual.gms_last_updated,
+            } : null)}
+          />
+          {fichas.length > 1 && (
+            <div className="flex gap-1.5 mt-2 px-5 flex-wrap">
+              {fichas.map((f, i) => (
+                <button key={f.id || i} onClick={() => {/* TODO: ficha select */}}
+                  className={`px-2 py-1 rounded-sm text-[9px] font-mono border transition-colors ${
+                    i === 0
+                      ? 'bg-slate-800 border-slate-600 text-white'
+                      : 'bg-slate-900/50 border-slate-800 text-slate-500 hover:text-slate-300'
+                  }`}>
+                  {f.tipo || 'principal'} {f.google_cid ? f.google_cid.slice(0, 8) + '…' : ''}
+                </button>
+              ))}
+            </div>
+          )}
+          <GbpFichaActual audit={auditData} />
+        </div>
+      )}
 
-      <Section id="fichaActual" isOpen={open.fichaActual} onToggle={toggle} title="Ficha actual">
-        <GbpFichaActual audit={auditData} />
-      </Section>
+      {activeItem === 'auditoria' && (
+        <GbpAuditTrail snapshots={snapshots} />
+      )}
 
-      <Section id="audit" isOpen={open.audit} onToggle={toggle} title="Audit">
-        <GbpAudit placeId={placeId} onAuditComplete={handleAuditComplete} />
-      </Section>
+      {activeItem === 'actividad' && (
+        <GbpHeatmapActividad
+          audit={auditData || (fichaActual ? { popular_times: [] } : null)}
+        />
+      )}
 
-      <Section id="competitiveConfig" isOpen={open.competitiveConfig} onToggle={toggle} title="Config. análisis competitivo">
-        <GbpCompetitiveConfig cliente={cliente} />
-      </Section>
+      {activeItem === 'sector' && (
+        <GbpSectorCard cliente={cliente} />
+      )}
 
-      <Section id="competitive" isOpen={open.competitive} onToggle={toggle} title="Comparar con sector">
-        <GbpCompetitiveAnalysis clienteId={cliente.id} existingAudit={auditData} />
-      </Section>
+      {activeItem === 'config' && (
+        <div>
+          <GbpCompetitiveConfig cliente={cliente} />
+          <GbpConfigActions cliente={cliente} />
+        </div>
+      )}
 
-      <Section id="historico" isOpen={open.historico} onToggle={toggle} title="Histórico">
-        <GbpHistorico placeId={placeId} />
-      </Section>
-
-      <Section id="gestion" isOpen={open.gestion} onToggle={toggle} title="Gestión place_id">
+      {activeItem === 'placeid' && (
         <GbpGestionPlaceId clienteId={cliente.id} initialPlaceId={placeId} />
-      </Section>
-    </div>
+      )}
+    </GbpFichaLayout>
   );
-}
+};
 
 GbpIndex.propTypes = { cliente: PropTypes.object.isRequired };
+
+export default GbpIndex;
