@@ -184,6 +184,37 @@ b6cb07d chore(crm): lint cleanup — 100 → 36 problemas (-64%)
 f96cfc3 fix(admin): HTTP check + parse defensive on remaining fetch calls
 5c2e39c fix(auth): harden 2FA + login flow
 b03e0bf feat(crm): wire Rosa sales script + document operator result flow
+cf155f6 chore(gbp): limpiar GGA flags pre-existentes en index.jsx + componentes
+d6028a5 feat(gbp): fix build + GbpAutomation panel + tests
 ```
+
+### Infra — Xiaomi-12 worker nato (2026-08-12)
+
+Resiliencia y bootstrap del Xiaomi-12 (worker nato de cron + scrapers):
+
+- **`sshd-watchdog.sh`** — Verifica `sshd-session` cada 1 min, relance si murió,
+  renueva `termux-wake-lock` cada 5 min. Lock anti-concurrencia en
+  `state/sshd-watchdog.lock`. Loguea a `logs/sshd-watchdog.log`.
+- **`tailscale-watchdog.sh`** — Pre-armado. Verifica `tailscaled` cada 1 min;
+  lo inicia si existe el binario, loguea "no instalado" si no.
+- **`infra/xiaomi/README.md`** — Documentación completa del worker: SSH
+  access, estructura de scripts, crontab activo, watchdogs, troubleshooting,
+  estado de tailscale, battery opt manual, backups.
+- **Tailscale 1.50.0 instalado** — Binario en `/usr/bin/` + auth key persistido
+  en `~/.config/tailscale/authkey`. **Daemon NO viable** sin `CAP_NET_ADMIN`
+  (termux capabilities = 0). Ver `infra/xiaomi/README.md` para opciones
+  (Magisk root, app Android, mantener LAN).
+
+### Frontend — Gbp ficha redesign Stage 2 completo (2026-08-12)
+
+- **`GbpSectorCard.jsx`** — Fix import path (6→5 niveles `../`). Build
+  vuelve a pasar.
+- **`GbpAutomation.jsx`** — Panel de automatización: health check
+  (`crm-health` webhook) + manual refresh (`crm-gbp-ficha-audit`).
+  Item "automation" agregado al sidebar con icono Zap (lucide).
+- **`GbpAutomation.test.jsx`** — 7 tests unitarios con vitest +
+  @testing-library/react. Cobertura: render, health OK/FAIL, retry,
+  manual refresh con cliente_id, disabled durante ejecución.
+- **Suite completa GBP** — 105/105 tests pasando.
 
 (Plus commits to come for this Unreleased section's docs and code-split.)

@@ -53,21 +53,26 @@
 - Stats: avg sector vs client, posición %, top 3 competidores
 - 120 líneas
 
-### T9. Crear `GbpAutomation.jsx` ✅
-- Hook useGbpHealth
-- Botones: "Refresh now" (POST endpoint), "Verify cookies", "Run audit"
-- Status: cron last run, scraper health, cookies age
-- 100 líneas
+### T9. Crear `GbpAutomation.jsx` ✅ (completado en sprint `2026-08-11-gbp-ficha-enrichment` T20)
+- Hook useGbpHealth usando `useN8nQuery` con webhook `crm-health`
+- Botón "Ejecutar análisis ahora" → webhook `crm-gbp-ficha-audit` con cliente_id
+- Status: dot verde/rojo + última ejecución + retry
+- ~140 líneas (excede el límite de 100, justificado por los 2 paneles)
+- Item sidebar "automation" con icono Zap (lucide)
+- Ver: `openspec/changes/2026-08-11-gbp-ficha-enrichment/tasks.md` T20
 
 ## Stage 4 — Polish y tests
 
-### T10. Tests para GbpFichaLayout, GbpSidebar, GbpAuditTrail, GbpHeatmapActividad, GbpSectorCard, GbpAutomation
-- Snapshot tests (basic)
+### T10. Tests para GbpFichaLayout, GbpSidebar, GbpAuditTrail, GbpHeatmapActividad, GbpSectorCard, GbpAutomation ✅ (parcial)
+- ✅ `GbpAutomation.test.jsx` — 7 tests (render, health OK/FAIL, retry, manual refresh)
+- ⏳ Tests pendientes: GbpFichaLayout, GbpSidebar, GbpAuditTrail, GbpHeatmapActividad, GbpSectorCard
+- Snapshot tests (básicos)
 - RBAC tests (lead.solo lectura en sidebar, no en admin)
 
-### T11. Documentación
-- README con guía de uso
-- Storybook-like con ejemplos (opcional)
+### T11. Documentación ✅ (parcial)
+- ✅ `infra/xiaomi/README.md` — Documentación completa del worker xiaomi
+- ⏳ README del módulo `gbp/` con guía de uso — pendiente
+- ⏳ Storybook-like con ejemplos (opcional)
 
 ## Resumen de tiempos
 
