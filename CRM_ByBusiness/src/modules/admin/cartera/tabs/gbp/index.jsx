@@ -44,7 +44,10 @@ const GbpIndex = ({ cliente }) => {
     try {
       const cached = sessionStorage.getItem(`gbp-audit-${cliente.id}`);
       return cached ? JSON.parse(cached) : null;
-    } catch (e) { return null; }
+    } catch (err) {
+      console.error('[GbpIndex] sessionStorage parse failed:', err);
+      return null;
+    }
   });
 
   const { data: fichasData, isLoading: loadingFichas } = useGbpFichas(cliente.id);
@@ -92,13 +95,17 @@ const GbpIndex = ({ cliente }) => {
       } else {
         sessionStorage.removeItem(`gbp-audit-${cliente.id}`);
       }
-    } catch (e) { /* sessionStorage no disponible */ }
+    } catch (err) {
+      console.warn('[GbpIndex] sessionStorage write failed:', err);
+    }
   }, [cliente.id]);
 
   // Cleanup on cliente change
   useEffect(() => {
     return () => {
-      try { sessionStorage.removeItem(`gbp-audit-${cliente.id}`); } catch (e) {}
+      try { sessionStorage.removeItem(`gbp-audit-${cliente.id}`); } catch (err) {
+        console.warn('[GbpIndex] sessionStorage cleanup failed:', err);
+      }
     };
   }, [cliente.id]);
 
@@ -140,7 +147,7 @@ const GbpIndex = ({ cliente }) => {
           {fichas.length > 1 && (
             <div className="flex gap-1.5 mt-2 px-5 flex-wrap">
               {fichas.map((f, i) => (
-                <button key={f.id || i} onClick={() => {/* TODO: ficha select */}}
+                <button key={f.id || i} onClick={() => { /* TODO(gbp-ficha-redesign): ficha select — wire to change active ficha */ }}
                   className={`px-2 py-1 rounded-sm text-[9px] font-mono border transition-colors ${
                     i === 0
                       ? 'bg-slate-800 border-slate-600 text-white'
