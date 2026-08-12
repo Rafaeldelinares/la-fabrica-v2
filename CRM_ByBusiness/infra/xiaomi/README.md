@@ -288,10 +288,82 @@ nohup node bin/crm-gb-scap.js > logs/crm-gb-scap.log 2>&1 &
 
 ---
 
+## Bugs conocidos y fixes aplicados (2026-08-12)
+
+### Bug 1 — `clientes.clientes.categoria` vacío (NULL en 1026/1027 activos)
+
+**Síntoma**: `audit-competencia.sh` skipea todos los clientes con "sin categoria skip".
+
+**Causa raíz**: `gbp_audit_history` ya tiene `categoria_principal` scrapeada (755/774 audits),
+pero `clientes.clientes.categoria` nunca se populó desde ahí.
+
+**Fix aplicado**: Script SQL de backfill en `scripts/backfill-categoria.sql`.
+Pobló 456 clientes con categoría (2026-08-12). Quedan ~570 sin categoría porque
+no tienen auditoría o tienen valores basura ("380 reseñas", etc.).
+
+**Para re-ejecutar**:
+```bash
+ssh root@72.60.191.179 "docker exec -i fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness < /path/to/backfill-categoria.sql"
+```
+
+**Estado**: ✅ Backfill ejecutado. `clientes.categoria` = 457 filas (era 1).
+
+---
+
+### Bug 2 — `audit-competencia.sh` falla en "aggregate fail skip"
+
+**Síntoma**: Todos los clientes dan "aggregate fail skip" — el search no devuelve resultados.
+
+**Causa**: El endpoint `/search-by-name` del wrapper `gbp_http_wrapper.js` requiere
+cookies de Google válidas en `google_session.json`. Sin cookies, Google Maps redirige
+a consent page y no devuelve resultados.
+
+**Fix en script**: Se aplicaron los fixes de seguridad (`${CLIENT_RATING:-0}` en lugar
+de `$CLIENT_RATING` que causaba SyntaxError Python cuando CLIENT_RATING estaba vacío).
+Sin embargo, el search endpoint del wrapper sigue sin funcionar sin cookies.
+
+**Workaround**: Necesitas renovar las cookies de Google en el Xiaomi:
+1. Abrir Google Maps en el Chrome del Xiaomi
+2. Login con la cuenta de Google
+3. Exportar cookies a `~/google_session.json` (formato JSON array)
+4. El wrapper las carga automáticamente en `loadCookies()`
+
+**Alternativa**: Modificar `audit-competencia.sh` para usar `scrape` directo con
+place_ids de competidores pré-identificados (futuro).
+
+---
+
+### Bug 3 — `search-sector.sh` no insertaba en `sector_aggregates` (0 filas)
+
+**Síntoma**: "no latitude skip" para todos los registros.
+
+**Causa raíz (múltiple)**:
+1. Wrapper NO extrae `latitude`/`longitude` como campos JSON (solo los pone en el URL del `place_id` como `!3dLAT!4dLNG`)
+2. Script buscaba `latitude`/`longitude` en JSON fields que no existían
+3. Muchos leads en la DB tienen CIDs numéricos (no Google Maps CID) — no se pueden scrapear
+
+**Fix aplicados** (2026-08-12):
+1. Parser Python ahora extrae lat/lng del URL del `place_id` via regex `!3d([0-9.\-]+)!4d([0-9.\-]+)` — redondeado a 3 decimales (~111m precisión)
+2. Filtro SQL: solo leads con CIDs formato `0x...` (Google Maps válido)
+3. Fix bug pipe+heredoc: se usa `python3 -c` con here-string en lugar de `<<EOF` que conflictuaba con el pipe
+4. Fix cross-host SQL temp file: SQL pasa inline via pipe en lugar de archivo temporal
+
+**Estado**: ✅ Verificado — 3+ inserts exitoso en prueba. Cron semanal el lunes 5AM procesará ~200 registros.
+
+---
+
+## Scripts de backfill
+
+| Script | Qué hace | Cuándo correrlo |
+|--------|----------|-----------------|
+| `scripts/backfill-categoria.sql` | PoblAR `clientes.categoria` desde `gbp_audit_history` | Una vez o cuando haya nuevos audits |
+| (futuro) `scripts/backfill-lat-lng.sql` | Extraer coordenadas de `place_id` URL en `gbp_audit_history` | Cuando se necesite geocoding |
+
 ## Historial de cambios
 
 | Fecha | Cambio | Commit |
 |-------|--------|--------|
+| 2026-08-12 | Bugs 1+2+3 fixes: backfill categoria, search-sector lat/lng, audit-competencia syntax | (sesión actual) |
 | 2026-08-12 | sshd-watchdog + tailscale-watchdog pre-armado | (sesión actual) |
 | 2026-08-12 | tailscale 1.50.0 instalado (binario, daemon no viable) | (sesión actual) |
 | 2026-08-11 | Sprint xiaomi-audits-and-heatmaps completo (5 crons) | ver openspec/changes/2026-08-11-xiaomi-audits-and-heatmaps/ |
