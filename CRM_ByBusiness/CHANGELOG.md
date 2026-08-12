@@ -223,6 +223,18 @@ Resiliencia y bootstrap del Xiaomi-12 (worker nato de cron + scrapers):
 - Tracking automático via re-scrape semanal
 - Effort estimado: ~10-12h
 
+**Phase 1 completada** (2026-08-12):
+- `lib/crm-gb-scap.js` modificado: `/search-by-name` devuelve hasta 10 resultados con
+  categoria_principal (antes solo 1). Backup `.bak-pre-top10`.
+- `lib/detect_sugerencias.py` creado: heurística de especificidad + filtros
+  (rating > cliente+0.5, categoria != nombre).
+- `cron/categoria-sugerencias.sh` creado: orquesta el flujo completo.
+- `clientes.categoria_sugerencias` tabla creada en VPS.
+- Test real con cliente "Fontanería Madrid" detectó sugerencia:
+  "Fontanero Urgencia Madrid" (competidor con rating 4.6, 678 reviews).
+- Detección de bug conocido: Google Maps a veces devuelve el nombre del
+  negocio como `categoria_principal` — filtrado en el detector.
+
 ### Frontend — Gbp ficha redesign Stage 2 completo (2026-08-12)
 
 - **`GbpSectorCard.jsx`** — Fix import path (6→5 niveles `../`). Build
