@@ -29,6 +29,7 @@ import GbpCompetitiveConfig from './GbpCompetitiveConfig';
 import GbpConfigActions from './GbpConfigActions';
 import GbpHeatmapActividad from './GbpHeatmapActividad';
 import GbpSectorCard from './GbpSectorCard';
+import GbpAutomation from './GbpAutomation';
 import { useGbpFichas } from './hooks/useGbpFichas';
 import { useGbpAuditHistory } from './hooks/useGbpAuditHistory';
 
@@ -166,6 +167,10 @@ const GbpIndex = ({ cliente }) => {
 
       {activeItem === 'sector' && (
         <GbpSectorCard cliente={cliente} />
+      )}
+
+      {activeItem === 'automation' && (
+        <GbpAutomation clienteId={String(cliente.id)} clienteNombre={cliente.nombre_comercial} />
       )}
 
       {activeItem === 'config' && (

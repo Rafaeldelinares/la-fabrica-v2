@@ -12,6 +12,7 @@ import {
   Map,
   Settings,
   MapPin,
+  Zap,
 } from 'lucide-react';
 
 const GbpSidebarItems = ({ snapshotCount = 0, sectorCount = 0 }) => [
@@ -38,6 +39,11 @@ const GbpSidebarItems = ({ snapshotCount = 0, sectorCount = 0 }) => [
     icon: Map,
     badge: sectorCount > 0 ? sectorCount : null,
     badgeColor: 'bg-amber-500/20 text-amber-400',
+  },
+  {
+    id: 'automation',
+    label: 'Automation',
+    icon: Zap,
   },
   {
     id: 'config',

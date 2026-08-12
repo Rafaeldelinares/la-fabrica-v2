@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""
+cid_capture_batch.py — Sprint 3: capture google_cid for 530 active clientes.
+
+Replaces the broken n8n cron workflow (CRM_GBP_CAPTURE_PLACE_ID_BATCH, id 951KxrHbXENkwz0t).
+Uses the persistent-session HTTP wrapper at localhost:8095/search-by-name.
+
+Algorithm (matches n8n Score Candidates node):
+    normalize(name) → name_score via difflib.SequenceMatcher on normalized names
+    locality_or_provincia_match = 1.0 if candidate.address contains locality/provincia
+    score = 0.55 * name_score + 0.25 * locality_match
+    if name_score > 0.92: score += 0.1
+    threshold = 0.7, or 0.5 if redirected AND locality_match
+
+DB columns updated:
+    google_cid = candidate.place_id (raw)
+    google_place_id = 'cid:' || candidate.place_id
+    gmaps_nombre = candidate.name
+    gmaps_last_updated = NOW()
+    gmaps_pendiente_validar = false
+
+Resumable: state file tracks processed_ids; resume skips them.
+"""
+
+import argparse
+import difflib
+import json
+import re
+import subprocess
+import sys
+import time
+import unicodedata
+from datetime import datetime, timezone
+from pathlib import Path
+
+import requests
+
+# ── Config ────────────────────────────────────────────────────────────────────
+WRAPPER_URL = "http://localhost:8095/search-by-name"
+SSH_HOST = "root@72.60.191.179"
+DOCKER_PSQL = "docker exec fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness -t -A"
+SELECT_SQL = """
+SELECT id, nombre_comercial, COALESCE(localidad,''), COALESCE(provincia,''), COALESCE(direccion,'')
+FROM clientes.clientes
+WHERE estado = 'activo'
+  AND google_cid IS NULL
+  AND nombre_comercial IS NOT NULL AND nombre_comercial != ''
+  AND (localidad IS NOT NULL OR provincia IS NOT NULL)
+ORDER BY id
+"""
+STATE_PATH = Path("/opt/fabrica/state/cid_capture_batch.json")
+LOG_PATH = Path("/opt/fabrica/logs/cid_capture_batch.log")
+
+HTTP_TIMEOUT_SEC = 30
+NAME_WEIGHT = 0.55
+LOC_WEIGHT = 0.25
+BONUS_THRESHOLD = 0.92
+BONUS_VALUE = 0.1
+DEFAULT_THRESHOLD = 0.7
+REDIRECT_LOOSE_THRESHOLD = 0.5
+
+# ── Logging helpers ───────────────────────────────────────────────────────────
+def log(msg: str, also_print: bool = True) -> None:
+    ts = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    line = f"[{ts}] {msg}"
+    with LOG_PATH.open('a', encoding='utf-8') as f:
+        f.write(line + "\n")
+    if also_print:
+        print(line, flush=True)
+
+
+# ── DB access (SSH + docker exec psql) ───────────────────────────────────────
+def ssh_psql(sql: str, *, check: bool = True) -> str:
+    """Run SQL via SSH + docker exec. Returns stdout (already stripped)."""
+    # Escape single quotes for the outer ssh command (we pass sql as a shell argument)
+    escaped = sql.replace("'", "'\"'\"'")
+    cmd = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no",
+           SSH_HOST, f"{DOCKER_PSQL} -c '{escaped}'"]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    if check and proc.returncode != 0:
+        raise RuntimeError(f"psql failed (rc={proc.returncode}): {proc.stderr[:500]}")
+    return proc.stdout.strip()
+
+
+def load_clientes() -> list[dict]:
+    """Return list of {id, nombre_comercial, localidad, provincia, direccion}."""
+    raw = ssh_psql(SELECT_SQL)
+    out = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split('|')
+        if len(parts) < 5:
+            log(f"WARN: unexpected line format: {line[:120]}")
+            continue
+        try:
+            cid = int(parts[0])
+        except ValueError:
+            log(f"WARN: bad id in line: {line[:120]}")
+            continue
+        out.append({
+            'id': cid,
+            'nombre_comercial': parts[1],
+            'localidad': parts[2],
+            'provincia': parts[3],
+            'direccion': parts[4],
+        })
+    return out
+
+
+def update_cliente_cid(cid: int, *, place_id: str, gmaps_nombre: str) -> None:
+    """UPDATE clientes.clientes SET google_cid, google_place_id, gmaps_nombre, ... WHERE id."""
+    # Escape single quotes in string values (psql standard escape)
+    safe_pid = place_id.replace("'", "''")
+    safe_name = gmaps_nombre.replace("'", "''")
+    sql = (
+        f"UPDATE clientes.clientes SET "
+        f"google_cid = '{safe_pid}', "
+        f"google_place_id = 'cid:{safe_pid}', "
+        f"gmaps_nombre = '{safe_name}', "
+        f"gmaps_last_updated = NOW(), "
+        f"gmaps_pendiente_validar = false "
+        f"WHERE id = {cid}"
+    )
+    ssh_psql(sql, check=True)
+
+
+# ── State management ──────────────────────────────────────────────────────────
+def load_state() -> dict:
+    if not STATE_PATH.exists():
+        return {'processed_ids': [], 'last_id': None, 'updated_at': None}
+    try:
+        with STATE_PATH.open('r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        log(f"WARN: state file unreadable ({e}); starting fresh")
+        return {'processed_ids': [], 'last_id': None, 'updated_at': None}
+
+
+def save_state(state: dict) -> None:
+    state['updated_at'] = datetime.now(timezone.utc).isoformat(timespec='seconds')
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    tmp = STATE_PATH.with_suffix('.json.tmp')
+    with tmp.open('w', encoding='utf-8') as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+    tmp.replace(STATE_PATH)
+
+
+# ── Scoring ───────────────────────────────────────────────────────────────────
+def normalize_text(s: str) -> str:
+    """Lowercase, strip accents via NFKD, strip punctuation, collapse whitespace."""
+    if not s:
+        return ''
+    nfkd = unicodedata.normalize('NFKD', s)
+    ascii_only = ''.join(c for c in nfkd if not unicodedata.combining(c))
+    # Keep letters, digits and spaces; strip punctuation
+    cleaned = re.sub(r'[^a-z0-9\s]+', ' ', ascii_only.lower())
+    return re.sub(r'\s+', ' ', cleaned).strip()
+
+
+def name_score(query_name: str, candidate_name: str) -> float:
+    """SequenceMatcher ratio on normalized names."""
+    a = normalize_text(query_name)
+    b = normalize_text(candidate_name)
+    if not a or not b:
+        return 0.0
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def locality_match(query_locality: str, query_provincia: str, candidate_address: str) -> bool:
+    """True if normalized locality or provincia is contained in normalized candidate address."""
+    addr = normalize_text(candidate_address)
+    if not addr:
+        return False
+    if query_locality:
+        loc_n = normalize_text(query_locality)
+        if loc_n and loc_n in addr:
+            return True
+    if query_provincia:
+        prov_n = normalize_text(query_provincia)
+        if prov_n and prov_n in addr:
+            return True
+    return False
+
+
+def best_candidate(query: dict, response: dict) -> tuple[dict | None, float, bool]:
+    """Return (best_candidate, best_score, locality_matched) or (None, 0, False)."""
+    candidates = response.get('candidates') or []
+    redirected = bool(response.get('_redirected'))
+    best = None
+    best_score = 0.0
+    best_loc = False
+
+    for cand in candidates:
+        place_id = cand.get('place_id')
+        cand_name = cand.get('name') or ''
+        cand_addr = cand.get('address') or ''
+        if not place_id or not cand_name:
+            continue
+
+        ns = name_score(query['nombre_comercial'], cand_name)
+        loc_ok = locality_match(query.get('localidad', ''), query.get('provincia', ''), cand_addr)
+        score = NAME_WEIGHT * ns + LOC_WEIGHT * (1.0 if loc_ok else 0.0)
+        if ns > BONUS_THRESHOLD:
+            score += BONUS_VALUE
+
+        if score > best_score:
+            best_score = score
+            best = cand
+            best_loc = loc_ok
+
+    return best, best_score, best_loc
+
+
+# ── HTTP call to wrapper ─────────────────────────────────────────────────────
+def call_search_by_name(query: dict, *, timeout: int = HTTP_TIMEOUT_SEC) -> dict:
+    payload = {
+        'name': query['nombre_comercial'],
+        'locality': query.get('localidad', ''),
+        'provincia': query.get('provincia', ''),
+        'address': query.get('direccion', ''),
+    }
+    r = requests.post(WRAPPER_URL, json=payload, timeout=timeout)
+    r.raise_for_status()
+    return r.json()
+
+
+# ── Main loop ─────────────────────────────────────────────────────────────────
+def process_cliente(query: dict, idx: int, total: int, started_at: float) -> str:
+    """Process one cliente. Returns 'matched' | 'no_match' | 'error'."""
+    cid = query['id']
+    name = query['nombre_comercial']
+    elapsed = time.time() - started_at
+    rate = elapsed / idx if idx > 0 else 0
+    eta = rate * (total - idx)
+
+    try:
+        response = call_search_by_name(query)
+    except requests.HTTPError as e:
+        log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> error: HTTP {e.response.status_code}")
+        return 'error'
+    except requests.Timeout:
+        log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> error: timeout after {HTTP_TIMEOUT_SEC}s")
+        return 'error'
+    except Exception as e:
+        log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> error: {type(e).__name__}: {e}")
+        return 'error'
+
+    redirected = bool(response.get('_redirected'))
+    candidates = response.get('candidates') or []
+    if not candidates:
+        log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> no_match: 0 candidates")
+        return 'no_match'
+
+    best, best_score, loc_ok = best_candidate(query, response)
+    if not best:
+        log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> no_match: candidates had no place_id")
+        return 'no_match'
+
+    threshold = REDIRECT_LOOSE_THRESHOLD if (redirected and loc_ok) else DEFAULT_THRESHOLD
+    if best_score < threshold:
+        log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> no_match: score={best_score:.3f} < threshold={threshold:.2f} (redirected={redirected}, loc_ok={loc_ok})")
+        return 'no_match'
+
+    place_id = best['place_id']
+    gmaps_nombre = best['name']
+    try:
+        update_cliente_cid(cid, place_id=place_id, gmaps_nombre=gmaps_nombre)
+    except Exception as e:
+        log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> error: DB UPDATE failed: {e}")
+        return 'error'
+
+    log(f"[{idx}/{total}] ({elapsed:.0f}s, ETA {eta:.0f}s) Processing id={cid} '{name}' -> matched: cid={place_id} score={best_score:.3f} redirected={redirected}")
+    return 'matched'
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description='Capture google_cid for active clientes (Sprint 3).')
+    parser.add_argument('--limit', type=int, default=0, help='Process at most N clientes (0 = all)')
+    args = parser.parse_args()
+
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    log(f"=== START (limit={args.limit}) ===")
+
+    state = load_state()
+    processed = set(state.get('processed_ids') or [])
+    log(f"State loaded: {len(processed)} already processed (resuming)")
+
+    try:
+        all_clientes = load_clientes()
+    except Exception as e:
+        log(f"FATAL: could not load clientes: {e}")
+        return 2
+
+    pending = [c for c in all_clientes if c['id'] not in processed]
+    if args.limit > 0:
+        pending = pending[:args.limit]
+
+    total = len(pending)
+    log(f"Loaded {len(all_clientes)} total clientes sin google_cid; will process {total}")
+
+    if total == 0:
+        log("Nothing to do. Exiting.")
+        return 0
+
+    started_at = time.time()
+    stats = {'matched': 0, 'no_match': 0, 'error': 0}
+
+    for idx, cliente in enumerate(pending, start=1):
+        result = process_cliente(cliente, idx, total, started_at)
+        stats[result] += 1
+        processed.add(cliente['id'])
+        state['processed_ids'] = sorted(processed)
+        state['last_id'] = cliente['id']
+        save_state(state)
+
+        if idx % 50 == 0:
+            log(f"--- SUMMARY @ {idx}/{total} | matched={stats['matched']} no_match={stats['no_match']} error={stats['error']} | elapsed={time.time()-started_at:.0f}s ---")
+
+    elapsed_total = time.time() - started_at
+    log(f"=== DONE | processed={total} matched={stats['matched']} no_match={stats['no_match']} error={stats['error']} | total_time={elapsed_total:.0f}s ===")
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

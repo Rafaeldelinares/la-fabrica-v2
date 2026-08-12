@@ -1,0 +1,390 @@
+--- /opt/fabrica/scripts/gbp_ficha_audit.py.bak	2026-08-06 22:12:13.311039362 +0200
++++ /opt/fabrica/scripts/gbp_ficha_audit.py	2026-08-06 22:27:11.848017184 +0200
+@@ -44,6 +44,18 @@
+ REVIEWS_SCROLL_CAP = 50  # max review cards to load in deep mode
+ 
+ 
++# ── Scraper fix S2A: multi-fallback extraction helpers ──────────────────────
++# Skip phrases: lines matching these are excluded from descripcion
++SKIP_PHRASES = [
++    "Compra en tienda", "Recogida en tienda", "A domicilio",
++    "Brunch", "Comida en el local", "Servicios del restaurante",
++    "Tipos de servicio", "Opciones del servicio",
++]
++
++# Private/internal terms: if present, the line is discarded entirely
++PRIVATE_TERMS = ["vista limitada", "Confirmado local"]
++
++
+ def _stealth(page):
+     """Apply stealth patches to a page."""
+     page.add_init_script(STEALTH_JS)
+@@ -80,6 +92,257 @@
+         return None, "invalid_format"
+ 
+ 
++
++def _extract_descripcion(page):
++    """Multi-fallback descripcion extraction. Returns (value, strategy_used)."""
++    # Strategy 1: ARIA / semantic
++    for sel in [
++        "[aria-label*='descripci\xc3\xb3n' i]",
++        "[aria-label*='Description' i]",
++        "[role='region'][aria-label*='descrip' i]",
++    ]:
++        try:
++            el = page.locator(sel).first
++            if el.is_visible(timeout=2000):
++                text = el.inner_text(timeout=2000).strip()
++                if text and len(text) >= 20:
++                    cleaned_lines = []
++                    for line in text.split("\n"):
++                        line = line.strip()
++                        if not line:
++                            continue
++                        if any(s in line for s in SKIP_PHRASES):
++                            continue
++                        if any(pt in line for pt in PRIVATE_TERMS):
++                            continue
++                        if line and len(line) > 10:
++                            cleaned_lines.append(line)
++                    if cleaned_lines:
++                        return " ".join(cleaned_lines)[:500], "aria"
++        except Exception:
++            continue
++
++    # Strategy 2: CSS classes (Google rotates these monthly)
++    for sel in [
++        ".section-hero-description",
++        "div[role='region'] + div p",
++        "div.WeS02d",
++        ".WeS02d",
++        "[class*='descripcion']",
++        "[class*='description']",
++    ]:
++        try:
++            el = page.locator(sel).first
++            if el.is_visible(timeout=2000):
++                text = el.inner_text(timeout=2000).strip()
++                if text and len(text) >= 20:
++                    cleaned_lines = []
++                    for line in text.split("\n"):
++                        line = line.strip()
++                        if not line:
++                            continue
++                        if any(s in line for s in SKIP_PHRASES):
++                            continue
++                        if any(pt in line for pt in PRIVATE_TERMS):
++                            continue
++                        if line and len(line) > 10:
++                            cleaned_lines.append(line)
++                    if cleaned_lines:
++                        return " ".join(cleaned_lines)[:500], "css"
++        except Exception:
++            continue
++
++    # Strategy 3: body-text regex fallback
++    try:
++        body = page.locator("body").inner_text()
++        m = re.search(r"(?i)descripci[oó]n\s*[:\-_]?\s*(.{20,500}?)", body)
++        if m:
++            candidate = m.group(1).strip()
++            if candidate and not any(s.lower() in candidate.lower() for s in SKIP_PHRASES):
++                if not any(pt.lower() in candidate.lower() for pt in PRIVATE_TERMS):
++                    return candidate[:500], "regex"
++    except Exception:
++        pass
++
++    sys.stderr.write("[gbp_scraper] descripcion: all_strategies_failed\n")
++    return None, "none"
++
++
++def _extract_horarios(page):
++    """Multi-fallback horarios extraction. Returns (dias_cubiertos, strategy_used)."""
++    day_names = [
++        "lunes", "martes", "mi\xc3\xa9rcoles", "jueves", "viernes", "s\xc3\xa1bado", "domingo",
++        "lun", "mar", "mi\xc3\xa9", "jue", "vie", "s\xc3\xa1b", "dom",
++        "mon", "tue", "wed", "thu", "fri", "sat", "sun",
++        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
++    ]
++
++    # Strategy 1: table.WgFkxc (new 2026 DOM)
++    try:
++        tbl = page.locator("table.WgFkxc")
++        if tbl.count() > 0 and tbl.first.is_visible(timeout=3000):
++            txt = tbl.first.inner_text(timeout=3000)
++            found = sum(1 for d in day_names if d.lower() in txt.lower())
++            if found >= 3:
++                return min(found, 7), "css"
++    except Exception:
++        pass
++
++    # Strategy 2: table.eK4R0e (old selector, kept for backward compat)
++    try:
++        tbl = page.locator("table.eK4R0e")
++        if tbl.count() > 0 and tbl.first.is_visible(timeout=3000):
++            txt = tbl.first.inner_text(timeout=3000)
++            found = sum(1 for d in day_names if d.lower() in txt.lower())
++            if found >= 3:
++                return min(found, 7), "css"
++    except Exception:
++        pass
++
++    # Strategy 3: body text
++    try:
++        body = page.locator("body").inner_text()
++        found = sum(1 for d in day_names if d.lower() in body.lower())
++        if found >= 3:
++            return min(found, 7), "regex"
++    except Exception:
++        pass
++
++    sys.stderr.write("[gbp_scraper] horarios: all_strategies_failed\n")
++    return 0, "none"
++
++
++def _extract_atributos(page):
++    """Multi-fallback atributos extraction. Returns (count, strategy_used)."""
++    attr_indicators = [
++        "se identifica", "propietarias", "mujeres", "hombres",
++        "acceso para sillas", "aparcamiento adaptado", "accesibilidad",
++        "reservas", "reserva", "domicilio", "recogida",
++        "terraza", "mascotas", "wi-fi", "wifi", "comida para llevar",
++        "entrega a domicilio", "vegetariano", "vegano", "sin gluten",
++        "desayuno", "almuerzo", "cena", "caf\xc3\xa9", "bar", "restaurante",
++        "gama", "precio", "veterano", "empresa peque\xc3\xb1a",
++        "family-friendly", "children", "kids", "highchair",
++        "gender-neutral", "lgbtq", "owned by", "women-owned",
++    ]
++    skip_words = [
++        "A\xc3\xb1adir", "Escribir", "Sugerir", "Guardar", "Compartir", "Cercano",
++        "Tel\xc3\xa9fono", "Direcci\xc3\xb3n", "C\xc3\xb3mo llegar", "Ver fotos", "Rese\xc3\xb1a",
++        "Fotos y v\xc3\xaddeos", "A\xc3\xb1adir fotos", "Mostrar", "Ocultar",
++        "Iniciar sesi\xc3\xb3n", "vista limitada", "Google Maps", "Maps",
++        "T\xc3\xa9rminos", "Privacidad", "Restaurantes", "Hoteles", "Bares",
++        "Cafeter\xc3\xadas", "Qu\xc3\xa9 hacer", "Aparcamientos", "Farmacias",
++        "Cajeros", "Transporte", "Descarga",
++    ]
++
++    # Strategy 1: semantic selectors (data-attr-id, aria-label, .YDINU buttons)
++    try:
++        count = 0
++        chips = page.locator("[data-attr-id]")
++        count += chips.count()
++        aria_atrs = page.locator("[aria-label*='atributo' i]")
++        count += aria_atrs.count()
++        ydinu_btns = page.locator(".YDINU button")
++        count += ydinu_btns.count()
++        if count >= 3:
++            return min(count, 15), "aria"
++    except Exception:
++        pass
++
++    # Strategy 2: CSS class patterns (broader fallback)
++    try:
++        body = page.locator("body").inner_text()
++        lines = body.split("\n")
++        attr_count = 0
++        for line in lines:
++            line = line.strip()
++            if not line or len(line) < 5 or len(line) > 120:
++                continue
++            if any(sw.lower() in line.lower() for sw in skip_words):
++                continue
++            line_lower = line.lower()
++            matches = sum(1 for ind in attr_indicators if ind.lower() in line_lower)
++            if matches > 0:
++                attr_count += 1
++        if attr_count >= 3:
++            return min(attr_count, 15), "css"
++    except Exception:
++        pass
++
++    # Strategy 3: regex fallback on body
++    try:
++        body = page.locator("body").inner_text()
++        found = sum(1 for ind in attr_indicators if ind.lower() in body.lower())
++        if found > 0:
++            return min(found, 15), "regex"
++    except Exception:
++        pass
++
++    sys.stderr.write("[gbp_scraper] atributos: all_strategies_failed\n")
++    return 0, "none"
++
++
++def _extract_reviews_count(page):
++    """Multi-fallback reviews_count extraction. Returns (count, strategy_used)."""
++    # Strategy 1: ARIA labels containing reseñas/reviews/opiniones
++    for sel in [
++        "[aria-label*='rese\xc3\xb1a' i]",
++        "[aria-label*='reviews' i]",
++        "[aria-label*='opiniones' i]",
++        "[aria-label*='rese\xc3\xb1as' i]",
++    ]:
++        try:
++            el = page.locator(sel).first
++            if el.is_visible(timeout=2000):
++                lbl = el.get_attribute("aria-label") or ""
++                m = re.search(r"(\d+)\s*rese\xc3\xb1as?", lbl, re.IGNORECASE)
++                if not m:
++                    m = re.search(r"(\d+)\s*reviews?", lbl, re.IGNORECASE)
++                if not m:
++                    m = re.search(r"(\d+)\s*opiniones?", lbl, re.IGNORECASE)
++                if m:
++                    count = int(m.group(1))
++                    if count > 0:
++                        return count, "aria"
++        except Exception:
++            continue
++
++    # Strategy 2: img role=img with star label (existing pattern)
++    for sel in [
++        "img[role='img'][aria-label*='estrel' i]",
++        "img[role='img'][aria-label*='star' i]",
++        "[role='img'][aria-label*='estrel' i]",
++        "[role='img'][aria-label*='star' i]",
++    ]:
++        try:
++            el = page.locator(sel).first
++            if el.is_visible(timeout=2000):
++                lbl = el.get_attribute("aria-label") or ""
++                m = re.search(r"(\d+)\s*rese\xc3\xb1as?", lbl, re.IGNORECASE)
++                if m:
++                    return int(m.group(1)), "css"
++        except Exception:
++            continue
++
++    # Strategy 3: body-text regex fallback
++    try:
++        body = page.locator("body").inner_text()
++        for pat in [
++            r"(\d+)\s*rese\xc3\xb1as?",
++            r"(\d+)\s*reviews?",
++            r"(\d+)\s*opiniones?",
++        ]:
++            m = re.search(pat, body, re.IGNORECASE)
++            if m:
++                count = int(m.group(1))
++                if count > 0:
++                    return count, "regex"
++    except Exception:
++        pass
++
++    sys.stderr.write("[gbp_scraper] reviews_count: all_strategies_failed\n")
++    return 0, "none"
++
+ def extract_limited_view(page, place_id) -> dict:
+     """Extract fields available without clicking any tab.
+ 
+@@ -162,50 +425,13 @@
+     except Exception:
+         pass
+ 
+-    # ── descripcion ───────────────────────────────────────────────────────────
+-    try:
+-        desc_el = page.locator("div.WeS02d, .WeS02d").first
+-        if desc_el.is_visible(timeout=3000):
+-            text = desc_el.inner_text(timeout=3000).strip()
+-            if text and len(text) > 10:
+-                lines = [l.strip() for l in text.split("\n") if l.strip()]
+-                skip_phrases = [
+-                    "Compra en tienda", "Recogida en tienda", "A domicilio",
+-                    "Brunch", "Comida en el local", "Servicios del restaurante",
+-                    "Tipos de servicio", "Opciones del servicio",
+-                ]
+-                cleaned_lines = []
+-                for l in lines:
+-                    if any(s in l for s in skip_phrases):
+-                        continue
+-                    if len(l) > 0 and sum(1 for c in l if ord(c) > 0xE000) > len(l) * 0.5:
+-                        continue
+-                    if l and len(l) > 10:
+-                        cleaned_lines.append(l)
+-                if cleaned_lines:
+-                    result["descripcion"] = " ".join(cleaned_lines)[:500]
+-    except Exception:
+-        pass
++    # ── descripcion (S2A multi-fallback) ─────────────────────────────────────
++    result["descripcion"], _ = _extract_descripcion(page)
+ 
+-    # ── horarios ──────────────────────────────────────────────────────────────
+-    try:
+-        day_names = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo",
+-                     "lun", "mar", "mié", "jue", "vie", "sáb", "dom",
+-                     "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+-                     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+-        hrs_table = page.locator("table.eK4R0e")
+-        if hrs_table.count() > 0 and hrs_table.first.is_visible(timeout=3000):
+-            table_text = hrs_table.first.inner_text(timeout=3000)
+-            days_found = sum(1 for d in day_names if d.lower() in table_text.lower())
+-            result["horarios_dias_cubiertos"] = min(days_found, 7)
+-        else:
+-            body = page.locator("body").inner_text()
+-            days_found = sum(1 for d in day_names if d.lower() in body.lower())
+-            result["horarios_dias_cubiertos"] = min(days_found, 7)
+-    except Exception:
+-        pass
++    # ── horarios (S2A multi-fallback) ───────────────────────────────────────
++    result["horarios_dias_cubiertos"], _ = _extract_horarios(page)
+ 
+-    # ── rating + reviews ─────────────────────────────────────────────────────
++    # ── rating (unchanged) + reviews_count (S2A multi-fallback) ───────────
+     try:
+         for sel in [
+             "[role='img'][aria-label*='estrel' i]",
+@@ -234,6 +460,7 @@
+     except Exception:
+         pass
+ 
++    result["reviews_count"], _ = _extract_reviews_count(page)
+     # ── fotos_count + ultima_foto_fecha ─────────────────────────────────────
+     try:
+         foto_sel = "[class*='gallery'] img, [class*='fotos'] img, [class*='photo'] img"
+@@ -270,44 +497,8 @@
+     except Exception:
+         pass
+ 
+-    # ── atributos ────────────────────────────────────────────────────────────
+-    try:
+-        body = page.locator("body").inner_text()
+-        lines = body.split("\n")
+-        attr_indicators = [
+-            "se identifica", "propietarias", "mujeres", "hombres",
+-            "acceso para sillas", "aparcamiento adaptado", "accesibilidad",
+-            "reservas", "reserva", "domicilio", "recogida",
+-            "terraza", "mascotas", "wi-fi", "wifi", "comida para llevar",
+-            "entrega a domicilio", "vegetariano", "vegano", "sin gluten",
+-            "desayuno", "almuerzo", "cena", "café", "bar", "restaurante",
+-            "gama", "precio", "veterano", "empresa pequeña",
+-            "family-friendly", "children", "kids", "highchair",
+-            "gender-neutral", "LGBTQ", "owned by", "women-owned",
+-        ]
+-        skip_words = [
+-            "Añadir", "Escribir", "Sugerir", "Guardar", "Compartir", "Cercano",
+-            "Teléfono", "Dirección", "Cómo llegar", "Ver fotos", "Reseña",
+-            "Fotos y vídeos", "Añadir fotos", "Mostrar", "Ocultar",
+-            "Iniciar sesión", "vista limitada", "Google Maps", "Maps",
+-            "Términos", "Privacidad", "Restaurantes", "Hoteles", "Bares",
+-            "Cafeterías", "Qué hacer", "Aparcamientos", "Farmacias",
+-            "Cajeros", "Transporte", "Descarga",
+-        ]
+-        attr_count = 0
+-        for line in lines:
+-            line = line.strip()
+-            if not line or len(line) < 5 or len(line) > 120:
+-                continue
+-            if any(sw.lower() in line.lower() for sw in skip_words):
+-                continue
+-            line_lower = line.lower()
+-            matches = sum(1 for ind in attr_indicators if ind.lower() in line_lower)
+-            if matches > 0:
+-                attr_count += 1
+-        result["atributos_seteados"] = attr_count
+-    except Exception:
+-        pass
++    # ── atributos (S2A multi-fallback) ──────────────────────────────────────
++    result["atributos_seteados"], _ = _extract_atributos(page)
+ 
+     # ── reviews respondidas (limited view — only visible ones) ───────────────
+     try:

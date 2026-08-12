@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import PropTypes from 'prop-types';
-import { useN8nQuery } from '../../../../../../shared/hooks/useN8n';
+import { useN8nQuery } from '../../../../../shared/hooks/useN8n';
 
 const GbpSectorCard = ({ cliente }) => {
   // Fetch últimos datos de competencia y sector
