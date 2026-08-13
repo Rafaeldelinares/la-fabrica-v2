@@ -25,7 +25,7 @@ import sys
 from datetime import date
 from io import BytesIO
 
-# Configuración de colores Navy Industrial
+# Configuración de colores Navy Industrial (dark theme - default)
 COLOR_BG = "#0a0e1a"
 COLOR_PANEL = "#0f1424"
 COLOR_TEXT = "#e2e8f0"
@@ -49,13 +49,15 @@ plt.rcParams.update({
 })
 
 
-def fetch_data():
-    """Lee los ultimos 10 informes de la DB.
+def fetch_data(cliente_id=None):
+    """Lee informes de la DB.
+    Si cliente_id=None: ultimos 10 informes (comportamiento original).
+    Si cliente_id=N: solo el informe de ese cliente.
     Si corre en el VPS: usa docker exec directo.
     Si corre fuera: usa SSH al VPS.
     """
     import tempfile
-    
+
     sql = """SELECT json_build_object(
       'cliente_id', i.cliente_id,
       'nombre', c.nombre_comercial,
@@ -71,12 +73,15 @@ def fetch_data():
       'position_pct', i.client_position_pct,
       'competitors', i.raw_competitors,
       'recomendaciones', i.recomendaciones,
+      'categoria', c.categoria,
       'generated_at', i.generated_at
     )::text
 FROM clientes.informes_competencia i
 JOIN clientes.clientes c ON c.id = i.cliente_id
-ORDER BY i.generated_at DESC
-LIMIT 10;"""
+"""
+    if cliente_id is not None:
+        sql += f"WHERE i.cliente_id = {int(cliente_id)} "
+    sql += "ORDER BY i.generated_at DESC LIMIT 10;"""
     
     # Detectar si estamos en el VPS (hostname check)
     in_vps = subprocess.run(["hostname"], capture_output=True, text=True).stdout.strip().startswith("localhost")
@@ -314,24 +319,33 @@ def render_cover_page(pdf, n_clients, total_comps):
 
 
 def main():
-    output = sys.argv[1] if len(sys.argv) > 1 else f"/tmp/informes_{date.today().isoformat()}.pdf"
-    
+    import argparse
+    parser = argparse.ArgumentParser(description="Generar PDF informe competitivo")
+    parser.add_argument("--cliente-id", type=int, default=None,
+                        help="Si se especifica, genera PDF solo para ese cliente (full format)")
+    parser.add_argument("output", nargs="?", default=None,
+                        help="Path de salida del PDF")
+    args = parser.parse_args()
+
+    cliente_id = args.cliente_id
+    output = args.output or f"/tmp/informes_{date.today().isoformat()}.pdf"
+
     print("Leyendo datos de la DB...")
-    data = fetch_data()
+    data = fetch_data(cliente_id=cliente_id)
     if not data:
         print("ERROR: No se pudieron leer datos de la DB", file=sys.stderr)
         sys.exit(1)
     print(f"Clientes a procesar: {len(data)}")
-    
+
     total_comps = sum(int(d.get('competitors_count', 0) or 0) for d in data)
     print(f"Total competidores analizados: {total_comps}")
-    
+
     print(f"Generando PDF: {output}")
     with PdfPages(output) as pdf:
         render_cover_page(pdf, len(data), total_comps)
         for d in data:
             render_client_page(pdf, d)
-    
+
     # Verificar
     import os
     size = os.path.getsize(output)

@@ -372,7 +372,11 @@ class PDFHandler(BaseHTTPRequestHandler):
             return None
 
     def _generate_pdf(self, cliente_id, output_path):
-        """Generate PDF using generar_pdf_informes.py (multi-client charts)."""
+        """Generate PDF using generar_pdf_informes.py (full format for single client).
+
+        The PDF has: score gauge, rating/reviews comparisons, top 5 competitors chart,
+        and recommendations — 1 cover + 1 client page.
+        """
         cmd = ["python3", SCRIPT_PDF, f"--cliente-id={cliente_id}", output_path]
         result = subprocess.run(cmd, capture_output=True, timeout=120)
         if result.returncode != 0:
