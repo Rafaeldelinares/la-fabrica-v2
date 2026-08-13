@@ -49,14 +49,17 @@ plt.rcParams.update({
 })
 
 
-def fetch_data():
-    """Lee los ultimos 10 informes de la DB.
+def fetch_data(cliente_id=None):
+    """Lee informes de la DB.
+    Si cliente_id es None: ultimos 10 informes (batch).
+    Si cliente_id es int: solo ese cliente (informe individual).
+
     Si corre en el VPS: usa docker exec directo.
     Si corre fuera: usa SSH al VPS.
     """
     import tempfile
-    
-    sql = """SELECT json_build_object(
+
+    base_sql = """SELECT json_build_object(
       'cliente_id', i.cliente_id,
       'nombre', c.nombre_comercial,
       'localidad', c.localidad,
@@ -74,9 +77,12 @@ def fetch_data():
       'generated_at', i.generated_at
     )::text
 FROM clientes.informes_competencia i
-JOIN clientes.clientes c ON c.id = i.cliente_id
-ORDER BY i.generated_at DESC
-LIMIT 10;"""
+JOIN clientes.clientes c ON c.id = i.cliente_id"""
+
+    if cliente_id:
+        sql = f"{base_sql}\nWHERE i.cliente_id = {cliente_id}\nORDER BY i.generated_at DESC\nLIMIT 1;"
+    else:
+        sql = f"{base_sql}\nORDER BY i.generated_at DESC\nLIMIT 10;"
     
     # Detectar si estamos en el VPS (hostname check)
     in_vps = subprocess.run(["hostname"], capture_output=True, text=True).stdout.strip().startswith("localhost")
@@ -314,24 +320,44 @@ def render_cover_page(pdf, n_clients, total_comps):
 
 
 def main():
-    output = sys.argv[1] if len(sys.argv) > 1 else f"/tmp/informes_{date.today().isoformat()}.pdf"
-    
-    print("Leyendo datos de la DB...")
-    data = fetch_data()
+    # Parseo de argumentos
+    cliente_id = None
+    output = f"/tmp/informes_{date.today().isoformat()}.pdf"
+
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == '--cliente-id' and i + 1 < len(sys.argv):
+            cliente_id = int(sys.argv[i + 1])
+            i += 2
+        elif arg.startswith('--cliente-id='):
+            cliente_id = int(arg.split('=', 1)[1])
+            i += 1
+        elif not arg.startswith('--'):
+            output = arg
+            i += 1
+        else:
+            i += 1
+
+    print(f"Leyendo datos de la DB (cliente_id={cliente_id})...")
+    data = fetch_data(cliente_id)
     if not data:
-        print("ERROR: No se pudieron leer datos de la DB", file=sys.stderr)
+        msg = f"ERROR: No se encontraron datos para cliente_id={cliente_id}" if cliente_id else "ERROR: No se pudieron leer datos de la DB"
+        print(msg, file=sys.stderr)
         sys.exit(1)
     print(f"Clientes a procesar: {len(data)}")
-    
+
     total_comps = sum(int(d.get('competitors_count', 0) or 0) for d in data)
     print(f"Total competidores analizados: {total_comps}")
-    
+
     print(f"Generando PDF: {output}")
     with PdfPages(output) as pdf:
-        render_cover_page(pdf, len(data), total_comps)
+        # Solo cover page en modo individual
+        if cliente_id is None:
+            render_cover_page(pdf, len(data), total_comps)
         for d in data:
             render_client_page(pdf, d)
-    
+
     # Verificar
     import os
     size = os.path.getsize(output)
