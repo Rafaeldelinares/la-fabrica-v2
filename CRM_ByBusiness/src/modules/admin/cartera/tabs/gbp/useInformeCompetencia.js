@@ -9,9 +9,10 @@
  * @since 2026-08-13 (Phase 3 — crm-informe-pdf)
  */
 import { useState, useCallback, useRef } from 'react';
-import { validateEnvVar } from '../../../../../shared/utils/envValidation';
+import { getEnvVar } from '../../../../../shared/utils/envValidation';
 
-const N8N_WEBHOOK_URL = validateEnvVar('VITE_N8N_WEBHOOK_INFORME_PDF');
+// Optional env var — si no esta configurada, el boton aparece deshabilitado
+const N8N_WEBHOOK_URL = getEnvVar('VITE_N8N_WEBHOOK_INFORME_PDF');
 
 /**
  * @typedef {Object} UseInformeCompetenciaReturn

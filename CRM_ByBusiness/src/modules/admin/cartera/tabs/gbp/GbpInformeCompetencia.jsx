@@ -7,6 +7,9 @@
  *  - skeleton mientras carga
  *  - error state
  *
+ * Si VITE_N8N_WEBHOOK_INFORME_PDF no esta configurada, el boton aparece
+ * deshabilitado con un mensaje explicativo.
+ *
  * RBAC: requiere `admin.system.config` — operadores NO ven el botón.
  *
  * @param {{ clienteId: string|number, clienteNombre?: string }} props
@@ -15,9 +18,13 @@
  */
 import React, { useState, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { FileText, Download, X, AlertCircle } from 'lucide-react';
+import { FileText, Download, X, AlertCircle, Info } from 'lucide-react';
 import { useRbac } from '../../../../../shared/auth/useRbac';
+import { hasEnvVar } from '../../../../../shared/utils/envValidation';
 import { useInformeCompetencia } from './useInformeCompetencia';
+
+// Indica si el webhook esta configurado (para mostrar warning si no)
+const WEBHOOK_CONFIGURED = hasEnvVar('VITE_N8N_WEBHOOK_INFORME_PDF');
 
 /**
  * Skeleton que se muestra mientras carga el PDF.
@@ -220,13 +227,19 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={handleOpen}
-            disabled={isLoading}
+            disabled={isLoading || !WEBHOOK_CONFIGURED}
             className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-2 rounded-sm bg-[#D00000]/90 hover:bg-[#D00000] text-white border border-[#D00000]/50 hover:border-[#D00000] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Ver informe competitivo en PDF"
+            title={WEBHOOK_CONFIGURED ? "Ver informe competitivo en PDF" : "Webhook no configurado"}
           >
             <FileText className="w-3.5 h-3.5" />
             Ver informe competitivo
           </button>
+          {!WEBHOOK_CONFIGURED && (
+            <div className="flex items-center gap-1.5 text-[9px] font-mono text-amber-500/80">
+              <Info className="w-3 h-3" />
+              <span>Webhook no configurado</span>
+            </div>
+          )}
         </div>
       </div>
 

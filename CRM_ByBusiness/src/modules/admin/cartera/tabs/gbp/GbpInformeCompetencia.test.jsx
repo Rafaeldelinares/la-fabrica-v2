@@ -42,6 +42,8 @@ vi.mock('./useInformeCompetencia', () => ({
 // Mock env validation
 vi.mock('../../../../../shared/utils/envValidation', () => ({
   validateEnvVar: vi.fn(() => 'https://n8n.example.com'),
+  getEnvVar: vi.fn(() => 'https://n8n.example.com'),
+  hasEnvVar: vi.fn(() => true),
 }));
 
 const { useInformeCompetencia } = await import('./useInformeCompetencia');

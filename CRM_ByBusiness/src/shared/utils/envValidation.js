@@ -17,3 +17,28 @@ export function validateEnvVar(name) {
   }
   return value;
 }
+
+/**
+ * Optional environment variable getter.
+ * Returns the value if set, or a default if missing/empty.
+ * Use this for env vars that are NICE TO HAVE but should not break the app.
+ *
+ * @param {string} name - env var name
+ * @param {string} [defaultValue=null] - fallback if not set
+ * @returns {string} the value or defaultValue
+ */
+export function getEnvVar(name, defaultValue = null) {
+  const value = import.meta.env[name];
+  return value && String(value).length > 0 ? value : defaultValue;
+}
+
+/**
+ * Returns true if the env var is set and non-empty.
+ *
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function hasEnvVar(name) {
+  const value = import.meta.env[name];
+  return Boolean(value && String(value).length > 0);
+}
