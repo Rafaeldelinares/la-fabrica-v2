@@ -7,6 +7,10 @@
  *  - skeleton mientras carga
  *  - error state
  *
+ * Si el backend devuelve status: needs_cid (no puede encontrar el CID
+ * automaticamente), se muestra el modal ManualCIDModal para que el admin
+ * ingrese el CID manualmente.
+ *
  * Si VITE_N8N_WEBHOOK_INFORME_PDF no esta configurada, el boton aparece
  * deshabilitado con un mensaje explicativo.
  *
@@ -15,27 +19,38 @@
  * @param {{ clienteId: string|number, clienteNombre?: string }} props
  *
  * @since 2026-08-13 (Phase 3 — crm-informe-pdf)
+ * @updated 2026-08-13 (Phase 8 — Manual CID + needsCid)
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { FileText, Download, X, AlertCircle, Info } from 'lucide-react';
 import { useRbac } from '../../../../../shared/auth/useRbac';
 import { hasEnvVar } from '../../../../../shared/utils/envValidation';
 import { useInformeCompetencia } from './useInformeCompetencia';
+import ManualCIDModal from './ManualCIDModal';
 
 // Indica si el webhook esta configurado (para mostrar warning si no)
 const WEBHOOK_CONFIGURED = hasEnvVar('VITE_N8N_WEBHOOK_INFORME_PDF');
 
 /**
  * Skeleton que se muestra mientras carga el PDF.
+ * Siempre muestra "Generando informe..." porque no podemos distinguir
+ * entre "cargando PDF existente" (<1s) y "generando nuevo" (30-90s)
+ * sin información del backend. El mensaje cubra ambos casos.
+ *
+ * @param {{ isGenerating?: boolean }} props
  */
-const PdfSkeleton = () => (
+const PdfSkeleton = ({ isGenerating = true }) => (
   <div className="flex flex-col items-center justify-center h-full gap-3">
     <div className="flex flex-col items-center gap-2">
       <div className="w-48 h-3 bg-slate-800/40 rounded-sm animate-pulse" />
       <div className="w-32 h-2 bg-slate-800/20 rounded-sm animate-pulse" />
     </div>
-    <p className="text-[10px] font-mono text-slate-600">Generando informe…</p>
+    <p className="text-[10px] font-mono text-slate-600">
+      {isGenerating
+        ? 'Generando informe por primera vez… (30-90s)'
+        : 'Extrayendo datos de competidores…'}
+    </p>
   </div>
 );
 
@@ -45,7 +60,9 @@ const PdfSkeleton = () => (
 const PdfError = ({ message, onRetry }) => (
   <div className="flex flex-col items-center justify-center h-full gap-3 px-6">
     <AlertCircle className="w-8 h-8 text-red-500" />
-    <p className="text-[10px] font-mono text-red-400 text-center">{message || 'Error al generar informe'}</p>
+    <p className="text-[10px] font-mono text-red-400 text-center">
+      {message || 'Error al generar informe'}
+    </p>
     <button
       onClick={onRetry}
       className="text-[9px] font-mono text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-sm transition-colors"
@@ -63,7 +80,8 @@ const PdfEmpty = ({ clienteNombre, onGenerate }) => (
     <FileText className="w-10 h-10 text-slate-700" />
     <div className="text-center">
       <p className="text-[11px] font-mono text-slate-400 mb-1">
-        Sin informe para <span className="text-slate-200">{clienteNombre || 'este cliente'}</span>
+        Sin informe para{' '}
+        <span className="text-slate-200">{clienteNombre || 'este cliente'}</span>
       </p>
       <p className="text-[9px] font-mono text-slate-600">
         El informe se genera automáticamente cada 4 semanas o manualmente.
@@ -83,7 +101,17 @@ const PdfEmpty = ({ clienteNombre, onGenerate }) => (
 /**
  * Modal principal con iframe PDF.
  */
-const PdfModal = ({ isOpen, onClose, clienteId, clienteNombre, pdfUrl, isLoading, error, onRetry, onDownload }) => {
+const PdfModal = ({
+  isOpen,
+  onClose,
+  clienteId,
+  clienteNombre,
+  pdfUrl,
+  isLoading,
+  error,
+  onRetry,
+  onDownload,
+}) => {
   if (!isOpen) return null;
 
   const handleBackdropClick = (e) => {
@@ -101,7 +129,6 @@ const PdfModal = ({ isOpen, onClose, clienteId, clienteNombre, pdfUrl, isLoading
       aria-label={title}
     >
       <div className="bg-slate-900 border border-slate-700 rounded-sm w-full max-w-4xl mx-4 shadow-2xl flex flex-col max-h-[90vh]">
-
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
@@ -122,9 +149,7 @@ const PdfModal = ({ isOpen, onClose, clienteId, clienteNombre, pdfUrl, isLoading
         {/* Body — iframe o estado */}
         <div className="flex-1 min-h-0 bg-slate-950 border-b border-slate-800">
           {isLoading && <PdfSkeleton />}
-          {!isLoading && error && (
-            <PdfError message={error} onRetry={onRetry} />
-          )}
+          {!isLoading && error && <PdfError message={error} onRetry={onRetry} />}
           {!isLoading && !error && !pdfUrl && (
             <PdfEmpty clienteNombre={clienteNombre} />
           )}
@@ -141,7 +166,7 @@ const PdfModal = ({ isOpen, onClose, clienteId, clienteNombre, pdfUrl, isLoading
         {/* Footer */}
         <div className="flex items-center justify-between px-4 py-3 shrink-0">
           <a
-            href={pdfUrl || `#`}
+            href={pdfUrl || '#'}
             download={`informe_competitivo_${clienteId}.pdf`}
             onClick={pdfUrl ? undefined : (e) => e.preventDefault()}
             className={`flex items-center gap-1.5 text-[10px] font-mono px-3 py-1.5 rounded-sm border transition-colors ${
@@ -183,12 +208,24 @@ PdfModal.propTypes = {
  * Componente principal.
  *
  * Renderiza un botón admin-only que abre el modal del PDF.
+ * Si el backend no puede encontrar el CID automaticamente,
+ * muestra ManualCIDModal en lugar del PDF.
  */
 const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
   const rbac = useRbac();
   const [modalOpen, setModalOpen] = useState(false);
-  const { pdfUrl, isLoading, error, fetchInformePDF, descargarPDF } =
+  const [manualCidModalOpen, setManualCidModalOpen] = useState(false);
+
+  const { pdfUrl, isLoading, error, needsCid, submitCid, fetchInformePDF, descargarPDF } =
     useInformeCompetencia();
+
+  // When needsCid is set by the hook, open the manual CID modal
+  useEffect(() => {
+    if (needsCid) {
+      setModalOpen(false); // Close PDF modal if open
+      setManualCidModalOpen(true);
+    }
+  }, [needsCid]);
 
   // No renderizar nada si no es admin
   if (!rbac.can('admin.system.config')) {
@@ -218,6 +255,19 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
     }
   }, [clienteId, fetchInformePDF]);
 
+  const handleCloseManualCid = useCallback(() => {
+    setManualCidModalOpen(false);
+  }, []);
+
+  const handleManualCidSubmit = useCallback(
+    async (cid) => {
+      await submitCid(needsCid.clienteId, cid);
+      setManualCidModalOpen(false);
+      // pdfUrl will be set by the hook — user can click button to view
+    },
+    [needsCid, submitCid]
+  );
+
   return (
     <>
       <div className="px-5 py-4 border-t border-slate-800/60">
@@ -229,7 +279,11 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
             onClick={handleOpen}
             disabled={isLoading || !WEBHOOK_CONFIGURED}
             className="flex items-center gap-1.5 text-[10px] font-mono px-3 py-2 rounded-sm bg-[#D00000]/90 hover:bg-[#D00000] text-white border border-[#D00000]/50 hover:border-[#D00000] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title={WEBHOOK_CONFIGURED ? "Ver informe competitivo en PDF" : "Webhook no configurado"}
+            title={
+              WEBHOOK_CONFIGURED
+                ? 'Ver informe competitivo en PDF'
+                : 'Webhook no configurado'
+            }
           >
             <FileText className="w-3.5 h-3.5" />
             Ver informe competitivo
@@ -244,7 +298,7 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
       </div>
 
       <PdfModal
-        isOpen={modalOpen}
+        isOpen={modalOpen && !needsCid}
         onClose={handleClose}
         clienteId={clienteId}
         clienteNombre={clienteNombre}
@@ -254,6 +308,17 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
         onRetry={handleRetry}
         onDownload={descargarPDF}
       />
+
+      {needsCid && (
+        <ManualCIDModal
+          open={manualCidModalOpen}
+          onClose={handleCloseManualCid}
+          clienteId={needsCid.clienteId}
+          clienteNombre={needsCid.clienteNombre}
+          instructions={needsCid.instructions}
+          onSubmit={handleManualCidSubmit}
+        />
+      )}
     </>
   );
 };

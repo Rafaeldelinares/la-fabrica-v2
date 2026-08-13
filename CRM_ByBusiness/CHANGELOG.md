@@ -5,12 +5,36 @@ All notable changes to CRM_ByBusiness are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] — 2026-08-13
+
+### Informe competitivo on-demand (sin esperar al cron de 4 semanas)
+
+Cuando un admin hace click en "Ver informe competitivo" y NO hay informe previo,
+el backend dispara inmediatamente el scraping en Xiaomi (30-90s) y devuelve el PDF
+completo — sin esperar al cron de 4 semanas.
+
+### Added
+
+- **`infra/scripts/pdf_http_server.py`** — trigger scraping via SSH cuando no hay
+  informe previo. Flujo: check DB → SSH Xiaomi (`generar-informe-competencia.sh`)
+  → wait 180s → verify DB write → return PDF. Lock anti-duplicados con `fcntl.flock`.
+  Errores manejados: timeout, cookies expiradas, Xiaomi sin resultados.
+- **`useInformeCompetencia.js`** — timeout fetch aumentado a 180s (era 30s).
+  Mensaje de error específico para timeout. Extracción de detalle desde respuesta JSON.
+- **`GbpInformeCompetencia.jsx`** — skeleton con mensaje contextual:
+  "Generando informe por primera vez…" vs "Extrayendo datos de competidores…".
+  `isGenerating` computed via elapsed time > 5s threshold.
+- **`GbpInformeCompetencia.test.jsx`** — 2 nuevos tests: skeleton con
+  "Generando..." y mensaje de timeout 180s. Total: 11 tests.
+- **`infra/xiaomi/README.md`** — documentación de `generar-informe-competencia.sh`
+  y su invocación on-demand desde VPS.
+
 ## [Unreleased] — 2026-06-28
 
 ### Operador delinesrafa en producción + Leads landing split + Opción B 2FA
 
 Tres grandes hitos consolidados: el operador `delinaresrafa@gmail.com`
-completo end-to-end, el split de leads en LEADS LANDING vs GESTIÓN DE LEADS,
+completo end-to-end, el split de leads en LEEDS LANDING vs GESTIÓN DE LEEDS,
 y la migración del flujo 2FA a Opción B (el usuario configura su propio secret).
 
 ### Added

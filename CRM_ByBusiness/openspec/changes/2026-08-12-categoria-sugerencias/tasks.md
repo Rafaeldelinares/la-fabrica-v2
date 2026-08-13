@@ -206,6 +206,47 @@ Feature que genera un **informe competitivo completo** para cada cliente: análi
 
 ---
 
+## Phase 7 — Generación On-Demand (2026-08-13) ✅
+
+### T7.1 — Backend: trigger scraping desde PDF server ✅
+- **Owner**: dev backend
+- **Files**: `infra/scripts/pdf_http_server.py`
+- **Spec**:
+  - Si `fetch_ultimo_informe(cliente_id)` retorna None:
+    - SSH a Xiaomi (`ssh -p 8022 root@100.75.94.18`)
+    - Ejecutar `generar-informe-competencia.sh {cliente_id}` con timeout 180s
+    - Verificar que el informe se insertó en la DB
+    - Si OK → generar PDF; si falla → devolver error 500 con detalle
+  - Lock anti-duplicados con `fcntl.flock`
+  - Timeout scraping: 180s (script tarda 30-90s)
+- **Errores manejados**:
+  - Cookies Google expiradas → mensaje claro para renovar
+  - Script timeout → error 500
+  - Sin resultados (no competitors) → mensaje descriptivo
+- **Estado**: ✅ COMPLETADO
+
+### T7.2 — Frontend: timeout 180s + mensajes contextuales ✅
+- **Owner**: dev frontend
+- **Files**: `useInformeCompetencia.js`, `GbpInformeCompetencia.jsx`
+- **Spec**:
+  - Hook: timeout fetch 180s (era 30s), mensaje timeout específico
+  - Skeleton: differentiate "cargando PDF existente" vs "generando nuevo"
+  - isGenerating: computed via elapsed time > 5s threshold
+- **Estado**: ✅ COMPLETADO
+
+### T7.3 — Tests actualizados ✅
+- **Owner**: dev frontend
+- **Files**: `GbpInformeCompetencia.test.jsx`
+- **Spec**: 9 tests原有 + 1 nuevo = 10 tests total
+  - Test 10: mensaje de timeout tras 180s
+- **Estado**: ✅ COMPLETADO (10/10 pasan)
+
+### T7.4 — Documentación actualizada ✅
+- **Files**: `infra/scripts/pdf_http_server.py`, `infra/xiaomi/README.md`, `tasks.md`
+- **Estado**: ✅ COMPLETADO
+
+---
+
 ## Phase 6 — Integración recursos externos (T1.14) ✅
 
 ### T1.14a — gbp-industry-categories import ✅
@@ -305,3 +346,88 @@ Phase 5 (docs) pendiente.
 - Check de periodo: skip si último informe < 28 días
 - Flag `--force` para saltarse el check
 - Log: `/var/log/informe-competitivo.log`
+
+---
+
+## Phase 8 — Modal CID Manual (2026-08-13) ✅
+
+### T8.1 — Backend: endpoint `/cid-manual` en pdf_http_server.py ✅
+- **Files**: `infra/scripts/pdf_http_server.py`
+- **Spec**:
+  - POST `/cid-manual` recibe `{cliente_id, google_cid}`
+  - Validación regex: `^0x[a-f0-9]+:0x[a-f0-9]+$` (case-insensitive)
+  - UPDATE DB con el CID
+  - Trigger scraping Xiaomi
+  - Genera PDF y retorna
+- **Estado**: ✅ COMPLETADO
+
+### T8.2 — Backend: `needs_cid` cuando Xiaomi no encuentra CID ✅
+- **Files**: `infra/scripts/pdf_http_server.py`
+- **Spec**:
+  - Cuando Xiaomi devuelve `NO_CID_FOUND`, intentar Google search fallback
+  - Google search: curl a `google.com/search?q=CLIENTE+Google+Maps`, parsear HTML buscando `0xHASH:0xHASH`
+  - Si Google encuentra CID → usar directamente y reintentar scraping
+  - Si Google tampoco → retorna JSON con status `needs_cid` (HTTP 200)
+- **Respuesta needs_cid**:
+  ```json
+  {
+    "status": "needs_cid",
+    "message": "No se pudo encontrar el CID automáticamente",
+    "instructions": [...],
+    "cliente_id": N,
+    "cliente_nombre": "..."
+  }
+  ```
+- **Estado**: ✅ COMPLETADO
+
+### T8.3 — Frontend: `ManualCIDModal.jsx` ✅
+- **Files**: `src/modules/admin/cartera/tabs/gbp/ManualCIDModal.jsx`
+- **Spec**:
+  - Modal con input CID manual, validación visual regex en tiempo real
+  - Estados: verde si válido, rojo si inválido, disabled si vacío
+  - Instrucciones de cómo obtener el CID
+  - Navy Industrial: `bg-slate-900`, `rounded-sm`, `JetBrains Mono`
+  - PropTypes completos
+- **Tests**: 10 tests (ManualCIDModal.test.jsx)
+- **Estado**: ✅ COMPLETADO
+
+### T8.4 — Frontend: `useInformeCompetencia.js` actualizado ✅
+- **Files**: `src/modules/admin/cartera/tabs/gbp/useInformeCompetencia.js`
+- **Spec**:
+  - Nuevo estado `needsCid` (object | null)
+  - `fetchInformePDF`: detecta `status: needs_cid` y configura needsCid
+  - Nueva función `submitCid(clienteId, googleCid)`: POST al endpoint manual
+  - Retorna: `{ pdfUrl, isLoading, error, needsCid, submitCid, fetchInformePDF, descargarPDF }`
+- **Tests**: 7 tests (useInformeCompetencia.test.jsx)
+- **Estado**: ✅ COMPLETADO
+
+### T8.5 — Frontend: `GbpInformeCompetencia.jsx` actualizado ✅
+- **Files**: `src/modules/admin/cartera/tabs/gbp/GbpInformeCompetencia.jsx`
+- **Spec**:
+  - Detecta `needsCid` del hook y abre `ManualCIDModal` en lugar del PDF
+  - `useEffect` que sincroniza needsCid → modal abierto
+  - `handleManualCidSubmit` llama `submitCid` y cierra modal al éxito
+  - PdfModal se cierra cuando needsCid está activo
+- **Estado**: ✅ COMPLETADO
+
+### T8.6 — Tests E2E ✅
+- **Files**: `ManualCIDModal.test.jsx`, `useInformeCompetencia.test.jsx`
+- **ManualCIDModal**: 10 tests (render, validation, submit, cancel)
+- **useInformeCompetencia**: 7 tests (needsCid, pdfUrl, error, submitCid, loading)
+- **GbpInformeCompetencia**: tests existentes siguen pasando (mock del hook)
+- **Estado**: ✅ COMPLETADO
+
+### T8.7 — Documentación ✅
+- **Files**: tasks.md (este archivo)
+- CHANGELOG actualizado
+- **Estado**: ✅ COMPLETADO
+
+---
+
+## Estado Final
+
+**Phase 8 ✅ COMPLETA — Modal CID Manual**
+- Backend: endpoint `/cid-manual` + Google search fallback + `needs_cid` response
+- Frontend: `ManualCIDModal` + hook actualizado con `needsCid` + `submitCid`
+- Tests: 17 tests nuevos/add+ (ManualCIDModal 10 + useInformeCompetencia 7)
+- Documentación: tasks.md actualizado

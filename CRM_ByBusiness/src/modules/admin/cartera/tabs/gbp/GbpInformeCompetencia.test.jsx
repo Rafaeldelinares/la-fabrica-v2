@@ -5,12 +5,13 @@
  *  1. Renderiza botón "Ver informe competitivo" para admin
  *  2. NO renderiza el botón si user no es admin (RBAC)
  *  3. Abre el modal al hacer click en el botón
- *  4. Muestra skeleton mientras carga
+ *  4. Muestra estado disabled en el botón cuando isLoading=true
  *  5. Muestra iframe con PDF cuando carga
- *  6. Cierra el modal al click en X o botón Cerrar
+ *  6. Cierra el modal al click en X
  *  7. Cierra el modal al click en Cerrar
  *  8. Botón "Descargar PDF" tiene href válido
  *  9. Muestra mensaje de error cuando fetch falla
+ * 10. Muestra mensaje de timeout cuando fetch excede 180s
  *
  * @since 2026-08-13 (Phase 3 — crm-informe-pdf)
  */
@@ -186,6 +187,21 @@ describe('GbpInformeCompetencia', () => {
     render(<GbpInformeCompetencia clienteId="999" clienteNombre="Test" />);
     await user.click(screen.getByText('Ver informe competitivo'));
     expect(screen.getByText(/No se encontró informe/)).toBeInTheDocument();
+    expect(screen.getByText('Reintentar')).toBeInTheDocument();
+  });
+
+  // ─── 10. Maneja timeout de generacion ───────────────────────────────
+
+  it('muestra mensaje de timeout cuando fetch excede 180s', async () => {
+    mockCan.mockReturnValue(true);
+    vi.mocked(useInformeCompetencia).mockReturnValue({
+      ...defaultMockReturn,
+      error: 'La generación excedió el tiempo (180s). Puedes reintentar.',
+    });
+    const user = userEvent.setup();
+    render(<GbpInformeCompetencia clienteId="123" clienteNombre="Test" />);
+    await user.click(screen.getByText('Ver informe competitivo'));
+    expect(screen.getByText(/excedió el tiempo/)).toBeInTheDocument();
     expect(screen.getByText('Reintentar')).toBeInTheDocument();
   });
 });

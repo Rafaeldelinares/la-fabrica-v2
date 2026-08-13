@@ -94,6 +94,18 @@ Verificar: `crontab -l | ssh -p 8022 root@100.75.94.18 'crontab -l'`
 
 ## Watchdogs (capa de resiliencia)
 
+### `generar-informe-competencia.sh` (on-demand trigger desde VPS)
+
+- Genera informe competitivo para un cliente o todos.
+- Uso: `bash cron/generar-informe-competencia.sh [CLIENTE_ID]`
+- Si se pasa CLIENTE_ID: procesa solo ese cliente (skip weeks check forzado)
+- Flujo: wrapper → analisis_competencia.py → INSERT DB
+- **Invocado remotamente** desde el PDF server en VPS (`pdf_http_server.py`)
+  cuando un admin hace click en "Ver informe" sin tener informe previo.
+  SSH: `ssh -p 8022 root@100.75.94.18`
+- Timeout: 180s (scraping puede tardar 30-90s)
+- Logs: `logs/informe-competencia.log`
+
 ### `watchdog.sh` (wrapper)
 
 - Verifica que `crm-gb-scap.js` esté corriendo
