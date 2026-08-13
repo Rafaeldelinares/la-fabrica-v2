@@ -54,32 +54,54 @@ const PdfViewer = ({ pdfUrl, title = 'PDF' }) => {
     setCurrentPage(1);
     setTotalPages(0);
 
-    let loadTask;
-    try {
-      loadTask = pdfjs.getDocument(pdfUrl);
-    } catch (err) {
-      setError(err.message || 'URL invalida');
-      setIsLoading(false);
-      return;
+    // Si pdfUrl es blob URL, fetchear y pasar data directo (evita race con revoke)
+    // Si es http URL, pasar url directo
+    const isBlob = pdfUrl.startsWith('blob:');
+
+    if (isBlob) {
+      // Fetchear el blob y pasar data directo
+      fetch(pdfUrl)
+        .then((res) => {
+          if (cancelled) return null;
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.arrayBuffer();
+        })
+        .then((buffer) => {
+          if (cancelled || !buffer) return null;
+          return pdfjs.getDocument({ data: buffer }).promise;
+        })
+        .then((pdf) => {
+          if (cancelled || !pdf) return;
+          setPdfDoc(pdf);
+          setTotalPages(pdf.numPages);
+          setIsLoading(false);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setError(err.message || 'Error cargando PDF');
+          setIsLoading(false);
+        });
+    } else {
+      // URL normal
+      try {
+        const loadPromise = pdfjs.getDocument(pdfUrl).promise;
+        loadPromise
+          .then((pdf) => {
+            if (cancelled) return;
+            setPdfDoc(pdf);
+            setTotalPages(pdf.numPages);
+            setIsLoading(false);
+          })
+          .catch((err) => {
+            if (cancelled) return;
+            setError(err.message || 'Error cargando PDF');
+            setIsLoading(false);
+          });
+      } catch (err) {
+        setError(err.message || 'URL invalida');
+        setIsLoading(false);
+      }
     }
-
-    loadTask.promise
-      .then((pdf) => {
-        if (cancelled) return;
-        setPdfDoc(pdf);
-        setTotalPages(pdf.numPages);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err.message || 'Error cargando PDF');
-        setIsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-      if (loadTask) loadTask.destroy();
-    };
   }, [pdfUrl]);
 
   // Renderiza la página actual
