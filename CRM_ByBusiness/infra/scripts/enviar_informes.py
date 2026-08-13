@@ -408,6 +408,32 @@ def main():
     print(f"INFORME COMPETITIVO CRM - {today}")
     print("=" * 60)
 
+    # 0. Check de periodo: skip si ya hay informe < 4 semanas
+    # Para auto-trigger (cron): evita emails duplicados
+    force = "--force" in sys.argv
+    if not force:
+        last = subprocess.run(
+            ["docker", "exec", "-i", "fabrica-postgres-1",
+             "psql", "-U", "rafael_admin", "-d", "crm_bybusiness", "-tA", "-c",
+             "SELECT MAX(generated_at)::date FROM clientes.informes_competencia"],
+            capture_output=True, timeout=10
+        )
+        last_date_str = last.stdout.decode().strip()
+        if last_date_str:
+            try:
+                from datetime import datetime, timedelta
+                last_date = datetime.strptime(last_date_str, "%Y-%m-%d").date()
+                days_since = (date.today() - last_date).days
+                if days_since < 28:
+                    print(f"SKIP: ultimo informe hace {days_since} dias (< 28)")
+                    print(f"      proximo envio automatico: ~{28 - days_since} dias")
+                    sys.exit(0)
+                print(f"Ultimo informe: hace {days_since} dias (>= 28, OK)")
+            except Exception as e:
+                print(f"WARN: no se pudo parsear fecha '{last_date_str}': {e}")
+    else:
+        print("--force activado, saltando check de periodo")
+
     # 1. Generar PDF en memoria
     print("\n[1/3] Generando PDF en memoria...")
     result = generate_pdf_bytes()
