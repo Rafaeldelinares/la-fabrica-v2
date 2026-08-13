@@ -120,9 +120,9 @@ Feature que genera un **informe competitivo completo** para cada cliente: análi
 
 ---
 
-## Phase 3 — Frontend admin-only (CRM)
+## Phase 3 — Frontend admin-only (CRM) ✅
 
-### T3.1 — Componente `GbpInformeCompetencia.jsx`
+### T3.1 — Componente `GbpInformeCompetencia.jsx` ✅
 - **Owner**: dev frontend
 - **Effort**: 3h
 - **Files**: `src/modules/admin/cartera/tabs/gbp/GbpInformeCompetencia.jsx` (nuevo)
@@ -143,7 +143,7 @@ Feature que genera un **informe competitivo completo** para cada cliente: análi
   - **RBAC**: `admin.system.config` (NO operadores)
   - Estado: skeleton mientras carga, empty state si no hay datos
 
-### T3.2 — Hook `useInformeCompetencia.js`
+### T3.2 — Hook `useInformeCompetencia.js` ✅
 - **Owner**: dev frontend
 - **Effort**: 1h
 - **Files**: `src/modules/admin/cartera/tabs/gbp/useInformeCompetencia.js`
@@ -152,7 +152,7 @@ Feature que genera un **informe competitivo completo** para cada cliente: análi
   - `useN8nMutation` para generar nuevo (`crm-informe-competencia-generate`)
   - Estados: `data`, `isLoading`, `isGenerating`, `error`
 
-### T3.3 — Tests del componente
+### T3.3 — Tests del componente ✅
 - **Owner**: dev frontend
 - **Effort**: 1h
 - **Files**: `GbpInformeCompetencia.test.jsx` (nuevo)
@@ -174,7 +174,7 @@ Feature que genera un **informe competitivo completo** para cada cliente: análi
 - **Schedule**: crontab lunes cada 4 semanas (o configurable)
   - `0 7 1-7,29-31 * 1` (primeras semanas y últimas del mes, lunes)
 
-### T4.2 — Webhooks n8n
+### T4.2 — Webhooks n8n ✅ (V7 — crm-informe-pdf)
 - **Owner**: dev backend
 - **Effort**: 1h
 - **Files**: nuevo workflow n8n en VPS
@@ -261,7 +261,9 @@ Feature que genera un **informe competitivo completo** para cada cliente: análi
 
 ## Estado
 
-Phase 1 ampliada + Phase 6 (T1.14) completas. Phase 2 (DB ya hecha), Phase 3 (UI) y Phase 4 (trigger) pendientes.
+Phase 1 ampliada + Phase 6 (T1.14) + Phase 3 (T3.1-T3.3) + Phase 4 (T4.2 V7 workflow) ✅ completas.
+Phase 2 (DB ya hecha). Phase 4 T4.1 (cron trigger script) pendiente.
+Phase 5 (docs) pendiente.
 
 ---
 

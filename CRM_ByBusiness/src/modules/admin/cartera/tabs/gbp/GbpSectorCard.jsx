@@ -15,6 +15,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import { useN8nQuery } from '../../../../../shared/hooks/useN8n';
+import GbpInformeCompetencia from './GbpInformeCompetencia';
 
 const GbpSectorCard = ({ cliente }) => {
   // Fetch últimos datos de competencia y sector
@@ -112,6 +113,11 @@ const GbpSectorCard = ({ cliente }) => {
           </div>
         </div>
       )}
+
+      <GbpInformeCompetencia
+        clienteId={cliente.id}
+        clienteNombre={cliente.nombre_comercial}
+      />
     </div>
   );
 };
