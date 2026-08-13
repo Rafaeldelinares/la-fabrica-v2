@@ -113,6 +113,9 @@ def generate_pdf_bytes():
         ax.text(0.0, 0.39, "Comp.", fontsize=8, color=COLOR_MUTED, ha="right", va="center", transform=ax.transAxes)
 
     def draw_comps(ax, comps):
+        """Nombre del negocio ADENTRO de la barra de rating.
+        Rating+reviews al final de la barra en negro.
+        La categoria va SOLO en la nube de actividades."""
         if not comps:
             ax.text(0.5, 0.5, "Sin datos", ha="center", va="center", fontsize=10, color=COLOR_MUTED, transform=ax.transAxes)
             ax.axis("off"); return
@@ -123,42 +126,42 @@ def generate_pdf_bytes():
         reviews = [c.get("reviews_count", 0) or 0 for c in sorted_c]
         cols = [score_color(r * 20) for r in ratings]
 
-        # Layout en 3 zonas:
-        # - Izquierda (x < 0): nombre completo del negocio
-        # - Centro (0 <= x <= 5): barra de rating
-        # - Derecha (x > 5): "★4.5 (200 reseñas)"
-
-        for i, (c, rating, reviews) in enumerate(zip(sorted_c, ratings, reviews)):
-            name = c.get("name", "?")
-            # Nombre completo a la izquierda (sin truncar)
-            ax.text(-0.1, i, name, ha="right", va="center", fontsize=9,
-                    color=COLOR_TEXT, fontweight="normal")
-            # Barra de rating (de 0 a 5)
-            ax.barh(i, rating, color=cols[i], height=0.55, left=0)
-            # Rating + reviews a la derecha de la barra
-            ax.text(rating + 0.12, i, f"\u2605{rating:.1f}  ({reviews} rese\u00f1as)",
-                    va="center", fontsize=9, color=COLOR_TEXT, fontweight="bold")
-
-        # Eje X: rango de 0 a 5.5 para las barras
-        ax.set_xlim(-3.5, 6.2)  # espacio para nombres a la izquierda
+        ax.set_xlim(0, 6.2)
         ax.set_ylim(-0.5, n - 0.5)
         ax.set_xticks([0, 1, 2, 3, 4, 5])
         ax.set_xticklabels(["0", "1", "2", "3", "4", "5"], fontsize=8)
-        ax.set_yticks([])  # sin labels en Y (los nombres van a la izquierda)
+        ax.set_yticks([])
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=0.3, linestyle="--", color=COLOR_BORDER)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_visible(False)  # sin spine izq (los nombres ya ocupan ese espacio)
+        ax.spines["left"].set_visible(False)
+        ax.spines["bottom"].set_color(COLOR_BORDER)
+
+        for i, (c, rating, reviews) in enumerate(zip(sorted_c, ratings, reviews)):
+            name = c.get("name", "?") or "?"
+            # Barra de rating (de 0 a 5)
+            ax.barh(i, rating, color=cols[i], height=0.55, left=0)
+            # Nombre del negocio ADENTRO de la barra (texto negro, bold)
+            if rating >= 1.5:
+                ax.text(0.15, i, name, ha="left", va="center", fontsize=8.5,
+                        color="black", fontweight="bold", clip_on=False)
+            else:
+                # Barra muy corta: nombre afuera a la derecha
+                ax.text(rating + 0.08, i, name, ha="left", va="center", fontsize=8.5,
+                        color=COLOR_TEXT, fontweight="normal", clip_on=False)
+            # Rating + reviews al final de la barra (negro)
+            ax.text(5.1, i, f"\u2605{rating:.1f}  ({reviews} rese\u00f1as)",
+                    ha="left", va="center", fontsize=8.5,
+                    color=COLOR_TEXT, fontweight="bold")
 
     def draw_recs(ax, recs):
         if not recs:
             ax.text(0.5, 0.5, "Sin recomendaciones", ha="center", va="center", fontsize=10, color=COLOR_MUTED, transform=ax.transAxes)
             ax.axis("off"); return
         ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
-        ax.text(0.0, 0.97, "RECOMENDACIONES", fontsize=10, fontweight="bold",
-                color=COLOR_ACCENT, transform=ax.transAxes)
-        y = 0.85
+        # Titulo lo pone render_client (fig.text), no aqui
+        y = 0.92
         for r in recs[:4]:
             tipo = r.get("tipo", "")
             mensaje = r.get("mensaje", "")
@@ -182,44 +185,150 @@ def generate_pdf_bytes():
         comps = d.get("competitors", [])
 
         fig = plt.figure(figsize=(11, 8.5))
-        # Header: nombre del cliente a la izquierda, logo ByBusiness a la derecha
-        fig.text(0.05, 0.95, d.get("nombre", "?"), fontsize=18, fontweight="bold", color=COLOR_TEXT)
-        fig.text(0.05, 0.91, f"{d.get('localidad', '?')}, {d.get('provincia', '?')}  -  ID {d.get('cliente_id')}",
+
+        # Header: nombre del cliente + logo ByBusiness
+        fig.text(0.05, 0.96, d.get("nombre", "?"), fontsize=18, fontweight="bold", color=COLOR_TEXT)
+        fig.text(0.05, 0.92, f"{d.get('localidad', '?')}, {d.get('provincia', '?')}  -  ID {d.get('cliente_id')}",
                  fontsize=10, color=COLOR_MUTED)
-        # Logo ByBusiness esquina superior derecha (header pequeño)
         if has_logo:
             ax_logo = fig.add_axes([1 - header_w_inch/11 - 0.03, 1 - header_h_inch/8.5 - 0.03,
-                                     header_w_inch/11, header_h_inch/8.5])
+                                     header_w_inch/11, header_h_inch/8.5], zorder=10)
             ax_logo.imshow(logo)
             ax_logo.axis("off")
-        fig.text(0.95, 0.91 - header_h_inch/8.5 - 0.02, date.today().isoformat(),
+        fig.text(0.95, 0.92 - header_h_inch/8.5 - 0.02, date.today().isoformat(),
                  ha="right", fontsize=9, color=COLOR_MUTED)
 
-        ax_g = fig.add_axes([0.05, 0.65, 0.25, 0.20])
-        draw_gauge(ax_g, score)
+        # ===== CAJA 1: Top: Score gauge + comparativas =====
+        from matplotlib.patches import FancyBboxPatch
+        box1 = FancyBboxPatch((0.04, 0.74), 0.92, 0.14,
+                              boxstyle="round,pad=0.005,rounding_size=0.01",
+                              facecolor="#F1F5F9", edgecolor="#CBD5E1",
+                              linewidth=0.8, transform=fig.transFigure, zorder=0)
+        fig.patches.append(box1)
 
-        ax_r = fig.add_axes([0.35, 0.75, 0.55, 0.10])
+        ax_g = fig.add_axes([0.07, 0.76, 0.16, 0.12], zorder=10)
+        draw_gauge(ax_g, score)
+        ax_r = fig.add_axes([0.27, 0.80, 0.40, 0.06], zorder=10)
         draw_compare(ax_r, "Rating", cr, ar, 5.0, " /5")
-        ax_rev = fig.add_axes([0.35, 0.63, 0.55, 0.10])
+        ax_rev = fig.add_axes([0.27, 0.74, 0.40, 0.06], zorder=10)
         draw_compare(ax_rev, "Reseñas", crv, arv, max(arv * 2, 100))
 
-        ax_c = fig.add_axes([0.05, 0.32, 0.55, 0.27])
-        ax_c.set_title("Top 5 competidores por rating", fontsize=11, color=COLOR_TEXT, loc="left", pad=8)
+        # ===== CAJA 2: Top 5 competidores =====
+        box2 = FancyBboxPatch((0.04, 0.46), 0.92, 0.25,
+                              boxstyle="round,pad=0.005,rounding_size=0.01",
+                              facecolor="#F8FAFC", edgecolor="#CBD5E1",
+                              linewidth=0.8, transform=fig.transFigure, zorder=0)
+        fig.patches.append(box2)
+        # Titulo de la caja (encima del rect)
+        fig.text(0.07, 0.695, "TOP 5 COMPETIDORES POR RATING",
+                 fontsize=11, color=COLOR_TEXT, fontweight="bold")
+
+        ax_c = fig.add_axes([0.07, 0.48, 0.88, 0.20], zorder=10)
         draw_comps(ax_c, comps)
 
-        ax_recs = fig.add_axes([0.65, 0.32, 0.30, 0.55])
+        # ===== CAJA 3: Nube de actividades =====
+        box3 = FancyBboxPatch((0.04, 0.25), 0.92, 0.18,
+                              boxstyle="round,pad=0.005,rounding_size=0.01",
+                              facecolor="#F8FAFC", edgecolor="#CBD5E1",
+                              linewidth=0.8, transform=fig.transFigure, zorder=0)
+        fig.patches.append(box3)
+        fig.text(0.07, 0.415, "ACTIVIDADES DE COMPETIDORES (nube)",
+                 fontsize=11, color=COLOR_TEXT, fontweight="bold")
+
+        ax_cloud = fig.add_axes([0.07, 0.27, 0.88, 0.13], zorder=10)
+        draw_activity_cloud(ax_cloud, comps, d.get("categoria", ""))
+
+        # ===== CAJA 4: Recomendaciones =====
+        box4 = FancyBboxPatch((0.04, 0.04), 0.92, 0.18,
+                              boxstyle="round,pad=0.005,rounding_size=0.01",
+                              facecolor="#F8FAFC", edgecolor="#CBD5E1",
+                              linewidth=0.8, transform=fig.transFigure, zorder=0)
+        fig.patches.append(box4)
+        fig.text(0.07, 0.205, "RECOMENDACIONES",
+                 fontsize=11, color=COLOR_ACCENT, fontweight="bold")
+
+        ax_recs = fig.add_axes([0.07, 0.06, 0.88, 0.13], zorder=10)
         draw_recs(ax_recs, d.get("recomendaciones", []))
 
-        fig.text(0.5, 0.02, f"{len(comps)} competidores analizados  -  CRM ByBusiness",
+        fig.text(0.5, 0.015, f"{len(comps)} competidores analizados  -  CRM ByBusiness",
                  ha="center", fontsize=8, color=COLOR_MUTED, style="italic")
         pdf.savefig(fig, facecolor=COLOR_BG)
         plt.close(fig)
+
+    def draw_activity_cloud(ax, comps, cliente_categoria):
+        """Nube de tags con layout manual via ax.text.
+        Font unico (11pt). Cada tag con su count entre parentesis.
+        Distribucion greedy: tags consecutivos hasta llenar la fila."""
+        ax.axis("off")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+
+        if not comps:
+            ax.text(0.5, 0.5, "Sin datos de competidores", ha="center", va="center",
+                    fontsize=10, color=COLOR_MUTED, transform=ax.transAxes)
+            return
+
+        from collections import Counter
+        cat_counter = Counter()
+        for c in comps:
+            cat = (c.get("categoria_principal") or "").strip()
+            if cat:
+                cat_counter[cat] += 1
+
+        if not cat_counter:
+            ax.text(0.5, 0.5, "Sin categorias en competidores", ha="center", va="center",
+                    fontsize=10, color=COLOR_MUTED, transform=ax.transAxes)
+            return
+
+        sorted_cats = sorted(cat_counter.items(), key=lambda x: -x[1])
+        cliente_cat_lower = (cliente_categoria or "").lower().strip()
+
+        # Distribuir en filas greedy segun ancho estimado
+        # En coordenadas del axes (0-1), fontsize 11 -> aprox 0.02 unidades por char
+        CHAR_W = 0.013
+        PAD = 0.04  # padding entre tags
+        max_w = 0.96
+        min_x = 0.02
+        rows = []
+        cur_row = []
+        cur_w = 0
+        for cat, count in sorted_cats:
+            text = f"{cat} ({count})"
+            tag_w = len(text) * CHAR_W + PAD
+            if cur_w + tag_w > max_w and cur_row:
+                rows.append(cur_row)
+                cur_row = []
+                cur_w = 0
+            cur_row.append((text, cat, tag_w))
+            cur_w += tag_w
+        if cur_row:
+            rows.append(cur_row)
+
+        # Renderizar filas centradas vertical y horizontalmente
+        n_rows = len(rows)
+        row_h = 0.95 / max(n_rows, 1)
+        for r_idx, row in enumerate(rows):
+            total_w = sum(w for _, _, w in row)
+            x_cursor = (1 - total_w) / 2  # centrado
+            y = 0.92 - (r_idx + 0.5) * row_h
+            for text, cat, w in row:
+                is_cliente = cliente_cat_lower and (
+                    cat.lower() == cliente_cat_lower or
+                    cliente_cat_lower in cat.lower() or
+                    cat.lower() in cliente_cat_lower
+                )
+                color = COLOR_ACCENT if is_cliente else COLOR_TEXT
+                weight = "bold" if is_cliente else "normal"
+                ax.text(x_cursor + w / 2, y, text, ha="center", va="center",
+                        fontsize=11, color=color, fontweight=weight,
+                        transform=ax.transAxes)
+                x_cursor += w
 
     def render_cover(pdf, n_clients, total_comps):
         fig = plt.figure(figsize=(11, 8.5))
         if has_logo:
             # Logo centrado-arriba de la portada (grande)
-            ax_logo = fig.add_axes([(1 - cover_w_inch/11) / 2, 0.70, cover_w_inch/11, cover_h_inch/8.5])
+            ax_logo = fig.add_axes([(1 - cover_w_inch/11) / 2, 0.70, cover_w_inch/11, cover_h_inch/8.5], zorder=10)
             ax_logo.imshow(logo)
             ax_logo.axis("off")
         fig.text(0.5, 0.55, "INFORME COMPETITIVO", fontsize=32, fontweight="bold", color=COLOR_TEXT, ha="center")
