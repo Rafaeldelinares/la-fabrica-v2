@@ -22,20 +22,48 @@ def generate_pdf_bytes():
     import matplotlib
     matplotlib.use("Agg")
     from matplotlib.backends.backend_pdf import PdfPages
+    from matplotlib.image import imread
     import matplotlib.pyplot as plt
     from matplotlib.patches import Wedge
     import numpy as np
 
-    # Color scheme Navy Industrial
-    COLOR_BG = "#0a0e1a"
-    COLOR_PANEL = "#0f1424"
-    COLOR_TEXT = "#e2e8f0"
-    COLOR_MUTED = "#94a3b8"
-    COLOR_GOOD = "#10b981"
-    COLOR_WARN = "#f59e0b"
-    COLOR_BAD = "#ef4444"
-    COLOR_ACCENT = "#D00000"
-    COLOR_BORDER = "#334155"
+    # Color scheme LIGHT (fondo blanco) — para impresión clara
+    COLOR_BG = "#FFFFFF"          # fondo blanco
+    COLOR_PANEL = "#F8FAFC"       # gris muy claro (para paneles)
+    COLOR_TEXT = "#0F172A"        # casi negro (texto principal)
+    COLOR_MUTED = "#64748B"       # gris medio (texto secundario)
+    COLOR_BORDER = "#CBD5E1"      # gris claro (bordes)
+    COLOR_GOOD = "#059669"        # verde oscuro (éxito)
+    COLOR_WARN = "#D97706"        # naranja oscuro (warning)
+    COLOR_BAD = "#DC2626"         # rojo oscuro (error)
+    COLOR_ACCENT = "#D00000"      # rojo ByBusiness (accent)
+
+    plt.rcParams.update({
+        "figure.facecolor": COLOR_BG,
+        "axes.facecolor": COLOR_PANEL,
+        "axes.edgecolor": COLOR_BORDER,
+        "axes.labelcolor": COLOR_TEXT,
+        "text.color": COLOR_TEXT,
+        "xtick.color": COLOR_MUTED,
+        "ytick.color": COLOR_MUTED,
+        "font.family": "DejaVu Sans",
+        "font.size": 9,
+    })
+
+    # Cargar logo ByBusiness oscuro (para fondo blanco)
+    LOGO_PATH = "/var/www/crm.ia-bybusiness.com/bybusiness-logo.png"
+    try:
+        logo = imread(LOGO_PATH)
+        logo_h, logo_w = logo.shape[:2]
+        # Logo blanco era 6300x1500; el oscuro puede ser otro tamaño
+        header_w_inch = 1.4
+        header_h_inch = header_w_inch * (logo_h / logo_w)
+        cover_w_inch = 5.0
+        cover_h_inch = cover_w_inch * (logo_h / logo_w)
+        has_logo = True
+    except Exception as e:
+        print(f"WARN: no se pudo cargar logo: {e}")
+        has_logo = False
 
     plt.rcParams.update({
         "figure.facecolor": COLOR_BG,
@@ -89,20 +117,39 @@ def generate_pdf_bytes():
             ax.text(0.5, 0.5, "Sin datos", ha="center", va="center", fontsize=10, color=COLOR_MUTED, transform=ax.transAxes)
             ax.axis("off"); return
         sorted_c = sorted(comps, key=lambda c: c.get("rating", 0) or 0, reverse=True)[:5]
-        names = [c.get("name", "?")[:25] for c in sorted_c]
+        n = len(sorted_c)
+        y = np.arange(n)
         ratings = [c.get("rating", 0) or 0 for c in sorted_c]
         reviews = [c.get("reviews_count", 0) or 0 for c in sorted_c]
-        y = np.arange(len(names))
         cols = [score_color(r * 20) for r in ratings]
-        bars = ax.barh(y, ratings, color=cols, height=0.6)
-        ax.set_yticks(y); ax.set_yticklabels(names, fontsize=8)
-        ax.set_xlim(0, 5.2); ax.set_xlabel("Rating", fontsize=8)
+
+        # Layout en 3 zonas:
+        # - Izquierda (x < 0): nombre completo del negocio
+        # - Centro (0 <= x <= 5): barra de rating
+        # - Derecha (x > 5): "★4.5 (200 reseñas)"
+
+        for i, (c, rating, reviews) in enumerate(zip(sorted_c, ratings, reviews)):
+            name = c.get("name", "?")
+            # Nombre completo a la izquierda (sin truncar)
+            ax.text(-0.1, i, name, ha="right", va="center", fontsize=9,
+                    color=COLOR_TEXT, fontweight="normal")
+            # Barra de rating (de 0 a 5)
+            ax.barh(i, rating, color=cols[i], height=0.55, left=0)
+            # Rating + reviews a la derecha de la barra
+            ax.text(rating + 0.12, i, f"\u2605{rating:.1f}  ({reviews} rese\u00f1as)",
+                    va="center", fontsize=9, color=COLOR_TEXT, fontweight="bold")
+
+        # Eje X: rango de 0 a 5.5 para las barras
+        ax.set_xlim(-3.5, 6.2)  # espacio para nombres a la izquierda
+        ax.set_ylim(-0.5, n - 0.5)
+        ax.set_xticks([0, 1, 2, 3, 4, 5])
+        ax.set_xticklabels(["0", "1", "2", "3", "4", "5"], fontsize=8)
+        ax.set_yticks([])  # sin labels en Y (los nombres van a la izquierda)
         ax.invert_yaxis()
         ax.grid(axis="x", alpha=0.3, linestyle="--", color=COLOR_BORDER)
-        ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
-        for bar, r, rev in zip(bars, ratings, reviews):
-            ax.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height() / 2,
-                    f"{r:.1f} ({rev})", va="center", fontsize=8, color=COLOR_TEXT)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["left"].set_visible(False)  # sin spine izq (los nombres ya ocupan ese espacio)
 
     def draw_recs(ax, recs):
         if not recs:
@@ -135,10 +182,18 @@ def generate_pdf_bytes():
         comps = d.get("competitors", [])
 
         fig = plt.figure(figsize=(11, 8.5))
+        # Header: nombre del cliente a la izquierda, logo ByBusiness a la derecha
         fig.text(0.05, 0.95, d.get("nombre", "?"), fontsize=18, fontweight="bold", color=COLOR_TEXT)
         fig.text(0.05, 0.91, f"{d.get('localidad', '?')}, {d.get('provincia', '?')}  -  ID {d.get('cliente_id')}",
                  fontsize=10, color=COLOR_MUTED)
-        fig.text(0.95, 0.93, date.today().isoformat(), ha="right", fontsize=9, color=COLOR_MUTED)
+        # Logo ByBusiness esquina superior derecha (header pequeño)
+        if has_logo:
+            ax_logo = fig.add_axes([1 - header_w_inch/11 - 0.03, 1 - header_h_inch/8.5 - 0.03,
+                                     header_w_inch/11, header_h_inch/8.5])
+            ax_logo.imshow(logo)
+            ax_logo.axis("off")
+        fig.text(0.95, 0.91 - header_h_inch/8.5 - 0.02, date.today().isoformat(),
+                 ha="right", fontsize=9, color=COLOR_MUTED)
 
         ax_g = fig.add_axes([0.05, 0.65, 0.25, 0.20])
         draw_gauge(ax_g, score)
@@ -162,14 +217,19 @@ def generate_pdf_bytes():
 
     def render_cover(pdf, n_clients, total_comps):
         fig = plt.figure(figsize=(11, 8.5))
-        fig.text(0.5, 0.7, "INFORME COMPETITIVO", fontsize=32, fontweight="bold", color=COLOR_TEXT, ha="center")
-        fig.text(0.5, 0.62, "CRM ByBusiness  -  Google Business Profile",
+        if has_logo:
+            # Logo centrado-arriba de la portada (grande)
+            ax_logo = fig.add_axes([(1 - cover_w_inch/11) / 2, 0.70, cover_w_inch/11, cover_h_inch/8.5])
+            ax_logo.imshow(logo)
+            ax_logo.axis("off")
+        fig.text(0.5, 0.55, "INFORME COMPETITIVO", fontsize=32, fontweight="bold", color=COLOR_TEXT, ha="center")
+        fig.text(0.5, 0.48, "CRM ByBusiness  -  Google Business Profile",
                  fontsize=14, color=COLOR_ACCENT, ha="center", fontweight="bold")
-        fig.text(0.5, 0.50, date.today().strftime("%d de %B de %Y"),
+        fig.text(0.5, 0.40, date.today().strftime("%d de %B de %Y"),
                  fontsize=18, color=COLOR_TEXT, ha="center")
-        fig.text(0.5, 0.42, f"{n_clients} clientes analizados", fontsize=14, color=COLOR_MUTED, ha="center")
-        fig.text(0.5, 0.38, f"{total_comps} competidores scrapeados", fontsize=11, color=COLOR_MUTED, ha="center")
-        fig.text(0.5, 0.08, "Xiaomi-12 worker  -  BrightLocal 2026  -  Auto-generated",
+        fig.text(0.5, 0.33, f"{n_clients} clientes analizados", fontsize=14, color=COLOR_MUTED, ha="center")
+        fig.text(0.5, 0.30, f"{total_comps} competidores scrapeados", fontsize=11, color=COLOR_MUTED, ha="center")
+        fig.text(0.5, 0.10, "Xiaomi-12 worker  -  BrightLocal 2026  -  Auto-generated",
                  ha="center", fontsize=9, color=COLOR_MUTED, style="italic")
         pdf.savefig(fig, facecolor=COLOR_BG)
         plt.close(fig)
