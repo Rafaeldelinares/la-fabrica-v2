@@ -300,3 +300,33 @@ Resiliencia y bootstrap del Xiaomi-12 (worker nato de cron + scrapers):
 - **Suite completa GBP** — 105/105 tests pasando.
 
 (Plus commits to come for this Unreleased section's docs and code-split.)
+## [Unreleased] — 2026-08-13 — PDF server: 1 cliente = 2 paginas
+
+Fix para el flujo del modal de informe competitivo cuando el admin
+hace click en un cliente especifico. Antes devolvia un PDF minimo
+sin cajas/logo. Ahora devuelve el formato completo:
+
+- Portada con logo ByBusiness + fecha + stats
+- 4 cajas con bordes visibles:
+  - Caja 1: Score gauge + Rating vs promedio + Reviews vs promedio
+  - Caja 2: TOP 5 COMPETIDORES POR RATING
+  - Caja 3: ACTIVIDADES DE COMPETIDORES (nube)
+  - Caja 4: RECOMENDACIONES
+
+Cambios:
+- `enviar_informes.generate_pdf_bytes(cliente_id=None)` acepta parametro
+  para filtrar data y generar solo el detalle del cliente pedido
+- `pdf_http_server.py` importa `enviar_informes` como modulo y llama
+  directamente `generate_pdf_bytes(cliente_id=X)` (sin subprocess)
+- Ya no envia email automaticamente (eso lo hace solo main() cuando
+  se ejecuta directamente)
+
+Test verificado:
+- webhook V8 con cliente_id=496: HTTP 200, 92 KB, **2 paginas**,
+  formato completo con cajas/logo
+- Antes: 55 KB, 1 pagina, formato minimo (sin cajas)
+
+Commits:
+- `a093ad1` fix(pdf): import directamente en lugar de subprocess
+- `7506d45` fix(crm): pdf server devuelve full-format PDF para 1 cliente
+

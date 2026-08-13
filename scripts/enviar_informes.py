@@ -17,8 +17,12 @@ sys.path.insert(0, '/opt/fabrica/scripts')
 from generar_pdf_informes import fetch_data, calc_score
 
 
-def generate_pdf_bytes():
-    """Genera PDF en memoria (BytesIO). NO guarda a disco."""
+def generate_pdf_bytes(cliente_id=None):
+    """Genera PDF en memoria (BytesIO). NO guarda a disco.
+
+    Args:
+        cliente_id: int or None. Si se pasa, filtra por ese cliente.
+    """
     import matplotlib
     matplotlib.use("Agg")
     from matplotlib.backends.backend_pdf import PdfPages
@@ -345,7 +349,7 @@ def generate_pdf_bytes():
 
     # PDF en memoria (no disco)
     pdf_buffer = io.BytesIO()
-    data = fetch_data()
+    data = fetch_data(cliente_id=cliente_id)
     if not data:
         return None
     total_comps = sum(int(d.get('competitors_count', 0) or 0) for d in data)
