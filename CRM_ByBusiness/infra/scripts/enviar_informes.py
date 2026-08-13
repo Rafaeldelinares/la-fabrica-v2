@@ -11,14 +11,20 @@ import json
 import base64
 import urllib.request
 import subprocess
+import sys as _sys_for_generate
 from datetime import date
 
 sys.path.insert(0, '/opt/fabrica/scripts')
 from generar_pdf_informes import fetch_data, calc_score
 
 
-def generate_pdf_bytes():
-    """Genera PDF en memoria (BytesIO). NO guarda a disco."""
+def generate_pdf_bytes(cliente_id=None):
+    """Genera PDF en memoria (BytesIO). NO guarda a disco.
+
+    Args:
+        cliente_id: int or None. Si se pasa, filtra por ese cliente.
+        Si es None, intenta leer --cliente-id de sys.argv (compatibilidad CLI).
+    """
     import matplotlib
     matplotlib.use("Agg")
     from matplotlib.backends.backend_pdf import PdfPages
@@ -345,22 +351,37 @@ def generate_pdf_bytes():
 
     # PDF en memoria (no disco)
     pdf_buffer = io.BytesIO()
-    data = fetch_data()
+    # Filtrar por cliente_id: parametro tiene prioridad, luego sys.argv
+    _cliente_id = cliente_id
+    if _cliente_id is None:
+        for i, arg in enumerate(_sys_for_generate.argv):
+            if arg == "--cliente-id" and i + 1 < len(_sys_for_generate.argv):
+                try:
+                    _cliente_id = int(_sys_for_generate.argv[i + 1])
+                except (ValueError, IndexError):
+                    pass
+    if _cliente_id:
+        data = fetch_data(cliente_id=_cliente_id)
+    else:
+        data = fetch_data()
     if not data:
         return None
     total_comps = sum(int(d.get('competitors_count', 0) or 0) for d in data)
 
-    one_page = '--one-page' in sys.argv
-    summary_only = '--summary' in sys.argv
+    one_page = '--one-page' in _sys_for_generate.argv
+    summary_only = '--summary' in _sys_for_generate.argv
 
     with PdfPages(pdf_buffer) as pdf:
-        render_cover(pdf, len(data), total_comps)
-
-        if summary_only:
+        if _cliente_id and len(data) == 1:
+            # 1 cliente: cover + 1 pagina de detalle
+            render_cover(pdf, 1, total_comps)
+            render_client(pdf, data[0])
+        elif summary_only:
             render_summary_page(pdf, data, logo=logo, header_w_inch=header_w_inch, header_h_inch=header_h_inch)
         elif one_page:
             render_one_page_report(pdf, data, logo=logo, header_w_inch=header_w_inch, header_h_inch=header_h_inch)
         else:
+            render_cover(pdf, len(data), total_comps)
             for d in data:
                 render_client(pdf, d)
 

@@ -36,8 +36,6 @@ import urllib.request
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-SCRIPT_PDF = "/opt/fabrica/scripts/generar_pdf_informes.py"
-
 # ── Drive-by auditing ────────────────────────────────────────────────────────
 
 def _insert_audit_history(cliente_id, source, audit_data):
@@ -372,18 +370,22 @@ class PDFHandler(BaseHTTPRequestHandler):
             return None
 
     def _generate_pdf(self, cliente_id, output_path):
-        """Generate PDF using generar_pdf_informes.py (full format for single client).
+        """Generate PDF using enviar_informes.generate_pdf_bytes().
 
-        The PDF has: score gauge, rating/reviews comparisons, top 5 competitors chart,
-        and recommendations — 1 cover + 1 client page.
+        Imports enviar_informes as a module and calls generate_pdf_bytes(cliente_id=X)
+        which returns PDF in memory (no disk write, no email send).
         """
-        cmd = ["python3", SCRIPT_PDF, f"--cliente-id={cliente_id}", output_path]
-        result = subprocess.run(cmd, capture_output=True, timeout=120)
-        if result.returncode != 0:
-            stderr = result.stderr.decode("utf-8", errors="replace")
-            raise RuntimeError(stderr[:500])
-        if not os.path.exists(output_path):
-            raise RuntimeError("PDF not produced")
+        # Add scripts dir to path so we can import enviar_informes
+        scripts_dir = "/opt/fabrica/scripts"
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+
+        import enviar_informes
+        pdf_bytes, data = enviar_informes.generate_pdf_bytes(cliente_id=cliente_id)
+        if not pdf_bytes:
+            raise RuntimeError("No se pudo generar el PDF")
+        with open(output_path, "wb") as f:
+            f.write(pdf_bytes)
 
     def _needs_cid_response(self, cliente_id, cliente_nombre):
         """Return the needs_cid JSON response (200 status)."""
