@@ -2,111 +2,155 @@
 
 ## Why
 
-El usuario quiere **inteligencia competitiva accionable**: si los competidores de un cliente rankean mejor en Google Maps porque usan una categoría más específica, deberíamos **sugerir al cliente** cambiar su categoría GBP a esa más específica.
+El usuario quiere **inteligencia competitiva accionable completa** sobre los clientes:
 
-**Insight clave** (validado en documentación oficial de Google support.google.com/business/answer/3038177, sección "Categories"):
+1. Tomar un cliente X
+2. Mirar su actividad (categoria_principal)
+3. Buscar competidores en Google Maps (misma actividad + localidad + provincia)
+4. Capturar métricas de cada competidor: rating, reviews, categorías, horarios, fotos, respuestas, posts, antigüedad
+5. Análisis comparativo: cómo rankea el cliente vs los competidores, brechas
+6. Generar informe con recomendaciones accionables para mejorar el rankeo del cliente
 
-> "Focus primarily on adding the most specific categories for your business; we'll do the rest behind the scenes. For instance, when you select a specific category like 'Golf Resort', Google implicitly includes more general categories like 'Resort Hotel', 'Hotel', and 'Golf Course.'"
+**Insight clave** (validado en documentación oficial de Google support.google.com/business/answer/3038177):
+
+> "Focus primarily on adding the most specific categories for your business; we'll do the rest behind the scenes."
 
 > "Categories help your customers find accurate, specific results for services they're interested in."
 
-**Las categorías GBP SON editables por el dueño**, y Google explícitamente recomienda categorías **específicas** sobre genéricas para SEO local.
+Las categorías GBP son **editables** y Google recomienda **específicas** sobre genéricas para SEO local. Pero el informe cubre mucho más que categorías — cubre el ecosistema completo de rankeo local.
 
 ## What Changes
 
-### Nueva feature: "Sugerencias de categoría desde competencia"
+### Feature: "Informe competitivo completo de un cliente"
 
-Para cada cliente activo con auditoría:
+Para cada cliente activo:
 
-1. **Detectar competidores mejores posicionados**:
-   - Filtra competidores con `rating > cliente_rating + 0.5` AND `reviews_count > cliente_reviews * 2`
-   - Estos son los que rankean visiblemente mejor
+1. **Scraping profundo** de competidores en zona (top 10)
+   - rating, reviews_count, categoria_principal + adicionales
+   - horarios publicados
+   - cantidad de fotos
+   - tasa de respuesta a reseñas
+   - posts recientes
+   - antigüedad del perfil
 
-2. **Extraer categorías de competidores**:
-   - Wrapper scrapea `categoria_principal` de cada competidor (ya lo hace, falta capturar array)
+2. **Análisis comparativo**
+   - Promedio de competidores
+   - Brechas del cliente (gaps en cada dimensión)
+   - Posición relativa (percentil vs competidores)
 
-3. **Generar sugerencias**:
-   - Si competidores usan categorías **más específicas** que la del cliente → crear sugerencia
-   - Específicidad heurística: longitud de texto + contiene palabras como "24h", "emergencia", "express", etc.
+3. **Generación de recomendaciones accionables**
+   - Reglas determinísticas por gap (ej: "rating < -0.5 → pedir reseñas")
+   - Output priorizado por impacto esperado
+   - Cada recomendación con métrica objetivo concreto
 
-4. **Mostrar en UI**:
-   - Componente nuevo `GbpCategoriaSugerencia.jsx` en `cartera/tabs/gbp/`
-   - Visible en la ficha del cliente con: cat actual vs sugerida + competitors根拠
-   - Botón "Marcar como implementado" (admin confirma tras cambio manual)
+4. **Storage histórico completo** (un informe por cliente cada X semanas)
+   - Ver evolución del cliente vs competencia a lo largo del tiempo
 
-5. **Tracking**:
-   - Re-scrapear cliente cada N días
-   - Si su categoria cambió → marcar sugerencia como `implemented_at`
-   - Histórico en `clientes.categoria_sugerencias_history`
+5. **UI admin-only** (operadores NO lo ven, se dedican a llamar leads)
+   - Componente `GbpInformeCompetencia.jsx` en ficha del cliente
+   - Score visual (verde/amarillo/rojo)
+   - Tabla comparativa cliente vs promedio
+   - Lista priorizada de acciones recomendadas
+   - Histórico de informes (evolución)
+
+6. **Trigger automático cada 4 semanas** (ahora)
+   - Genera informe automático para todos los clientes activos
+   - Sin spam (cada cliente cada 4 semanas, no más seguido)
+
+## Decisiones de scope (confirmadas 2026-08-12)
+
+| Decisión | Valor |
+|----------|-------|
+| Alcance | **B**: análisis completo con informe (no solo categorías) |
+| Storage | **B**: histórico completo (evolución) |
+| Consumidores | **Solo administradores** (operadores NO lo ven) |
+| Trigger | **B**: automático cada 4 semanas |
 
 ## Scope
 
 ### Out of scope
 
+- ❌ Operadores no ven el informe (mantener foco en captura de leads)
 - ❌ Auto-aplicar cambios al GBP del cliente (requiere OAuth + ownership verification del usuario)
-- ❌ Inventar categorías fuera de la lista oficial de Google
-- ❌ Sugerir categorías irrelevantes para el rubro del cliente
+- ❌ Categorías inventadas fuera de la lista oficial de Google
+- ❌ Sugerir categorías irrelevantes para el rubro
+- ❌ Envío automático de informe al cliente por email (futuro)
+- ❌ Análisis de sentimiento de reseñas (futuro)
 
 ### In scope
 
-- ✅ Wrapper scrapea top 10 resultados (con categoria_principal de cada uno)
-- ✅ Script cron `categoria-sugerencias.sh` que detecta oportunidades
-- ✅ Tabla DB nueva `clientes.categoria_sugerencias`
-- ✅ UI en la ficha del cliente con la sugerencia + boton de implementación
-- ✅ Tracking de implementación (manual + automático via re-scrape)
-- ✅ Tests unitarios del detector + componente
+- ✅ Wrapper scrapea top 10 con campos completos (rating, reviews, categorias, horarios, fotos, posts, antigüedad)
+- ✅ Script `generar-informe-competencia.sh` orquesta el flujo
+- ✅ Helper Python `analisis_competencia.py` con reglas de gap detection
+- ✅ Tabla `clientes.informes_competencia` con JSONB de recomendaciones + raw_data
+- ✅ UI admin-only con score visual + tabla comparativa + recomendaciones
+- ✅ Trigger automático cada 4 semanas (sin spam)
+- ✅ RBAC: solo `admin.system.config` ve el informe
+- ✅ Tests unitarios del analizador + componente UI
 
 ## Acceptance Criteria
 
-- [ ] Wrapper `crm-gb-scap.js` `/search-by-name` devuelve array de hasta 10 resultados
-- [ ] Cada resultado trae `categoria_principal` poblada
-- [ ] Script `categoria-sugerencias.sh` corre semanalmente (lunes 6AM, después de `search-sector.sh`)
-- [ ] Detecta correctamente al menos 1 sugerencia real (ej: "Fontanería" → "Servicio de fontanería de emergencia 24h")
-- [ ] Componente UI renderiza la sugerencia con contexto
-- [ ] Botón "Marcar como implementado" actualiza DB
-- [ ] Re-scrape detecta cambio real (ej: después de que admin cambia manualmente en GBP)
-- [ ] Tests del detector: 5 casos (match, no-match, edge cases)
-- [ ] Tests del componente UI: render + RBAC + acción de implementar
-
-## Archivos a crear/modificar
-
-### Nuevos
-- `openspec/changes/2026-08-12-categoria-sugerencias/proposal.md` (este)
-- `openspec/changes/2026-08-12-categoria-sugerencias/tasks.md`
-- `lib/db_query.py` (modificado por sesión anterior)
-- `cron/categoria-sugerencias.sh` (nuevo)
-- `cron/detect_sugerencias.py` (nuevo helper)
-- `src/modules/admin/cartera/tabs/gbp/GbpCategoriaSugerencia.jsx` (nuevo)
-- `src/modules/admin/cartera/tabs/gbp/GbpCategoriaSugerencia.test.jsx` (nuevo)
-
-### Modificados
-- `lib/crm-gb-scap.js` — endpoint `/search-by-name` devuelve array (no 1)
-- `infra/xiaomi/scripts/backfill-categoria.sql` — agregar vista materializada de sugerencias
-- `CHANGELOG.md` — nueva sección
+- [ ] Wrapper `crm-gb-scap.js` `/search-by-name` devuelve top 10 con: rating, reviews, categorias_adicionales, horarios, fotos_count, posts_count, antiguedad_dias
+- [ ] Helper `analisis_competencia.py` detecta gaps y genera ≥3 recomendaciones por cliente
+- [ ] Script `generar-informe-competencia.sh` corre end-to-end sin errores
+- [ ] Tabla `clientes.informes_competencia` persiste histórico de informes
+- [ ] Trigger automático cada 4 semanas (configurable via crontab)
+- [ ] Componente `GbpInformeCompetencia.jsx` visible SOLO para admin (RBAC `admin.system.config`)
+- [ ] Score visual correcto: verde (rankea mejor), amarillo (en promedio), rojo (rankea peor)
+- [ ] Tabla comparativa cliente vs promedio competidores por dimensión
+- [ ] Lista priorizada de recomendaciones con métrica objetivo
+- [ ] Histórico visible (al menos 3 informes anteriores del mismo cliente)
+- [ ] Tests del analizador: 5+ casos (gaps múltiples, sin gaps, cliente top, cliente bottom)
+- [ ] Tests del componente UI: render + RBAC + acciones
+- [ ] Build + suite completa pasa sin errores
 
 ## Effort
 
-~10-12 horas distribuidas en 3-4 sesiones:
+~16h distribuidas en 4-5 sesiones:
 
 | Fase | Horas |
 |------|-------|
-| Wrapper top 10 + categoria por competidor | 2-3 |
-| Detector SQL/Python | 1-2 |
-| UI componente ficha cliente | 3-4 |
-| Tracking re-scrape | 1 |
-| Tests | 2 |
-| Docs | 1 |
+| Phase 1: Wrapper ampliado + cron + analizador | 8 |
+| Phase 2: DB tabla + view | 1 |
+| Phase 3: UI componente + hook + tests | 5 |
+| Phase 4: Trigger automático + RBAC enforcement | 1 |
+| Phase 5: Docs | 1 |
+
+## Archivos
+
+### Nuevos (xiaomi-12)
+- `lib/analisis_competencia.py` — helper de gap detection + recomendaciones
+- `cron/generar-informe-competencia.sh` — orquestador
+- `cron/trigger-informes.sh` — auto-trigger cada 4 semanas
+- `lib/crm-gb-scap.js` — extendido (modificado)
+
+### Nuevos (CRM)
+- `src/modules/admin/cartera/tabs/gbp/GbpInformeCompetencia.jsx`
+- `src/modules/admin/cartera/tabs/gbp/GbpInformeCompetencia.test.jsx`
+- `src/modules/admin/cartera/tabs/gbp/useInformeCompetencia.js`
+- Webhook n8n `crm-informe-competencia-get` (GET status)
+- Webhook n8n `crm-informe-competencia-generate` (POST on-demand)
+
+### Modificados (CRM)
+- `src/modules/admin/cartera/tabs/gbp/index.jsx` — integrar componente
+- `src/shared/layout/WorkBody.jsx` — si aplica acceso directo admin
+
+### Modificados (DB)
+- Nueva tabla `clientes.informes_competencia` (VPS via DDL)
 
 ## Risks
 
-1. **Cambios en Google Maps HTML**: el selector actual ya estaba roto antes; cualquier fix puede romperse de nuevo. Mitigación: tests con snapshots de HTML de Google Maps.
+1. **Cambios en Google Maps HTML**: el selector de cada campo (horarios, fotos, posts) puede romperse. Mitigación: tests con snapshots de HTML + fallback cuando un campo no se puede extraer.
 
-2. **Falsos positivos en sugerencias**: una categoría más larga NO siempre es más específica. Mitigación: heurística + whitelist de keywords + revisión manual de admin.
+2. **Volumen de scrape**: 10 competidores × 8 campos = muchos requests. Mitigación: rate limiting (1.5s delay entre scrapes ya implementado) + ejecutar en horario nocturno.
 
-3. **Cambio de categoría manual**: no podemos automatizar el cambio en GBP (requiere OAuth del dueño). Mitigación: mostrar instrucciones claras + tracking del cambio manual.
+3. **Falsos positivos en recomendaciones**: las reglas determinísticas pueden no aplicar al contexto del cliente. Mitigación: el admin puede marcar cada recomendación como "implementada" o "descartada" para que el sistema aprenda qué reglas son útiles.
+
+4. **Inconsistencia en datos scrapeados**: Google Maps a veces devuelve categoria == nombre del negocio. Mitigación: filtros existentes en `detect_sugerencias.py`.
 
 ## Related
 
-- Sprint activo: `2026-08-11-gbp-ficha-enrichment/` (Stage 2 — incluye GbpSectorCard que muestra contexto)
-- Memoria #1687: sprint xiaomi-audits-and-heatmaps (5 crons activos, base del scraper)
-- Documentación oficial Google: support.google.com/business/answer/3038177 sección "Categories"
+- Sprint `2026-08-11-gbp-ficha-enrichment/` (GbpFichaLayout base)
+- Sprint `2026-08-11-xiaomi-audits-and-heatmaps/` (auditoría base)
+- Memoria #1687 (sprint xiaomi base, 5 crons activos)
+- Documentación oficial Google: support.google.com/business/answer/3038177
