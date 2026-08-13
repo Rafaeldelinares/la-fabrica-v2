@@ -1,217 +1,297 @@
 #!/usr/bin/env python3
 """
-enviar_informes.py - Genera PDF y envia email con link de descarga.
-
-Flujo:
-1. Genera PDF con graficas (matplotlib)
-2. Sube PDF a 0x0.st (publico, expira en 24h)
-3. Envia email via SMTP con el link
-
-SMTP se configura via env vars:
-  SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
+enviar_informes.py - Genera PDF en memoria y envia email con attachment.
+Sin guardar PDF en disco. Pipeline: memoria -> base64 -> n8n webhook -> email.
 """
 
 import os
 import sys
+import io
 import json
+import base64
 import urllib.request
-import urllib.parse
 import subprocess
 from datetime import date
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
-from email.utils import formataddr
-import smtplib
 
-# Importar funciones del script de PDF
 sys.path.insert(0, '/opt/fabrica/scripts')
 from generar_pdf_informes import fetch_data, calc_score
 
 
-def upload_0x0st(filepath, expires="24"):
-    """Sube archivo a 0x0.st y devuelve URL."""
-    with open(filepath, "rb") as f:
-        files = {"file": f}
-        data = urllib.parse.urlencode({"expires": expires}).encode()
-        req = urllib.request.Request(
-            "https://0x0.st",
-            data=f.read(),
-            headers={"Content-Type": "application/octet-stream", "User-Agent": "CRM-ByBusiness/1.0"},
-            method="POST"
-        )
-    # 0x0.st espera el archivo directamente como body, no como multipart
-    with open(filepath, "rb") as f:
-        req = urllib.request.Request("https://0x0.st", data=f.read(),
-                                      headers={"Content-Type": "application/octet-stream"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            url = resp.read().decode().strip()
-    return url
+def generate_pdf_bytes():
+    """Genera PDF en memoria (BytesIO). NO guarda a disco."""
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib.backends.backend_pdf import PdfPages
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Wedge
+    import numpy as np
 
+    # Color scheme Navy Industrial
+    COLOR_BG = "#0a0e1a"
+    COLOR_PANEL = "#0f1424"
+    COLOR_TEXT = "#e2e8f0"
+    COLOR_MUTED = "#94a3b8"
+    COLOR_GOOD = "#10b981"
+    COLOR_WARN = "#f59e0b"
+    COLOR_BAD = "#ef4444"
+    COLOR_ACCENT = "#D00000"
+    COLOR_BORDER = "#334155"
 
-def send_email(to_email, subject, body_text, attachment_path=None):
-    """Envia email via SMTP con attachment opcional."""
-    smtp_host = os.environ.get("SMTP_HOST", "smtp.ia-bybusiness.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", "465"))
-    smtp_user = os.environ.get("SMTP_USER", "informacion@ia-bybusiness.com")
-    smtp_pass = os.environ.get("SMTP_PASS", "")
-    smtp_from = os.environ.get("SMTP_FROM", smtp_user)
-    smtp_secure = os.environ.get("SMTP_SECURE", "ssl")  # ssl or starttls
+    plt.rcParams.update({
+        "figure.facecolor": COLOR_BG,
+        "axes.facecolor": COLOR_PANEL,
+        "axes.edgecolor": COLOR_BORDER,
+        "axes.labelcolor": COLOR_TEXT,
+        "text.color": COLOR_TEXT,
+        "xtick.color": COLOR_MUTED,
+        "ytick.color": COLOR_MUTED,
+        "font.family": "DejaVu Sans",
+        "font.size": 9,
+    })
 
-    msg = MIMEMultipart()
-    msg["From"] = formataddr(("CRM ByBusiness", smtp_from))
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body_text, "plain", "utf-8"))
+    def score_color(s):
+        return COLOR_GOOD if s >= 70 else COLOR_WARN if s >= 40 else COLOR_BAD
+    def score_label(s):
+        return "BUENO" if s >= 70 else "MEJORABLE" if s >= 40 else "CRITICO"
 
-    if attachment_path and os.path.exists(attachment_path):
-        with open(attachment_path, "rb") as f:
-            part = MIMEApplication(f.read(), Name=os.path.basename(attachment_path))
-            part["Content-Disposition"] = f'attachment; filename="{os.path.basename(attachment_path)}"'
-            msg.attach(part)
+    def draw_gauge(ax, score):
+        color = score_color(score)
+        ax.add_patch(Wedge((0.5, 0.5), 0.4, 0, 360, width=0.08,
+                          facecolor=COLOR_BORDER, transform=ax.transAxes))
+        ax.add_patch(Wedge((0.5, 0.5), 0.4, 0, 360 * score / 100, width=0.08,
+                          facecolor=color, transform=ax.transAxes))
+        ax.text(0.5, 0.55, f"{score}", ha="center", va="center",
+                fontsize=36, fontweight="bold", color=COLOR_TEXT, transform=ax.transAxes)
+        ax.text(0.5, 0.30, score_label(score), ha="center", va="center",
+                fontsize=11, color=color, transform=ax.transAxes)
+        ax.text(0.5, 0.18, "de 100", ha="center", va="center",
+                fontsize=8, color=COLOR_MUTED, transform=ax.transAxes)
+        ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
 
-    if smtp_secure == "ssl":
-        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30) as server:
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_from, to_email, msg.as_string())
-    else:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-            server.starttls()
-            server.login(smtp_user, smtp_pass)
-            server.sendmail(smtp_from, to_email, msg.as_string())
+    def draw_compare(ax, label, cv, av, max_v, unit=""):
+        ax.set_xlim(0, 1.1); ax.set_ylim(0, 1); ax.axis("off")
+        ax.text(0, 0.85, label, fontsize=10, color=COLOR_TEXT,
+                fontweight="bold", transform=ax.transAxes)
+        pct = cv / max_v if max_v > 0 else 0
+        col = score_color(80 if pct >= 0.7 else 50 if pct >= 0.4 else 20)
+        ax.add_patch(plt.Rectangle((0.15, 0.55), 0.7 * pct, 0.18, facecolor=col, transform=ax.transAxes))
+        ax.text(0.15 + 0.7 * pct + 0.02, 0.64, f"{cv}{unit}", fontsize=9,
+                color=COLOR_TEXT, va="center", transform=ax.transAxes)
+        pct_avg = av / max_v if max_v > 0 else 0
+        ax.add_patch(plt.Rectangle((0.15, 0.30), 0.7 * pct_avg, 0.18, facecolor=COLOR_BORDER, transform=ax.transAxes))
+        ax.text(0.15 + 0.7 * pct_avg + 0.02, 0.39, f"prom {av}{unit}", fontsize=8,
+                color=COLOR_MUTED, va="center", transform=ax.transAxes)
+        ax.text(0.0, 0.64, "Cliente", fontsize=8, color=COLOR_MUTED, ha="right", va="center", transform=ax.transAxes)
+        ax.text(0.0, 0.39, "Comp.", fontsize=8, color=COLOR_MUTED, ha="right", va="center", transform=ax.transAxes)
 
+    def draw_comps(ax, comps):
+        if not comps:
+            ax.text(0.5, 0.5, "Sin datos", ha="center", va="center", fontsize=10, color=COLOR_MUTED, transform=ax.transAxes)
+            ax.axis("off"); return
+        sorted_c = sorted(comps, key=lambda c: c.get("rating", 0) or 0, reverse=True)[:5]
+        names = [c.get("name", "?")[:25] for c in sorted_c]
+        ratings = [c.get("rating", 0) or 0 for c in sorted_c]
+        reviews = [c.get("reviews_count", 0) or 0 for c in sorted_c]
+        y = np.arange(len(names))
+        cols = [score_color(r * 20) for r in ratings]
+        bars = ax.barh(y, ratings, color=cols, height=0.6)
+        ax.set_yticks(y); ax.set_yticklabels(names, fontsize=8)
+        ax.set_xlim(0, 5.2); ax.set_xlabel("Rating", fontsize=8)
+        ax.invert_yaxis()
+        ax.grid(axis="x", alpha=0.3, linestyle="--", color=COLOR_BORDER)
+        ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
+        for bar, r, rev in zip(bars, ratings, reviews):
+            ax.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height() / 2,
+                    f"{r:.1f} ({rev})", va="center", fontsize=8, color=COLOR_TEXT)
 
-def main():
-    to_email = sys.argv[1] if len(sys.argv) > 1 else "rafaeldelinares@gmail.com"
-    today = date.today().isoformat()
-    pdf_path = f"/tmp/informes_{today}.pdf"
-    public_url = f"https://crm.ia-bybusiness.com/informes/informes_{today}.pdf"
+    def draw_recs(ax, recs):
+        if not recs:
+            ax.text(0.5, 0.5, "Sin recomendaciones", ha="center", va="center", fontsize=10, color=COLOR_MUTED, transform=ax.transAxes)
+            ax.axis("off"); return
+        ax.axis("off"); ax.set_xlim(0, 1); ax.set_ylim(0, 1)
+        ax.text(0.0, 0.97, "RECOMENDACIONES", fontsize=10, fontweight="bold",
+                color=COLOR_ACCENT, transform=ax.transAxes)
+        y = 0.85
+        for r in recs[:4]:
+            tipo = r.get("tipo", "")
+            mensaje = r.get("mensaje", "")
+            if len(mensaje) > 80:
+                mensaje = mensaje[:77] + "..."
+            ax.text(0.0, y, f"> {tipo}", fontsize=9, color=COLOR_WARN,
+                    fontweight="bold", transform=ax.transAxes)
+            ax.text(0.0, y - 0.10, mensaje, fontsize=8, color=COLOR_TEXT, transform=ax.transAxes, wrap=True)
+            if r.get("accion"):
+                ax.text(0.0, y - 0.20, f"-> {r['accion'][:70]}", fontsize=7,
+                        color=COLOR_MUTED, style="italic", transform=ax.transAxes)
+            y -= 0.30
+            if y < 0.05: break
 
-    print("=" * 60)
-    print(f"INFORME COMPETITIVO CRM - {today}")
-    print("=" * 60)
+    def render_client(pdf, d):
+        score = calc_score(d)
+        cr = float(d.get("client_rating", 0) or 0)
+        ar = float(d.get("avg_rating", 0) or 0)
+        crv = int(d.get("client_reviews", 0) or 0)
+        arv = int(d.get("avg_reviews", 0) or 0)
+        comps = d.get("competitors", [])
 
-    # 1. Generar PDF
-    print("\n[1/3] Generando PDF con graficas...")
-    subprocess.run(["python3", "/opt/fabrica/scripts/generar_pdf_informes.py", pdf_path], check=True)
+        fig = plt.figure(figsize=(11, 8.5))
+        fig.text(0.05, 0.95, d.get("nombre", "?"), fontsize=18, fontweight="bold", color=COLOR_TEXT)
+        fig.text(0.05, 0.91, f"{d.get('localidad', '?')}, {d.get('provincia', '?')}  -  ID {d.get('cliente_id')}",
+                 fontsize=10, color=COLOR_MUTED)
+        fig.text(0.95, 0.93, date.today().isoformat(), ha="right", fontsize=9, color=COLOR_MUTED)
 
-    import os
-    size = os.path.getsize(pdf_path)
-    print(f"  PDF: {pdf_path} ({size:,} bytes)")
+        ax_g = fig.add_axes([0.05, 0.65, 0.25, 0.20])
+        draw_gauge(ax_g, score)
 
-    # 2. Copiar a path publico (servido por nginx del CRM)
-    print("\n[2/3] Publicando en CRM...")
-    try:
-        import shutil
-        public_dir = "/var/www/crm.ia-bybusiness.com/informes"
-        os.makedirs(public_dir, exist_ok=True)
-        public_path = f"{public_dir}/informes_{today}.pdf"
-        shutil.copy(pdf_path, public_path)
-        # Verificar accesibilidad
-        import urllib.request
-        req = urllib.request.Request(public_url, method="HEAD")
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            status = resp.status
-        if status == 200:
-            print(f"  Public URL: {public_url} (HTTP {status})")
-            url = public_url
-        else:
-            print(f"  WARN: HTTP {status}, fallback")
-            url = None
-    except Exception as e:
-        print(f"  ERROR: {e}")
-        url = None
+        ax_r = fig.add_axes([0.35, 0.75, 0.55, 0.10])
+        draw_compare(ax_r, "Rating", cr, ar, 5.0, " /5")
+        ax_rev = fig.add_axes([0.35, 0.63, 0.55, 0.10])
+        draw_compare(ax_rev, "Reseñas", crv, arv, max(arv * 2, 100))
 
-    # 3. Construir email
-    print("\n[3/3] Enviando email...")
+        ax_c = fig.add_axes([0.05, 0.32, 0.55, 0.27])
+        ax_c.set_title("Top 5 competidores por rating", fontsize=11, color=COLOR_TEXT, loc="left", pad=8)
+        draw_comps(ax_c, comps)
+
+        ax_recs = fig.add_axes([0.65, 0.32, 0.30, 0.55])
+        draw_recs(ax_recs, d.get("recomendaciones", []))
+
+        fig.text(0.5, 0.02, f"{len(comps)} competidores analizados  -  CRM ByBusiness",
+                 ha="center", fontsize=8, color=COLOR_MUTED, style="italic")
+        pdf.savefig(fig, facecolor=COLOR_BG)
+        plt.close(fig)
+
+    def render_cover(pdf, n_clients, total_comps):
+        fig = plt.figure(figsize=(11, 8.5))
+        fig.text(0.5, 0.7, "INFORME COMPETITIVO", fontsize=32, fontweight="bold", color=COLOR_TEXT, ha="center")
+        fig.text(0.5, 0.62, "CRM ByBusiness  -  Google Business Profile",
+                 fontsize=14, color=COLOR_ACCENT, ha="center", fontweight="bold")
+        fig.text(0.5, 0.50, date.today().strftime("%d de %B de %Y"),
+                 fontsize=18, color=COLOR_TEXT, ha="center")
+        fig.text(0.5, 0.42, f"{n_clients} clientes analizados", fontsize=14, color=COLOR_MUTED, ha="center")
+        fig.text(0.5, 0.38, f"{total_comps} competidores scrapeados", fontsize=11, color=COLOR_MUTED, ha="center")
+        fig.text(0.5, 0.08, "Xiaomi-12 worker  -  BrightLocal 2026  -  Auto-generated",
+                 ha="center", fontsize=9, color=COLOR_MUTED, style="italic")
+        pdf.savefig(fig, facecolor=COLOR_BG)
+        plt.close(fig)
+
+    # PDF en memoria (no disco)
+    pdf_buffer = io.BytesIO()
     data = fetch_data()
+    if not data:
+        return None
+    total_comps = sum(int(d.get('competitors_count', 0) or 0) for d in data)
+
+    with PdfPages(pdf_buffer) as pdf:
+        render_cover(pdf, len(data), total_comps)
+        for d in data:
+            render_client(pdf, d)
+
+    pdf_buffer.seek(0)
+    return pdf_buffer.getvalue(), data
+
+
+def build_email_body(data, today):
+    """Construye texto plano del email con resumen."""
     n_clients = len(data)
     n_comps = sum(int(d.get("competitors_count", 0) or 0) for d in data)
 
-    # Construir body texto con link destacado al PDF
+    scored = [(calc_score(d), d) for d in data]
+    scored.sort(key=lambda x: x[0])
+
     body_lines = [
         "=" * 60,
         "INFORME COMPETITIVO CRM ByBusiness",
         f"Fecha: {today}",
-        f"Clientes: {n_clients}  |  Competidores scrapeados: {n_comps}",
+        f"Clientes: {n_clients}  |  Competidores: {n_comps}",
         "=" * 60,
         "",
+        ">>> PDF ADJUNTO con graficas de cada cliente <<<",
+        "   (score, comparativa rating/reviews, top 5 competidores, recomendaciones)",
+        "",
+        "=" * 60,
+        "",
+        "RESUMEN (ordenado por criticidad):",
+        "-" * 50,
     ]
 
-    if url:
-        body_lines.append(f">>> DESCARGA EL PDF COMPLETO CON GRAFICAS: <<<")
-        body_lines.append("")
-        body_lines.append(f"  {url}")
-        body_lines.append("")
-        body_lines.append("(11 paginas con graficas de score, comparativas, top competidores, recomendaciones)")
-        body_lines.append("")
-        body_lines.append("=" * 60)
+    for score, d in scored:
+        label = "CRITICO" if score < 40 else "MEJORABLE" if score < 70 else "OK"
+        cr = float(d.get("client_rating", 0) or 0)
+        ar = float(d.get("avg_rating", 0) or 0)
+        crv = int(d.get("client_reviews", 0) or 0)
+        arv = int(d.get("avg_reviews", 0) or 0)
+        body_lines.append(f"[{label}] #{d.get('cliente_id')} {d.get('nombre', '?')[:40]}")
+        body_lines.append(f"   Score {score}/100  Rating {cr} vs {ar}  Reviews {crv} vs {arv}")
+        body_lines.append(f"   {d.get('localidad', '?')}")
         body_lines.append("")
 
-    # Top 5 clientes por score (top críticos primero)
-    scored = [(calc_score(d), d) for d in data]
-    scored.sort(key=lambda x: x[0])  # menor score primero (críticos)
-
-    if scored:
-        body_lines.append("RESUMEN (ordenado por criticidad):")
-        body_lines.append("-" * 50)
-        for score, d in scored[:5]:
-            label = "CRITICO" if score < 40 else "MEJORABLE" if score < 70 else "OK"
-            cr = float(d.get("client_rating", 0) or 0)
-            ar = float(d.get("avg_rating", 0) or 0)
-            crv = int(d.get("client_reviews", 0) or 0)
-            arv = int(d.get("avg_reviews", 0) or 0)
-            body_lines.append(f"[{label}] #{d.get('cliente_id')} {d.get('nombre', '?')[:40]}")
-            body_lines.append(f"   Score {score}/100  Rating {cr} vs {ar}  Reviews {crv} vs {arv}")
-            body_lines.append(f"   {d.get('localidad', '?')}")
-            body_lines.append("")
-
-    body_lines.append("=" * 50)
-    if url:
-        body_lines.append(f"DESCARGA EL PDF COMPLETO (con graficas):")
-        body_lines.append(f"  {url}")
-        body_lines.append("")
-        body_lines.append("(link expira en 24h)")
-    else:
-        body_lines.append("PDF disponible en el VPS:")
-        body_lines.append(f"  {pdf_path}")
-        body_lines.append(f"  {size:,} bytes")
+    body_lines.append("=" * 60)
     body_lines.append("")
-    body_lines.append("--")
-    body_lines.append("CRM ByBusiness  ·  xiaomi-12 scraper")
+    body_lines.append("CRM ByBusiness - xiaomi-12 scraper")
     body_lines.append("BrightLocal 2026 ranking factors")
 
-    body = "\n".join(body_lines)
+    return "\n".join(body_lines)
 
-    # 4. Enviar email
-    subject = f"CRM Informes competitivos ({n_clients} clientes, {n_comps} competidores) - {today}"
 
-    # Nota: SMTP creds son del n8n, no tenemos acceso directo
-    # Por ahora usamos el path via n8n
-    # Si SMTP_PASS no está configurado, intentamos via n8n webhook
-    smtp_pass = os.environ.get("SMTP_PASS", "")
-    if smtp_pass:
-        send_email(to_email, subject, body, pdf_path)
-        print(f"  Email enviado a {to_email}")
-        print(f"  Subject: {subject}")
-        print(f"  Attachment: {pdf_path} ({size:,} bytes)")
-    else:
-        # Trigger via n8n webhook V4 (sin PDF pero con resumen)
-        print(f"  SMTP_PASS no configurado. Enviando via n8n webhook...")
-        webhook_url = "https://n8n.ia-bybusiness.online/webhook/crm-informe-v4"
-        try:
-            req = urllib.request.Request(webhook_url,
-                                         data=json.dumps({}).encode(),
-                                         headers={"Content-Type": "application/json"})
-            resp = urllib.request.urlopen(req, timeout=60)
+def main():
+    today = date.today().isoformat()
+    print("=" * 60)
+    print(f"INFORME COMPETITIVO CRM - {today}")
+    print("=" * 60)
+
+    # 1. Generar PDF en memoria
+    print("\n[1/3] Generando PDF en memoria...")
+    result = generate_pdf_bytes()
+    if not result:
+        print("ERROR: no se pudo generar el PDF")
+        sys.exit(1)
+    pdf_bytes, data = result
+    pdf_size = len(pdf_bytes)
+    print(f"  PDF: {pdf_size:,} bytes (en memoria, NO en disco)")
+
+    # 2. Construir body
+    print("\n[2/3] Construyendo email...")
+    body = build_email_body(data, today)
+
+    # 3. Enviar via n8n (que tiene SMTP cred)
+    # Pasamos PDF en base64 en el body del webhook
+    print("\n[3/3] Enviando email via n8n con PDF adjunto...")
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("ascii")
+    payload = {
+        "to": "rafaeldelinares@gmail.com",
+        "subject": f"CRM Informes competitivos ({len(data)} clientes, {sum(int(d.get('competitors_count',0)or 0) for d in data)} competidores) - {today}",
+        "body": body,
+        "pdf_b64": pdf_b64,
+        "pdf_filename": f"informe_competitivo_{today}.pdf",
+        "pdf_size": pdf_size,
+    }
+
+    # Llamar al webhook que adjunta el PDF
+    webhook_url = "https://n8n.ia-bybusiness.online/webhook/crm-informe-with-pdf"
+    try:
+        req = urllib.request.Request(
+            webhook_url,
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
             result = json.loads(resp.read())
-            print(f"  Webhook response: {result.get('messageId', '?')}")
-            print(f"  PDF local: {pdf_path}")
-            print(f"  URL publica: {url}")
-        except Exception as e:
-            print(f"  ERROR webhook: {e}")
+        print(f"  Email enviado! messageId: {result.get('messageId', '?')}")
+    except Exception as e:
+        print(f"  ERROR webhook: {e}")
+        print("  Fallback: webhook V4 (sin adjunto)")
+        # Fallback al V4 que ya funciona
+        v4_url = "https://n8n.ia-bybusiness.online/webhook/crm-informe-v4"
+        try:
+            req = urllib.request.Request(v4_url, data=b"{}",
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                result = json.loads(resp.read())
+            print(f"  V4 OK: {result.get('messageId', '?')}")
+        except Exception as e2:
+            print(f"  V4 también falló: {e2}")
 
-    print("\nDone!")
+    print(f"\nDone! PDF nunca tocó el disco (todo en memoria).")
 
 
 if __name__ == "__main__":
