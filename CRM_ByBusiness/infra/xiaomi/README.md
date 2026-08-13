@@ -379,6 +379,52 @@ aceptable para el uso actual en `audit-competencia`.
 
 ---
 
+## Drive-by Auditing (2026-08-13)
+
+Cuando `generar-informe-competencia.sh` genera un informe competitivo, también
+guarda los datos de auditoría de la ficha GBP del cliente en `clientes.gbp_audit_history`.
+
+### Mecanismo
+
+1. El script scrapea los datos del cliente (wrapper `crm-gb-scap.js scrape <cid>`)
+2. **Después del scraping exitoso**: imprime un bloque JSON con markers:
+   ```
+   ===AUDIT_JSON_START===
+   {"place_id":"...","rating_promedio":4.5,"reviews_count":10,...}
+   ===AUDIT_JSON_END===
+   ```
+3. El PDF server (VPS) captura el output, parsea el bloque y hace UPSERT en `gbp_audit_history`
+
+### Implementación en `generar-informe-competencia.sh`
+
+Después de la llamada al wrapper que scrapea el cliente (no los competidores):
+
+```bash
+# Capture wrapper output for the client
+CLIENTE_AUDIT_JSON=$(node bin/crm-gb-scap.js scrape "$CLIENTE_CID" 2>/dev/null)
+
+# Print drive-by audit block for the VPS to parse
+echo "===AUDIT_JSON_START==="
+echo "$CLIENTE_AUDIT_JSON"
+echo "===AUDIT_JSON_END==="
+```
+
+### Campos de auditoría capturados
+
+El wrapper `crm-gb-scap.js` ya produce todos estos campos:
+- `place_id`, `rating_promedio`, `reviews_count`
+- `fotos_count`, `posts_count`, `qa_count`
+- `descripcion`, `categoria_principal`, `categorias_secundarias`
+- `horarios_dias_cubiertos`, `reviews_respondidas_pct`, `reviews_respondidas_count`
+- `limited_view`, `atributos_seteados`, `atributos_total`
+
+### Fuente en `gbp_audit_history`
+
+- `audit_source` = `'webhook'` (CHECK constraint compatible)
+- Los datos se upsert-ean (DELETE + INSERT) por `(place_id, audit_source)`
+
+---
+
 ## Scripts de backfill
 
 | Script | Qué hace | Cuándo correrlo |
@@ -390,6 +436,7 @@ aceptable para el uso actual en `audit-competencia`.
 
 | Fecha | Cambio | Commit |
 |-------|--------|--------|
+| 2026-08-13 | Drive-by auditing: `generar-informe-competencia.sh` imprime AUDIT_JSON block para que el VPS haga UPSERT en `gbp_audit_history` | (sesión actual) |
 | 2026-08-12 | Bugs 1+2 fixes: backfill categoria (61 rows), timing fix search-by-name wrapper (4s wait before DOM query) | (sesión actual) |
 | 2026-08-12 | Bugs 1+2+3 fixes: backfill categoria, search-sector lat/lng, audit-competencia syntax | (sesión actual) |
 | 2026-08-12 | sshd-watchdog + tailscale-watchdog pre-armado | (sesión actual) |

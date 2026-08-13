@@ -350,13 +350,108 @@ def generate_pdf_bytes():
         return None
     total_comps = sum(int(d.get('competitors_count', 0) or 0) for d in data)
 
+    one_page = '--one-page' in sys.argv
+    summary_only = '--summary' in sys.argv
+
     with PdfPages(pdf_buffer) as pdf:
         render_cover(pdf, len(data), total_comps)
-        for d in data:
-            render_client(pdf, d)
+
+        if summary_only:
+            render_summary_page(pdf, data, logo=logo, header_w_inch=header_w_inch, header_h_inch=header_h_inch)
+        elif one_page:
+            render_one_page_report(pdf, data, logo=logo, header_w_inch=header_w_inch, header_h_inch=header_h_inch)
+        else:
+            for d in data:
+                render_client(pdf, d)
 
     pdf_buffer.seek(0)
     return pdf_buffer.getvalue(), data
+
+
+def render_one_page_report(pdf, data, logo=None, header_w_inch=0, header_h_inch=0):
+    """TODO el informe en una sola pagina: portada con tabla resumen."""
+    import matplotlib.pyplot as plt
+    # Colores light theme (consistentes con el resto del PDF)
+    _BG = "#FFFFFF"
+    _TEXT = "#0F172A"
+    _MUTED = "#64748B"
+    _BORDER = "#CBD5E1"
+    _GOOD = "#059669"
+    _WARN = "#D97706"
+    _BAD = "#DC2626"
+    _ACCENT = "#D00000"
+
+    fig = plt.figure(figsize=(11, 8.5))
+
+    # Logo
+    if logo is not None:
+        ax_logo = fig.add_axes([0.92 - header_w_inch/11, 0.93, header_w_inch/11, header_h_inch/8.5], zorder=10)
+        ax_logo.imshow(logo)
+        ax_logo.axis("off")
+
+    # Header
+    fig.text(0.05, 0.96, "INFORME COMPETITIVO - RESUMEN EJECUTIVO", fontsize=18,
+             fontweight="bold", color=_TEXT)
+    fig.text(0.95, 0.96, date.today().isoformat(), fontsize=10,
+             color=_MUTED, ha="right")
+
+    n = len(data)
+    fig.text(0.05, 0.91, f"Resumen de {n} clientes analizados", fontsize=11,
+             color=_MUTED)
+
+    y_start = 0.86
+    row_h = 0.045
+
+    # Header de tabla
+    fig.text(0.05, y_start, "CLIENTE", fontsize=9, fontweight="bold", color=_TEXT)
+    fig.text(0.32, y_start, "CAT", fontsize=9, fontweight="bold", color=_TEXT)
+    fig.text(0.42, y_start, "RATING", fontsize=9, fontweight="bold", color=_TEXT)
+    fig.text(0.55, y_start, "REV", fontsize=9, fontweight="bold", color=_TEXT)
+    fig.text(0.66, y_start, "COMP", fontsize=9, fontweight="bold", color=_TEXT)
+    fig.text(0.77, y_start, "GAP R", fontsize=9, fontweight="bold", color=_TEXT)
+    fig.text(0.87, y_start, "SCORE", fontsize=9, fontweight="bold", color=_TEXT)
+
+    fig.add_artist(plt.Line2D([0.05, 0.95], [y_start - 0.015, y_start - 0.015],
+                              color=_BORDER, linewidth=0.8))
+
+    for idx, d in enumerate(sorted(data, key=lambda x: calc_score(x), reverse=True)):
+        y = y_start - 0.04 - (idx + 1) * row_h
+        if y < 0.05:
+            break
+        nombre = (d.get("nombre") or "?")[:30]
+        cat = (d.get("categoria") or "-")[:12]
+        rating = d.get("client_rating") or "-"
+        rev = d.get("client_reviews") or 0
+        comp = d.get("competitors_count") or 0
+        rgap = d.get("rating_gap") or 0
+        score = calc_score(d)
+        color = _GOOD if score >= 70 else (_WARN if score >= 40 else _BAD)
+
+        fig.text(0.05, y, nombre, fontsize=8.5, color=_TEXT)
+        fig.text(0.32, y, cat, fontsize=8, color=_MUTED)
+        fig.text(0.42, y, f"{rating:.1f}", fontsize=8.5, color=_TEXT)
+        fig.text(0.55, y, f"{rev}", fontsize=8, color=_TEXT)
+        fig.text(0.66, y, f"{comp}", fontsize=8, color=_MUTED)
+        gap_text = f"{rgap:+.1f}" if isinstance(rgap, (int, float)) else "-"
+        fig.text(0.77, y, gap_text, fontsize=8,
+                 color=_GOOD if rgap > 0 else _BAD)
+        fig.text(0.87, y, f"{score}", fontsize=8.5, fontweight="bold", color=color)
+
+        bar_w = (score / 100) * 0.05
+        fig.add_artist(plt.Rectangle((0.92, y - 0.005), bar_w, 0.012,
+                                      color=color, alpha=0.7))
+
+    fig.text(0.5, 0.03,
+             "Reporte completo 1-pagina por cliente disponible en el modal de informe competitivo",
+             ha="center", fontsize=9, color=_MUTED, style="italic")
+
+    pdf.savefig(fig, facecolor=_BG)
+    plt.close(fig)
+
+
+def render_summary_page(pdf, data, logo=None, header_w_inch=0, header_h_inch=0):
+    """Solo el resumen sin detalle - 1 pagina."""
+    render_one_page_report(pdf, data, logo=logo, header_w_inch=header_w_inch, header_h_inch=header_h_inch)
 
 
 def build_email_body(data, today):

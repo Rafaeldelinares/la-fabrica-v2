@@ -431,3 +431,72 @@ Phase 5 (docs) pendiente.
 - Frontend: `ManualCIDModal` + hook actualizado con `needsCid` + `submitCid`
 - Tests: 17 tests nuevos/add+ (ManualCIDModal 10 + useInformeCompetencia 7)
 - Documentación: tasks.md actualizado
+
+---
+
+## Phase 9 — Drive-by Auditing (2026-08-13) 🔧
+
+### T9.1 — VPS: función `insert_audit_history()` ✅
+- **Files**: `infra/scripts/pdf_http_server.py`
+- **Spec**:
+  - Función `_insert_audit_history(cliente_id, source, audit_data)` con UPSERT via CTE
+  - Tabla destino: `clientes.gbp_audit_history`
+  - Usa DELETE + INSERT para evitar requirement de unique constraint
+  - `audit_source` = 'webhook' (compatible con CHECK constraint existente)
+  - Conexión directa a postgres (172.19.0.4:5432) dado que pdf_http_server corre en el host VPS
+- **Estado**: ✅ COMPLETADO
+
+### T9.2 — VPS: `_trigger_xiaomi_scrape()` captura AUDIT_JSON ✅
+- **Files**: `infra/scripts/pdf_http_server.py`
+- **Spec**:
+  - SSH ya no usa `| tail -20` (capture output completo)
+  - Nueva función `_extract_audit_json()` parsea markers `===AUDIT_JSON_START=== ... ===AUDIT_JSON_END===`
+  - Después de scrape exitoso: llama `_insert_audit_history()` con datos de auditoría
+  - Si no hay AUDIT_JSON en output: log warning pero no falla el flujo
+- **Estado**: ✅ COMPLETADO
+
+### T9.3 — Xiaomi: modificar `generar-informe-competencia.sh` ⏳
+- **Files**: `/data/data/com.termux/files/home/xiaomi-gb-scape/cron/generar-informe-competencia.sh`
+- **Spec**:
+  - Después de scraping exitoso del cliente (wrapper `scrape <cid>`), capturar el JSON de auditoría completo
+  - Imprimir markers + JSON al final del output:
+    ```
+    ===AUDIT_JSON_START===
+    {"place_id":"...","rating_promedio":4.5,"reviews_count":10,...}
+    ===AUDIT_JSON_END===
+    ```
+  - El wrapper `crm-gb-scap.js` ya devuelve todos los campos necesarios
+  - Solo se necesita: capturar stdout del wrapper y re-imprimirlo con markers
+- **Implementar en xiaomi**:
+  ```bash
+  # Después de SCRAPE_RESULT=$(node bin/crm-gb-scap.js scrape "$CID")
+  echo "===AUDIT_JSON_START==="
+  echo "$SCRAPE_RESULT"
+  echo "===AUDIT_JSON_END==="
+  ```
+- **Estado**: ⏳ PENDIENTE — requiere acceso al xiaomi (SSH)
+
+### T9.4 — Tests E2E ⏳
+- **Test 1**: Cliente 496 (ACADEMIA ALBAYDA, sin auditoría)
+  - Llamar webhook V8 con cliente_id=496
+  - Verificar que `clientes.gbp_audit_history` tiene nuevo registro con `place_id` y `audit_data` fresco
+- **Test 2**: Cliente 107 (ya tiene auditoría)
+  - Llamar webhook V8 con cliente_id=107
+  - Verificar que el registro se ACTUALIZÓ (no duplicado, mismo place_id)
+- **Test 3**: Cliente 58 (Alquiler Salamanca, con auditoría)
+  - Mismo que Test 2
+- **Estado**: ⏳ PENDIENTE
+
+### T9.5 — Documentación ⏳
+- Actualizar `infra/xiaomi/README.md` con nota sobre drive-by auditing
+- CHANGELOG.md con entrada Phase 9
+- **Estado**: ⏳ PENDIENTE
+
+---
+
+## Estado Phase 9
+
+**VPS-side**: T9.1 ✅ T9.2 ✅ (implementado en CRM_ByBusiness repo)
+**Xiaomi-side**: T9.3 ⏳ (requires SSH to xiaomi)
+**Tests**: T9.4 ⏳
+**Docs**: T9.5 ⏳

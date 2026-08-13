@@ -20,6 +20,7 @@ scraping triggers for the same cliente (race condition on concurrent clicks).
 
 @since 2026-08-13 (Phase 3 — crm-informe-pdf + on-demand trigger)
 @updated 2026-08-13 (Phase 8 — Manual CID + Google search fallback)
+@updated 2026-08-13 (Phase 9 — Drive-by auditing: Xiaomi scrape also upserts gbp_audit_history)
 """
 import json
 import re
@@ -36,6 +37,83 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
 SCRIPT_PDF = "/opt/fabrica/scripts/generar_pdf_informes.py"
+
+# ── Drive-by auditing ────────────────────────────────────────────────────────
+
+def _insert_audit_history(cliente_id, source, audit_data):
+    """
+    Save GBP audit snapshot to clientes.gbp_audit_history (drive-by auditing).
+
+    pdf_http_server.py runs as a systemd service on the VPS host. It connects
+    to the postgres container via the Docker internal network (172.19.0.4).
+
+    Uses a CTE to DELETE existing rows for the same (place_id, source) and
+    then INSERT the new snapshot — equivalent to an UPSERT without requiring
+    a unique constraint on those columns.
+
+    The audit_source CHECK constraint limits values to:
+    'manual', 'cache-refresh', 'scheduled', 'pre-audit-v2', 'pre-audit-v2-resume',
+    'backfill', 'cron_daily', 'cron_weekly', 'webhook'.
+    We use 'webhook' as it is the closest semantic match for an on-demand
+    scraping trigger initiated by the PDF server.
+
+    Args:
+        cliente_id: int
+        source:     string tag — use 'webhook' (CHECK constraint compatible)
+        audit_data: dict with GBP audit fields
+    """
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except ImportError:
+        sys.stderr.write("[pdf-server] psycopg2 not available — audit history not saved\n")
+        return
+
+    # Use 'webhook' as source — CHECK constraint compatible
+    effective_source = "webhook"
+    password = os.environ.get("PGPASSWORD_VPS", "Fabrica_Industrial_2026_Secure!")
+    db_host = "172.19.0.4"
+    db_port = 5432
+
+    try:
+        conn = psycopg2.connect(
+            host=db_host, port=db_port,
+            dbname="crm_bybusiness",
+            user="rafael_admin",
+            password=password,
+        )
+        conn.autocommit = True
+        cur = conn.cursor()
+
+        # UPSERT via CTE: delete existing + insert new (avoids unique constraint requirement)
+        cur.execute(
+            """
+            WITH deleted AS (
+                DELETE FROM clientes.gbp_audit_history
+                WHERE place_id = %s AND audit_source = %s
+                RETURNING audit_id
+            )
+            INSERT INTO clientes.gbp_audit_history
+                (place_id, cliente_id, audit_data, audit_source)
+            VALUES (%s, %s, %s::jsonb, %s)
+            """,
+            (
+                audit_data.get("place_id") or "",
+                effective_source,
+                audit_data.get("place_id") or "",
+                int(cliente_id),
+                psycopg2.extras.Json(audit_data),
+                effective_source,
+            )
+        )
+        cur.close()
+        conn.close()
+        sys.stderr.write(
+            f"[pdf-server] insert_audit_history OK for cliente {cliente_id} "
+            f"(place_id={audit_data.get('place_id', '')[:20]})\n"
+        )
+    except Exception as e:
+        sys.stderr.write(f"[pdf-server] insert_audit_history FAILED: {e}\n")
 
 # Xiaomi SSH config
 XIAOMI_HOST = "100.75.94.18"
@@ -155,8 +233,13 @@ def _trigger_xiaomi_scrape(cliente_id):
     """
     SSH to Xiaomi and run the scraping script for this cliente.
     Blocks until completion (up to XIAOMI_TIMEOUT seconds).
+
+    After successful scrape, extracts AUDIT_JSON from Xiaomi output and
+    upserts it into clientes.gbp_audit_history (drive-by auditing).
+
     Returns (success: bool, message: str)
     """
+    # Capture full output (not just tail) so we can parse AUDIT_JSON block
     cmd = [
         "ssh", "-o", "StrictHostKeyChecking=no",
         "-o", f"Port={XIAOMI_PORT}",
@@ -164,7 +247,7 @@ def _trigger_xiaomi_scrape(cliente_id):
         "-o", "BatchMode=yes",
         f"root@{XIAOMI_HOST}",
         f"cd /data/data/com.termux/files/home/xiaomi-gb-scape && "
-        f"timeout {XIAOMI_TIMEOUT} bash cron/generar-informe-competencia.sh {cliente_id} 2>&1 | tail -20"
+        f"timeout {XIAOMI_TIMEOUT} bash cron/generar-informe-competencia.sh {cliente_id} 2>&1"
     ]
     sys.stderr.write(f"[pdf-server] Triggering Xiaomi scrape for cliente {cliente_id}...\n")
     sys.stderr.flush()
@@ -175,33 +258,66 @@ def _trigger_xiaomi_scrape(cliente_id):
 
     if result.returncode != 0:
         stderr = result.stderr.decode("utf-8", errors="replace")
-        # Detect cookie/auth errors from the wrapper
         if "cookies" in stderr.lower() or "auth" in stderr.lower() or "login" in stderr.lower():
             return False, "Google cookies expired on Xiaomi — renew manually via Android app"
         return False, f"Xiaomi script failed (exit {result.returncode}): {stderr[:300]}"
 
-    # Check for CID-related "no results" in output
     stdout = result.stdout.decode("utf-8", errors="replace")
     stderr_lower = stderr.lower()
     combined = stdout.lower() + stderr_lower
 
-    # Detect "no CID found" vs "no competitors" vs "success"
     if ("cid" in combined and ("not found" in combined or "no cid" in combined or "0 results" in combined)) or \
        ("no results" in combined and "competitor" in combined):
         sys.stderr.write(f"[pdf-server] Xiaomi scrape: no CID found for cliente {cliente_id}\n")
         sys.stderr.flush()
         return False, "NO_CID_FOUND"
 
-    # Script succeeded — give DB a moment to settle, then verify
     time.sleep(2)
     if not _db_has_informe(cliente_id):
         if "no results" in stdout.lower() or "skip" in stdout.lower():
             return False, "Xiaomi found no competitors for this cliente — category/location may be missing in DB"
         return False, "Xiaomi script appeared to succeed but no informe was written to DB"
 
+    # ── Drive-by auditing: extract AUDIT_JSON block ────────────────────────
+    audit_json_str = _extract_audit_json(stdout)
+    if audit_json_str:
+        try:
+            import json as _json
+            audit_data = _json.loads(audit_json_str)
+            # Source is set inside _insert_audit_history (uses 'webhook' per CHECK constraint)
+            _insert_audit_history(cliente_id, "webhook", audit_data)
+            sys.stderr.write(f"[pdf-server] Drive-by audit upserted for cliente {cliente_id}\n")
+        except Exception as e:
+            sys.stderr.write(f"[pdf-server] Drive-by audit parse/upsert failed: {e}\n")
+    else:
+        sys.stderr.write(f"[pdf-server] No AUDIT_JSON block in Xiaomi output for cliente {cliente_id}\n")
+    # ── End drive-by auditing ────────────────────────────────────────────────
+
     sys.stderr.write(f"[pdf-server] Xiaomi scrape OK for cliente {cliente_id}\n")
     sys.stderr.flush()
     return True, "OK"
+
+
+def _extract_audit_json(full_output):
+    """
+    Extract the AUDIT_JSON block from Xiaomi script stdout.
+
+    The Xiaomi script prints a markers-based block:
+        ===AUDIT_JSON_START===
+        { ... complete JSON ... }
+        ===AUDIT_JSON_END===
+
+    Returns the JSON string (without markers) or None if not found.
+    """
+    import re
+    marker_start = "===AUDIT_JSON_START==="
+    marker_end = "===AUDIT_JSON_END==="
+    start_idx = full_output.find(marker_start)
+    end_idx = full_output.find(marker_end)
+    if start_idx == -1 or end_idx == -1:
+        return None
+    json_str = full_output[start_idx + len(marker_start):end_idx].strip()
+    return json_str if json_str else None
 
 
 class PDFHandler(BaseHTTPRequestHandler):

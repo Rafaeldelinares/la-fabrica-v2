@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — 2026-08-13
 
+### Drive-by auditing: informe competitivo también guarda auditoría GBP
+
+Cuando se genera el informe competitivo para un cliente, los datos de auditoría de su
+ficha GBP también se guardan/actualizan en `clientes.gbp_audit_history`.
+
+**Mecanismo**:
+- `pdf_http_server.py` ejecuta el script Xiaomi vía SSH y captura el output completo
+- El Xiaomi debe imprimir un bloque `===AUDIT_JSON_START===...===AUDIT_JSON_END===`
+  con el JSON de auditoría del cliente
+- `pdf_http_server.py` parsea el bloque y hace UPSERT en `gbp_audit_history`
+  (fuente: 'webhook', compatible con CHECK constraint existente)
+
+### Added
+
+- **`infra/scripts/pdf_http_server.py`** — `_insert_audit_history()` con UPSERT via CTE
+  (DELETE + INSERT para mismo place_id+source). Conexión directa a postgres
+  via Docker internal network (172.19.0.4). `_extract_audit_json()` parsea markers.
+  `_trigger_xiaomi_scrape()` ya no usa `| tail -20` — captura output completo.
+- **`infra/scripts/pdf_http_server.py`** — `_trigger_xiaomi_scrape()` extrae el bloque
+  AUDIT_JSON del output Xiaomi y llama a `_insert_audit_history()` después del scrape.
+
+### Changed
+
+- **`infra/scripts/pdf_http_server.py`** — SSH a Xiaomi ya no usa `| tail -20` para
+  permitir parseo del bloque AUDIT_JSON (20 líneas no eran suficientes para JSON completo).
+
+## [Unreleased] — 2026-08-13
+
 ### Informe competitivo on-demand (sin esperar al cron de 4 semanas)
 
 Cuando un admin hace click en "Ver informe competitivo" y NO hay informe previo,
