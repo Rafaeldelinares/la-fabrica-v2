@@ -282,4 +282,26 @@ Phase 5 (docs) pendiente.
 
 ## Estado
 
-Pendiente aprobación. Proceder con Phase 1 ampliada (T1.4 + T1.5 + T1.6) en próxima sesión cuando se asigne capacidad.
+**SPRINT COMPLETO END-TO-END** (Phase 1, 1b, 2, 3, 4, 6 todas completas).
+
+### Phase 3 ✅ (UI admin-only con modal PDF)
+- T3.1 Componente `GbpInformeCompetencia.jsx` (~230 lineas)
+  - Botón "Ver informe competitivo" con icono FileText
+  - Modal full-screen con iframe embebido del PDF
+  - Skeleton bars mientras carga (Navy Industrial, sin spinners)
+  - Error state con botón retry
+  - Footer con "Descargar PDF" + "Cerrar"
+  - RBAC: solo admin (`admin.system.config`)
+- T3.2 Hook `useInformeCompetencia.js` (~120 lineas)
+  - POST a webhook n8n V8 `crm-informe-pdf-v8` con `{cliente_id: N}`
+  - Convierte PDF binario a Blob URL
+  - Cleanup con `URL.revokeObjectURL` en unmount
+- T3.3 Tests (9/9 pasaron): render, click, RBAC, modal, disabled, descarga
+- Backend n8n V8: webhook POST devuelve PDF binario
+- VPS: servicio systemd `pdf-server.service` (puerto 8093) sirve PDFs al vuelo
+
+### Phase 4 ✅ (trigger automático)
+- Cron job: `0 7 1,29 * *` (lunes cada ~2 semanas)
+- Check de periodo: skip si último informe < 28 días
+- Flag `--force` para saltarse el check
+- Log: `/var/log/informe-competitivo.log`
