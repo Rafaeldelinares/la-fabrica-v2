@@ -206,6 +206,65 @@ Feature que genera un **informe competitivo completo** para cada cliente: análi
 
 ---
 
+## Phase 6 — Integración recursos externos (T1.14) ✅
+
+### T1.14a — gbp-industry-categories import ✅
+- **Owner**: dev backend
+- **Effort**: 1.5h
+- **Files**: nueva tabla VPS + `lib/categorias_curadas.py` actualizado
+- **Spec**:
+  - Clonar `https://github.com/carbondigitalus/gbp-industry-categories`
+  - Crear tabla `infraestructura.gbp_industry_categories` en VPS
+  - Importar las 4045 categorías oficiales GBP
+  - Integrar como **Source 1** (oficial) en `categorias_curadas.validate()`
+  - Cache de industria para evitar query SQL por cada validación
+- **Estado**: ✅ COMPLETADO
+  - 4045 categorías importadas (faltan ~50 por duplicados/normalización)
+  - Lista curada crece: 13 → 22+ después de tests E2E
+  - validate() ahora retorna nivel 1/2/3 con 2 fuentes
+
+### T1.14b — NAP consistency check ✅
+- **Owner**: dev backend
+- **Effort**: 1h
+- **Files**: `lib/analisis_competencia.py`
+- **Spec**:
+  - `analyze_nap_consistency()` compara nombre/dirección/teléfono del cliente vs competidores
+  - `normalize_name/address/phone()` con regex + SequenceMatcher
+  - Score ponderado: name 40%, address 30%, phone 30%
+  - Integrar como factor Plus SEO (peso 5%)
+  - Recomendación automática si NAP score < 50%
+- **Estado**: ✅ COMPLETADO
+  - Tests: cliente 368 score=rojo (NAP score bajo)
+  - Cliente 105 score=amarillo (NAP score medio)
+  - Issues list detectados correctamente
+
+### T1.14c — Documentación local-seo-best-practices ✅
+- **Owner**: dev docs
+- **Effort**: 30min
+- **Files**: `docs/local-seo-best-practices.md`
+- **Spec**:
+  - Tabla top 15 BrightLocal 2026 con pesos y si scrapeamos
+  - Lista de repos externos utilizados
+  - Flujo del informe
+  - Cómo funciona la lista curada
+  - Lo que NO impacta ranking
+  - Glosario + Roadmap
+- **Estado**: ✅ COMPLETADO (168 líneas)
+- **Repos referenciados**:
+  - gbp-industry-categories (clonado + integrado)
+  - tribu-seo-local (referencia ES)
+  - google-business-profile-skill (referencia bilingüe)
+  - gbp-reviews-insights (roadmap)
+  - napdetector (adaptado)
+
+---
+
+## Estado
+
+Phase 1 ampliada + Phase 6 (T1.14) completas. Phase 2 (DB ya hecha), Phase 3 (UI) y Phase 4 (trigger) pendientes.
+
+---
+
 ## Commits planeados
 
 1. `feat(wrapper): search-by-name captura campos adicionales (horarios, fotos, posts)`
