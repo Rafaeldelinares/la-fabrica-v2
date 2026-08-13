@@ -27,6 +27,7 @@ import { FileText, Download, X, AlertCircle, Info } from 'lucide-react';
 import { useRbac } from '../../../../../shared/auth/useRbac';
 import { hasEnvVar } from '../../../../../shared/utils/envValidation';
 import { useInformeCompetencia } from './useInformeCompetencia';
+import PdfViewer from './PdfViewer';
 import ManualCIDModal from './ManualCIDModal';
 
 // Indica si el webhook esta configurado (para mostrar warning si no)
@@ -154,12 +155,7 @@ const PdfModal = ({
             <PdfEmpty clienteNombre={clienteNombre} />
           )}
           {!isLoading && !error && pdfUrl && (
-            <iframe
-              src={pdfUrl}
-              title={title}
-              className="w-full h-full min-h-[60vh] border-0"
-              sandbox="allow-scripts allow-same-origin allow-popups"
-            />
+            <PdfViewer pdfUrl={pdfUrl} title={title} />
           )}
         </div>
 
