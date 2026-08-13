@@ -14,14 +14,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Importar el worker como raw para crear blob URL con MIME type correcto
+import pdfjsWorkerRaw from 'pdfjs-dist/build/pdf.worker.min.mjs?raw';
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle, ZoomIn, ZoomOut } from 'lucide-react';
 
 // pdfjs-dist v6+ exporta como default
 const pdfjs = pdfjsLib.default || pdfjsLib;
 
-// Worker configuration - Vite resuelve la URL del worker asset
-pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+// Worker como blob URL con MIME type correcto (evita problema de "application/octet-stream")
+const pdfjsWorkerBlob = new Blob([pdfjsWorkerRaw], { type: 'application/javascript' });
+pdfjs.GlobalWorkerOptions.workerSrc = URL.createObjectURL(pdfjsWorkerBlob);
 
 const PdfViewer = ({ pdfUrl, title = 'PDF' }) => {
   const canvasRef = useRef(null);
