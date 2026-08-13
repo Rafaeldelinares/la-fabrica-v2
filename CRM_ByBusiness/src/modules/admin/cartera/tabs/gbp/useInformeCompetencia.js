@@ -151,7 +151,7 @@ export const useInformeCompetencia = () => {
 
       const contentType = response.headers.get('Content-Type') || '';
 
-      // Check if backend returned needs_cid JSON instead of PDF
+      // Check if backend returned needs_cid JSON instead of PDF (check FIRST to avoid creating bad blob)
       if (
         !contentType.includes('pdf') &&
         !contentType.includes('octet-stream') &&

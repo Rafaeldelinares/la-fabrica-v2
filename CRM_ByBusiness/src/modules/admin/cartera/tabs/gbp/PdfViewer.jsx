@@ -37,28 +37,48 @@ const PdfViewer = ({ pdfUrl, title = 'PDF' }) => {
 
   // Carga el PDF
   useEffect(() => {
-    if (!pdfUrl) return;
+    // Reset state when no hay URL
+    if (!pdfUrl || typeof pdfUrl !== 'string' || pdfUrl.trim() === '') {
+      setIsLoading(false);
+      setError(null);
+      setPdfDoc(null);
+      setTotalPages(0);
+      setCurrentPage(1);
+      return;
+    }
 
+    let cancelled = false;
     setIsLoading(true);
     setError(null);
     setPdfDoc(null);
     setCurrentPage(1);
     setTotalPages(0);
 
-    const loadTask = pdfjs.getDocument(pdfUrl);
+    let loadTask;
+    try {
+      loadTask = pdfjs.getDocument(pdfUrl);
+    } catch (err) {
+      setError(err.message || 'URL invalida');
+      setIsLoading(false);
+      return;
+    }
+
     loadTask.promise
       .then((pdf) => {
+        if (cancelled) return;
         setPdfDoc(pdf);
         setTotalPages(pdf.numPages);
         setIsLoading(false);
       })
       .catch((err) => {
+        if (cancelled) return;
         setError(err.message || 'Error cargando PDF');
         setIsLoading(false);
       });
 
     return () => {
-      loadTask.destroy();
+      cancelled = true;
+      if (loadTask) loadTask.destroy();
     };
   }, [pdfUrl]);
 
