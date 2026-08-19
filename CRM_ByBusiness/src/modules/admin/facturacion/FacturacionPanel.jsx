@@ -6,6 +6,7 @@ import FacturasPanel from './FacturasPanel';
 import ProformasPanel from './ProformasPanel';
 // Lazy — ClienteDrawer is 216 kB; only loads when user clicks a client
 const ClienteDrawer = lazy(() => import('../cartera/ClienteDrawer'));
+import FaltaGestorModal from '../../../shared/ui/modals/FaltaGestorModal';
 import { Users, RefreshCw, FileText, ClipboardList } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useRbac } from '../../../shared/auth/useRbac';
@@ -26,6 +27,7 @@ const FacturacionPanel = () => {
   const [tab, setTab] = useState('clientes');
   const [clienteDrawer, setClienteDrawer] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [faltaGestorCliente, setFaltaGestorCliente] = useState(null);
   const contenidoRef = useRef(null);
   const [alturaContenido, setAlturaContenido] = useState(500);
 
@@ -36,6 +38,21 @@ const FacturacionPanel = () => {
     });
     obs.observe(contenidoRef.current);
     return () => obs.disconnect();
+  }, []);
+
+  // Global event: open FaltaGestorModal when any Send* button finds a missing gestor
+  useEffect(() => {
+    const handler = (e) => {
+      setFaltaGestorCliente(e.detail?.cliente ?? null);
+    };
+    window.addEventListener('app:open-falta-gestor', handler);
+    return () => window.removeEventListener('app:open-falta-gestor', handler);
+  }, []);
+
+  const handleFaltaGestorAsignar = useCallback((cliente) => {
+    // Close the falta-gestor modal and open ClienteDrawer with this cliente
+    setFaltaGestorCliente(null);
+    setClienteDrawer(cliente);
   }, []);
 
   /** Fetch puntual del cliente por id y abre el ClienteDrawer. */
@@ -87,7 +104,7 @@ const FacturacionPanel = () => {
       {clienteDrawer && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
              onClick={() => setClienteDrawer(null)}>
-          <div className="w-[90vw] max-w-[1080px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl"
+          <div className="w-[95vw] max-w-[1800px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl"
                onClick={e => e.stopPropagation()}>
             <Suspense fallback={<div className="h-full bg-slate-900/50 animate-pulse" />}>
               <ClienteDrawer
@@ -100,6 +117,13 @@ const FacturacionPanel = () => {
           </div>
         </div>
       )}
+
+      <FaltaGestorModal
+        open={!!faltaGestorCliente}
+        cliente={faltaGestorCliente}
+        onAsignar={handleFaltaGestorAsignar}
+        onClose={() => setFaltaGestorCliente(null)}
+      />
     </div>
   );
 };
