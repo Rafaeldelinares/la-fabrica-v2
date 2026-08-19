@@ -139,11 +139,11 @@ export const useInformeCompetencia = () => {
             try {
               const json = JSON.parse(body);
               msg += json?.detail ? `: ${json.detail.slice(0, 200)}` : `: ${body.slice(0, 200)}`;
-            } catch (_) {
+            } catch { // eslint-disable-line no-unused-vars
               msg += `: ${body.slice(0, 200)}`;
             }
           }
-        } catch (_) { /* ignore */ }
+        } catch { // eslint-disable-line no-unused-vars /* ignore */ }
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
@@ -160,7 +160,7 @@ export const useInformeCompetencia = () => {
         let needsCidData;
         try {
           needsCidData = await response.json();
-        } catch (_) {
+        } catch { // eslint-disable-line no-unused-vars
           // Not JSON — treat as unexpected content type
           const msg = `Content-Type inesperado: ${contentType}`;
           setError(msg);
@@ -186,6 +186,7 @@ export const useInformeCompetencia = () => {
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
+      }
       }
 
       // It's a PDF — process it
@@ -241,11 +242,11 @@ export const useInformeCompetencia = () => {
             try {
               const json = JSON.parse(body);
               msg += json?.detail ? `: ${json.detail.slice(0, 200)}` : `: ${body.slice(0, 200)}`;
-            } catch (_) {
+            } catch { // eslint-disable-line no-unused-vars
               msg += `: ${body.slice(0, 200)}`;
             }
           }
-        } catch (_) { /* ignore */ }
+        } catch { // eslint-disable-line no-unused-vars /* ignore */ }
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
@@ -262,7 +263,7 @@ export const useInformeCompetencia = () => {
         let needsCidData;
         try {
           needsCidData = await response.json();
-        } catch (_) {
+        } catch { // eslint-disable-line no-unused-vars
           const msg = `Content-Type inesperado: ${contentType}`;
           setError(msg);
           setIsLoading(false);
@@ -287,6 +288,7 @@ export const useInformeCompetencia = () => {
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
+      }
       }
 
       return processPdfResponse(response);
