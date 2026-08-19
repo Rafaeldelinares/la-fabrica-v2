@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { Send, CheckCircle, Clock, AlertTriangle, XCircle } from 'lucide-react';
-import { n8nGet, n8nPost } from '../../../../shared/hooks/useN8n';
+import { Send, CheckCircle, Clock, AlertTriangle, XCircle, Info } from 'lucide-react';
+import { n8nGet } from '../../../../shared/hooks/useN8n';
+import PrefirmarButton from '../../../../shared/ui/buttons/PrefirmarButton';
+import FirmarButton from '../../../../shared/ui/buttons/FirmarButton';
+import SendContratoButton from '../../../../shared/ui/buttons/SendContratoButton';
+import ReenviarCopiaButton from '../../../../shared/ui/buttons/ReenviarCopiaButton';
 
 const ESTADO_BADGE = {
   borrador:             'bg-slate-700/60 text-slate-400 border-slate-600',
@@ -31,7 +35,6 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
   const [contratos, setContratos] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
-  const [busy,      setBusy]      = useState(null);
 
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
@@ -41,17 +44,6 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
   }, [cliente.id, n8nUrl]);
 
   useEffect(() => { cargar(); }, [cargar]);
-
-  const handleEnviar = async (contrato) => {
-    setBusy(`enviar-${contrato.id}`);
-    setError(null);
-    try {
-      const d = await n8nPost('crm-72-post-contrato-enviar', { contrato_id: contrato.id }, { baseUrl: n8nUrl });
-      if (d.ok) cargar();
-      else setError(d.message || d.error || 'Error al enviar contrato');
-    } catch { setError('Error de conexión al enviar'); }
-    finally { setBusy(null); }
-  };
 
   if (loading) return (
     <div className="px-5 py-4 flex flex-col gap-2">
@@ -82,20 +74,38 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
             </span>
           </div>
           <p className="text-[10px] text-slate-400 font-mono leading-snug line-clamp-2">{cd.objeto}</p>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-[9px] text-slate-600 font-mono">
               {cd.canal_envio && `Canal: ${cd.canal_envio}`}
               {cd.importe_mensual && ` · ${Number(cd.importe_mensual).toFixed(0)}€/mes`}
             </span>
-            {cd.estado === 'borrador' && (
-              <button
-                disabled={busy === `enviar-${cd.id}`}
-                onClick={() => handleEnviar(cd)}
-                className="flex items-center gap-1 text-[9px] font-mono uppercase border border-blue-800 rounded-sm px-2.5 py-1 text-blue-400 hover:bg-blue-900/20 disabled:opacity-40 transition-colors"
-              >
-                <Send size={9} /> {busy === `enviar-${cd.id}` ? 'Enviando…' : 'Enviar'}
-              </button>
-            )}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Info
+                size={11}
+                className="text-slate-500 shrink-0"
+                title={'Acciones de contrato digital:\n• "Prefirmar" — marca el contrato como prefirmado (estado interno, sin enviar)\n• "Firmar" — marca el contrato como firmado (estado interno)\n• "Enviar" — solo si está en borrador, genera el PDF y lo manda al gestor\n• "Reenviar" — re-envía el PDF al gestor SIN cambiar estado (idempotente)'}
+              />
+              <PrefirmarButton
+                contrato={cd}
+                onSuccess={cargar}
+              />
+              <FirmarButton
+                contrato={cd}
+                onSuccess={cargar}
+              />
+              {cd.estado === 'borrador' && (
+                <SendContratoButton
+                  contrato={cd}
+                  cliente={cliente}
+                  onSuccess={cargar}
+                />
+              )}
+              <ReenviarCopiaButton
+                tipo="contrato"
+                id={cd.id}
+                cliente={cliente}
+              />
+            </div>
           </div>
           {cd.respuesta_raw && (
             <p className="text-[9px] text-amber-400/80 font-mono border-t border-slate-800 pt-1.5 mt-0.5">
@@ -109,7 +119,7 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
 };
 
 ContratoDigitalSection.propTypes = {
-  cliente: PropTypes.shape({ id: PropTypes.number.isRequired }).isRequired,
+  cliente: PropTypes.shape({ id: PropTypes.number.isRequired, gestor_id: PropTypes.number }).isRequired,
   n8nUrl:  PropTypes.string.isRequired,
 };
 
