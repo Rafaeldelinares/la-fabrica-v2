@@ -80,10 +80,7 @@ const CarteraPanel = () => {
   // Facetas para los combobox de filtro
   const [facets, setFacets] = useState({ provincia: [], localidad: [], actividad: [] });
 
-  // Debounce timers para evitar refetch en cada keystroke
-  const debounceProvincia = useRef(null);
-  const debounceLocalidad = useRef(null);
-  const debounceSector    = useRef(null);
+  // (debounceProvincia/Localidad/Sector removidos — codigo muerto pre-existente)
 
   const fetchCartera = (filters = {}) => {
     const params = {};
@@ -134,7 +131,7 @@ const CarteraPanel = () => {
     setFiltroSector('');
   };
 
-  const aniosDisponibles = useMemo(() => {
+  const añosDisponibles = useMemo(() => {
     if (!clientes) return [];
     const set = new Set(clientes.map(c => {
       if (c.año_alta) return c.año_alta;
@@ -244,7 +241,7 @@ const CarteraPanel = () => {
                 }`}
               >
                 <option value="">Todos los años</option>
-                {aniosDisponibles.map(a => (
+                {añosDisponibles.map(a => (
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
