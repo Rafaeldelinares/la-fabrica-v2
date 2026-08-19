@@ -35,6 +35,7 @@ const useXiaomiHealth = () => {
       const isAlive = data === true || data?.ok === true;
       setHealthState({ isAlive, lastCheck: new Date() });
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [data]);
 
   return { healthState, refetch, isFetching };

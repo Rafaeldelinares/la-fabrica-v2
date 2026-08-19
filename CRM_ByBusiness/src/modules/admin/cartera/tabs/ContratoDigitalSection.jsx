@@ -43,6 +43,9 @@ const ContratoDigitalSection = ({ cliente, n8nUrl }) => {
       .catch(() => { setError('Error al cargar contratos digitales'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
 
+  // cargar() es useCallback que ejecuta fetch async; setState vive dentro de .then().catch(),
+// no es cascade render sincrono. Patron canonico de React Query / SWR.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { cargar(); }, [cargar]);
 
   if (loading) return (

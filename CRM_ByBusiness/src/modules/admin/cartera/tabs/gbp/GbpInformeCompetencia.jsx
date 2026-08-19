@@ -221,6 +221,7 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
       setModalOpen(false); // Close PDF modal if open
       setManualCidModalOpen(true);
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [needsCid]);
 
   // No renderizar nada si no es admin
