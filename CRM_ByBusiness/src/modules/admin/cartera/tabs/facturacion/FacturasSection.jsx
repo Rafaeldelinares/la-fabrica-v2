@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import { ChevronDown, ChevronRight, ExternalLink, CheckCircle } from 'lucide-react';
+import { ChevronDown, ChevronRight, ExternalLink, CheckCircle, Info } from 'lucide-react';
 import { n8nGet, n8nPost } from '../../../../../shared/hooks/useN8n';
+import FacturaEstadoBadge from '../../../../../shared/ui/badges/FacturaEstadoBadge';
+import SendFacturaButton from '../../../../../shared/ui/buttons/SendFacturaButton';
+import ReenviarCopiaButton from '../../../../../shared/ui/buttons/ReenviarCopiaButton';
 
-const ESTADO_BADGE = {
-  emitida:  'bg-blue-900/50 text-blue-300 border border-blue-800/40',
-  cobrada:  'bg-emerald-900/50 text-emerald-300 border border-emerald-800/40',
-  vencida:  'bg-red-900/50 text-red-400 border border-red-800/40',
-  anulada:  'bg-slate-700 text-slate-500 border border-slate-600/40',
-};
 
 /**
  * FacturasSection — Lista de facturas con líneas y control de cobro de pagos.
@@ -24,7 +21,12 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
     n8nGet('crm-facturas-get', { cliente_id: cliente.id }, { baseUrl: n8nUrl })
-      .then(d => { setFacturas(d.facturas || []); setLoading(false); })
+      .then(d => {
+        // Soporta ambos formatos: {ok, facturas} (raíz) o {ok, data: {facturas}} (anidado).
+        const arr = (d && (d.facturas || (d.data && d.data.facturas))) || [];
+        setFacturas(Array.isArray(arr) ? arr : []);
+        setLoading(false);
+      })
       .catch(() => { setError('Error al cargar facturas'); setLoading(false); });
   }, [cliente.id, n8nUrl]);
 
@@ -63,9 +65,7 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
               : <ChevronRight size={12} className="text-slate-500 shrink-0" />}
             <span className="text-xs font-mono text-slate-400 w-32 shrink-0">{f.numero || `F-${f.id}`}</span>
             <span className="text-[10px] text-slate-600 font-mono shrink-0">{f.fecha_emision}</span>
-            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-sm ${ESTADO_BADGE[f.estado] || 'bg-slate-700 text-slate-400'}`}>
-              {f.estado}
-            </span>
+            <FacturaEstadoBadge estado={f.estado} />
             {f.verifactu_enviado && <span className="text-[10px] text-emerald-500 font-mono shrink-0">VFU✓</span>}
             <span className="text-xs font-mono text-slate-300 ml-auto">
               {Number(f.total_con_iva || f.total || 0).toFixed(2)}€
@@ -79,6 +79,15 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
                 <ExternalLink size={11} />
               </a>
             )}
+            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <Info
+                size={11}
+                className="text-slate-500 shrink-0"
+                title={'Acciones de factura:\n• "Enviar" — genera PDF y lo manda al gestor (cambia estado a enviada)\n• "Reenviar" — re-envía el PDF al gestor SIN cambiar estado (idempotente)'}
+              />
+              <SendFacturaButton factura={f} cliente={cliente} onSuccess={cargar} />
+              <ReenviarCopiaButton tipo="factura" id={f.id} cliente={cliente} />
+            </div>
           </div>
 
           {expanded[f.id] && (
@@ -143,7 +152,7 @@ const FacturasSection = ({ cliente, n8nUrl }) => {
 };
 
 FacturasSection.propTypes = {
-  cliente: PropTypes.shape({ id: PropTypes.number.isRequired }).isRequired,
+  cliente: PropTypes.shape({ id: PropTypes.number.isRequired, gestor_id: PropTypes.number }).isRequired,
   n8nUrl:  PropTypes.string.isRequired,
 };
 

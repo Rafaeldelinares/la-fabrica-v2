@@ -2,21 +2,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
   Plus, ChevronDown, ChevronRight, Trash2,
-  CheckCircle, FileText, MessageCircle, Mail, Eye, RotateCcw, Pencil, X, Receipt,
+  CheckCircle, FileText, RotateCcw, Pencil, X, Receipt, Info,
 } from 'lucide-react';
 import ModalNuevaProforma from './ModalNuevaProforma';
 import { n8nGet, n8nPost } from '../../../../../shared/hooks/useN8n';
+import ProformaEstadoBadge from '../../../../../shared/ui/badges/ProformaEstadoBadge';
+import SendProformaButton from '../../../../../shared/ui/buttons/SendProformaButton';
+import ConsolidarButton from '../../../../../shared/ui/buttons/ConsolidarButton';
+import SolicitarFacturaButton from '../../../../../shared/ui/buttons/SolicitarFacturaButton';
+import ReenviarCopiaButton from '../../../../../shared/ui/buttons/ReenviarCopiaButton';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
-
-/** borrador→verificada→pendiente_cliente→aceptada|rechazada */
-const ESTADO_BADGE = {
-  borrador:          'bg-slate-700 text-slate-300',
-  verificada:        'bg-blue-900/50 text-blue-300',
-  pendiente_cliente: 'bg-amber-900/50 text-amber-300',
-  aceptada:          'bg-emerald-900/50 text-emerald-300',
-  rechazada:         'bg-red-900/50 text-red-400',
-};
 
 const COLOR_CANAL = {
   pendiente: 'text-slate-500 hover:text-slate-300',
@@ -175,6 +171,7 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   const [evidencia,     setEvidencia]     = useState(null);
   const [contratoVista, setContratoVista] = useState(null);
   const [confirmReabrir, setConfirmReabrir] = useState(null);
+  const [selectedProformas, setSelectedProformas] = useState([]);
 
   const cargar = useCallback(() => {
     setLoading(true); setError(null);
@@ -206,6 +203,9 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
   };
 
   const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
+  const toggleSelect = (id) => setSelectedProformas(prev =>
+    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+  );
 
   if (loading) return <p className="text-[10px] text-slate-500 font-mono px-5 py-4 animate-pulse">Cargando proformas…</p>;
 
@@ -213,6 +213,17 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
     <div className="flex flex-col">
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-800">
         {error && <p className="text-[10px] text-red-400 font-mono mr-auto">{error}</p>}
+        {selectedProformas.length >= 2 && (
+          <div className="flex items-center gap-2 mr-auto">
+            <span className="text-[10px] font-mono text-slate-500">
+              {selectedProformas.length} seleccionadas
+            </span>
+            <ConsolidarButton
+              proformaIds={selectedProformas}
+              onSuccess={cargar}
+            />
+          </div>
+        )}
         <button
           onClick={() => setShowModal(true)}
           className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest border border-[#D00000]/40 hover:border-[#D00000] text-[#D00000] rounded-sm px-3 py-1.5 transition-colors ml-auto"
@@ -225,18 +236,12 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
 
       {proformas.map(pf => {
         const contrato      = contratos.find(c => c.proforma_id === pf.id && c.estado !== 'obsoleto') || null;
-        const waEstado      = contrato?.whatsapp_estado || 'pendiente';
-        const emEstado      = contrato?.email_estado    || 'pendiente';
-        const tieneRespuesta = ['aceptado','rechazado'].includes(waEstado) || ['aceptado','rechazado'].includes(emEstado);
         const es            = pf.estado;
 
         /* ── visibilidad por estado ── */
         const showPencil    = es === 'borrador';
         const showCheck     = true; // Siempre mostrar para ver estado de verificación
-        const showFileText  = es !== 'borrador'; 
-        const showMsgWa     = es !== 'borrador' && es !== 'verificada';
-        const showMail      = es !== 'borrador' && es !== 'verificada';
-        const showEye       = es === 'aceptada' || tieneRespuesta;
+        const showFileText  = es !== 'borrador';
         const showFacturar  = es === 'aceptada' && pf.requiere_factura;
         const showReabrir   = es !== 'borrador' && es !== 'aceptada';
         const showIcons     = true;
@@ -251,15 +256,20 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
               className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-slate-900/40 transition-colors"
               onClick={() => toggle(pf.id)}
             >
+              <input
+                type="checkbox"
+                checked={selectedProformas.includes(pf.id)}
+                onChange={() => toggleSelect(pf.id)}
+                onClick={e => e.stopPropagation()}
+                className="w-3.5 h-3.5 rounded border-slate-700 bg-slate-900 text-[#D00000] focus:ring-0 focus:ring-offset-0 cursor-pointer shrink-0"
+              />
               {expanded[pf.id]
                 ? <ChevronDown  size={12} className="text-slate-500 shrink-0" />
                 : <ChevronRight size={12} className="text-slate-500 shrink-0" />}
 
               <span className="text-xs font-mono text-slate-400 w-32 shrink-0">{pf.numero || `PF-${pf.id}`}</span>
 
-              <span className={`text-[9px] font-mono font-black uppercase tracking-widest px-2 py-0.5 rounded-sm ${ESTADO_BADGE[es] || 'bg-slate-700 text-slate-400'}`}>
-                {es}
-              </span>
+              <ProformaEstadoBadge estado={es} />
 
               <span className="text-xs font-mono text-slate-300 ml-auto">
                 {Number(pf.total || 0).toFixed(2)}€
@@ -296,18 +306,6 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                           }, `contrato-${pf.id}`)
                       )}
                       disabled={fileTextDisabled} />
-                  )}
-                  {showMsgWa && (
-                    <ActionIcon icon={MessageCircle} estado={!contrato ? 'inactivo' : waEstado}
-                      title={!contrato ? 'Genera el contrato primero' : `WhatsApp: ${waEstado}`}
-                      onClick={() => contrato && accion('crm-72-post-contrato-enviar', { contrato_id: contrato.id }, `wa-${pf.id}`)}
-                      disabled={!contrato || busy === `wa-${pf.id}` || waEstado === 'aceptado'} />
-                  )}
-                  {showMail && (
-                    <ActionIcon icon={Mail} estado={!contrato ? 'inactivo' : emEstado}
-                      title={!contrato ? 'Genera el contrato primero' : `Email: ${emEstado}`}
-                      onClick={() => contrato && accion('crm-75-post-contrato-email', { contrato_id: contrato.id }, `em-${pf.id}`)}
-                      disabled={!contrato || busy === `em-${pf.id}` || emEstado === 'aceptado'} />
                   )}
                   {showEye && (
                     <ActionIcon icon={Eye} estado={tieneRespuesta ? 'activo' : 'inactivo'}
@@ -395,6 +393,31 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                     </button>
                   </div>
                 )}
+
+                {/* ciclo-facturacion: acciones de envío y gestión — visible en todos los estados */}
+                <div className="flex gap-2 flex-wrap mt-2 pt-2 border-t border-slate-800 items-center">
+                  <Info
+                    size={12}
+                    className="text-slate-500 shrink-0"
+                    title={'Acciones de proforma:\n• "Enviar" — genera PDF y lo manda al gestor (cambia estado a enviada)\n• "Reenviar" — re-envía el PDF al gestor SIN cambiar estado (idempotente)\n• "Consolidar" (si hay N>=2 proformas) — fusiona en una sola\n• "Solicitar factura" — marca la proforma como solicitada por el cliente\n• "Reabrir" — vuelve la proforma a estado rellenada para edición\n• "Borrar" — elimina la proforma'}
+                  />
+                  <SendProformaButton
+                    proforma={pf}
+                    cliente={cliente}
+                    onSuccess={cargar}
+                  />
+                  <ReenviarCopiaButton
+                    tipo="proforma"
+                    id={pf.id}
+                    cliente={cliente}
+                  />
+                  {es !== 'borrador' && (
+                    <SolicitarFacturaButton
+                      proforma={pf}
+                      onSuccess={cargar}
+                    />
+                  )}
+                </div>
               </div>
             )}
           </div>
