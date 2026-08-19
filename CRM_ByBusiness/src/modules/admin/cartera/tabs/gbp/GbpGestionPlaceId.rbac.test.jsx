@@ -39,14 +39,12 @@ describe('GbpGestionPlaceId RBAC matrix', () => {
     });
 
     it('botón Guardar está habilitado con place_id no vacío', async () => {
-      const user = userEvent.setup();
       renderComponent(1, 'ChIJxxx', mockRbac(true));
       const btn = screen.getByRole('button', { name: 'Guardar' });
       expect(btn).not.toBeDisabled();
     });
 
     it('botón Guardar deshabilitado cuando place_id está vacío', async () => {
-      const user = userEvent.setup();
       renderComponent(1, '', mockRbac(true));
       const btn = screen.getByRole('button', { name: 'Guardar' });
       expect(btn).toBeDisabled();

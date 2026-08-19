@@ -15,7 +15,7 @@ import { useGbpCompetitiveAnalysis } from './hooks/useGbpCompetitiveAnalysis';
 const Delta = ({ value, suffix = '', decimals = 0 }) => {
   if (value == null) return <Minus size={10} className="text-slate-600 inline" />;
   const formatted = decimals > 0 ? Number(value).toFixed(decimals) : Math.round(Number(value));
-  const display = decimals > 0 ? formatted : formatted;
+  const display = formatted;
   const cls = value > 0 ? 'text-emerald-400' : value < 0 ? 'text-red-400' : 'text-amber-400';
   const sign = value > 0 ? '+' : '';
   return (
@@ -79,7 +79,7 @@ Td.propTypes = { children: PropTypes.node, className: PropTypes.string };
 
 /** One row in the competitors table. */
 const TableRow = ({ item, isCliente = false, avgCompetitors = {} }) => {
-  const deltaClass = (val, avg, suffix = '') => {
+  const deltaClass = (val, avg, _suffix = '') => {
     if (val == null || avg == null) return 'text-slate-500';
     const d = val - avg;
     return d > 0 ? 'text-emerald-400' : d < 0 ? 'text-red-400' : 'text-slate-400';
@@ -135,7 +135,7 @@ const SkeletonRows = () => (
  * @param {string|number} props.clienteId
  * @param {object}       [props.existingAudit] — not required; competitive data is independent
  */
-export default function GbpCompetitiveAnalysis({ clienteId, existingAudit }) {
+export default function GbpCompetitiveAnalysis({ clienteId, _existingAudit }) {
   const { data, isLoading, error, refetch, isFetching } = useGbpCompetitiveAnalysis(clienteId);
 
   // Error from workflow response (ok: false)
