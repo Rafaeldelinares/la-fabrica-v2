@@ -224,17 +224,12 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [needsCid]);
 
-  // No renderizar nada si no es admin
-  if (!rbac.can('admin.system.config')) {
-    return null;
-  }
-
   const handleOpen = useCallback(async () => {
     setModalOpen(true);
     if (!pdfUrl && !isLoading) {
       try {
         await fetchInformePDF(clienteId);
-      } catch (__unused) {
+      } catch (_unused) {
         // error state se maneja dentro del hook
       }
     }
@@ -247,7 +242,7 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
   const handleRetry = useCallback(async () => {
     try {
       await fetchInformePDF(clienteId);
-    } catch (__unused) {
+    } catch (_unused) {
       // error state se maneja dentro del hook
     }
   }, [clienteId, fetchInformePDF]);
@@ -264,6 +259,11 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
     },
     [needsCid, submitCid]
   );
+
+  // No renderizar nada si no es admin (early return DESPUES de todos los hooks)
+  if (!rbac.can('admin.system.config')) {
+    return null;
+  }
 
   return (
     <>

@@ -41,7 +41,7 @@ const GbpIndex = ({ cliente }) => {
   const rbac = useRbac();
 
   const [activeItem,  setActiveItem]  = useState(DEFAULT_ITEM);
-  const [auditData,    setAuditData]    = useState(() => {
+  const [auditData]                   = useState(() => {
     try {
       const cached = sessionStorage.getItem(`gbp-audit-${cliente.id}`);
       return cached ? JSON.parse(cached) : null;
