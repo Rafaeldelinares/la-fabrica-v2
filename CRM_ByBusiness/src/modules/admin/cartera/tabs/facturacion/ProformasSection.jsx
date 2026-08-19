@@ -7,10 +7,9 @@ import {
 import ModalNuevaProforma from './ModalNuevaProforma';
 import { n8nGet, n8nPost } from '../../../../../shared/hooks/useN8n';
 import ProformaEstadoBadge from '../../../../../shared/ui/badges/ProformaEstadoBadge';
-import SendProformaButton from '../../../../../shared/ui/buttons/SendProformaButton';
+import EnviarProformaButton from '../../../../../shared/ui/buttons/EnviarProformaButton';
 import ConsolidarButton from '../../../../../shared/ui/buttons/ConsolidarButton';
 import SolicitarFacturaButton from '../../../../../shared/ui/buttons/SolicitarFacturaButton';
-import ReenviarCopiaButton from '../../../../../shared/ui/buttons/ReenviarCopiaButton';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -393,17 +392,12 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                   <Info
                     size={12}
                     className="text-slate-500 shrink-0"
-                    title={'Acciones de proforma:\n• "Enviar" — genera PDF y lo manda al gestor (cambia estado a enviada)\n• "Reenviar" — re-envía el PDF al gestor SIN cambiar estado (idempotente)\n• "Consolidar" (si hay N>=2 proformas) — fusiona en una sola\n• "Solicitar factura" — marca la proforma como solicitada por el cliente\n• "Reabrir" — vuelve la proforma a estado rellenada para edición\n• "Borrar" — elimina la proforma'}
+                    title={'Acciones de proforma:\n• "Enviar al gestor" — envía o reenvía el PDF al gestor (workflow decide según estado)\n• "Consolidar" (si hay N>=2 proformas) — fusiona en una sola\n• "Solicitar factura" — marca la proforma como solicitada por el cliente\n• "Reabrir" — vuelve la proforma a estado rellenada para edición\n• "Borrar" — elimina la proforma'}
                   />
-                  <SendProformaButton
+                  <EnviarProformaButton
                     proforma={pf}
                     cliente={cliente}
                     onSuccess={cargar}
-                  />
-                  <ReenviarCopiaButton
-                    tipo="proforma"
-                    id={pf.id}
-                    cliente={cliente}
                   />
                   {es !== 'borrador' && (
                     <SolicitarFacturaButton
