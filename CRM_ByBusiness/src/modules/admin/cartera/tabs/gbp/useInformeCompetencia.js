@@ -139,7 +139,8 @@ export const useInformeCompetencia = () => {
             try {
               const json = JSON.parse(body);
               msg += json?.detail ? `: ${json.detail.slice(0, 200)}` : `: ${body.slice(0, 200)}`;
-            } catch { // eslint-disable-line no-unused-vars
+            } catch {
+              // eslint-disable-next-line no-unused-vars
               msg += `: ${body.slice(0, 200)}`;
             }
           }
@@ -160,7 +161,7 @@ export const useInformeCompetencia = () => {
         let needsCidData;
         try {
           needsCidData = await response.json();
-        } catch { // eslint-disable-line no-unused-vars
+        } catch { // eslint-disable-next-line no-unused-vars
           // Not JSON — treat as unexpected content type
           const msg = `Content-Type inesperado: ${contentType}`;
           setError(msg);
@@ -241,7 +242,8 @@ export const useInformeCompetencia = () => {
             try {
               const json = JSON.parse(body);
               msg += json?.detail ? `: ${json.detail.slice(0, 200)}` : `: ${body.slice(0, 200)}`;
-            } catch { // eslint-disable-line no-unused-vars
+            } catch {
+              // eslint-disable-next-line no-unused-vars
               msg += `: ${body.slice(0, 200)}`;
             }
           }
@@ -262,7 +264,7 @@ export const useInformeCompetencia = () => {
         let needsCidData;
         try {
           needsCidData = await response.json();
-        } catch { // eslint-disable-line no-unused-vars
+        } catch { // eslint-disable-next-line no-unused-vars
           const msg = `Content-Type inesperado: ${contentType}`;
           setError(msg);
           setIsLoading(false);
