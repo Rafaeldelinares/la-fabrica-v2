@@ -88,19 +88,6 @@ const GbpIndex = ({ cliente }) => {
 
   const handleItemChange = useCallback((itemId) => setActiveItem(itemId), []);
 
-  const handleAuditComplete = useCallback((data) => {
-    setAuditData(data);
-    try {
-      if (data) {
-        sessionStorage.setItem(`gbp-audit-${cliente.id}`, JSON.stringify(data));
-      } else {
-        sessionStorage.removeItem(`gbp-audit-${cliente.id}`);
-      }
-    } catch (err) {
-      console.warn('[GbpIndex] sessionStorage write failed:', err);
-    }
-  }, [cliente.id]);
-
   // Cleanup on cliente change
   useEffect(() => {
     return () => {

@@ -111,7 +111,7 @@ const PdfModal = ({
   isLoading,
   error,
   onRetry,
-  onDownload,
+  _onDownload,
 }) => {
   if (!isOpen) return null;
 
@@ -233,7 +233,7 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
     if (!pdfUrl && !isLoading) {
       try {
         await fetchInformePDF(clienteId);
-      } catch (_) {
+      } catch (__unused) {
         // error state se maneja dentro del hook
       }
     }
@@ -246,7 +246,7 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
   const handleRetry = useCallback(async () => {
     try {
       await fetchInformePDF(clienteId);
-    } catch (_) {
+    } catch (__unused) {
       // error state se maneja dentro del hook
     }
   }, [clienteId, fetchInformePDF]);
