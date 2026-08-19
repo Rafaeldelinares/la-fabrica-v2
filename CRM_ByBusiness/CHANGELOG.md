@@ -7,6 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased] — 2026-08-13
 
+### Migración legacy de facturación (CRM anterior → CRM_ByBusiness)
+
+Capacidad para absorber clientes del CRM anterior respetando numeración histórica, IBAN, fecha
+máxima de pago, y permitiendo consolidación de proformas e importación de facturas sueltas.
+
+**Documentación**: [`docs/LEGACY_FACTURACION_MIGRATION.md`](docs/LEGACY_FACTURACION_MIGRATION.md)
+**Spec OpenSpec**: [`openspec/specs/legacy-facturacion-migration/spec.md`](openspec/specs/legacy-facturacion-migration/spec.md)
+**Change OpenSpec**: [`openspec/changes/2026-08-13-legacy-facturacion-migration/`](openspec/changes/2026-08-13-legacy-facturacion-migration/)
+
+### Added
+
+- **Schema extendido** (PostgreSQL VPS `crm_bybusiness`):
+  - `clientes.proformas`: +`fecha_maxima_pago date`, +`iban varchar(50)`, +`legacy_numero varchar(50)`,
+    +`origen varchar(50) DEFAULT 'normal'`, +`proforma_padre_id integer REFERENCES clientes.proformas(id)`
+  - `clientes.facturas`: +`legacy_numero varchar(50)`, +`origen varchar(50) DEFAULT 'normal'`
+  - `clientes.contratos`: +`es_legacy boolean DEFAULT false`
+  - CHECK constraint de proforma extendido: `borrador, verificada, pendiente_cliente, aceptada, aprobada, rechazada`
+  - Índice: `idx_proformas_padre` sobre `proforma_padre_id`
+- **Producto 12M nuevo** (`clientes.productos` id catálogo 18): "PRIMER PAGO 12M: Campaña SEO local",
+  precio 144,50 €, duración 12 meses
+- **`CRM_PROFORMA_CONSOLIDAR`** (workflow nuevo, ID `Km181i5Mc8mPI90W`): recibe `proforma_ids[]`,
+  suma líneas de hijas agrupadas por descripción, crea proforma padre
+  (`CONS-{cliente_id}-{YYMMDD-HH24MISS}`), marca hijas con `proforma_padre_id`
+- **`CRM_FACTURA_IMPORTAR_LEGACY`** (workflow nuevo, ID `aK7UC5lZhlTfL39r`): importa facturas del CRM
+  anterior sin proforma asociada. Crea factura con `numero=legacy_numero` (NO regenera serie A),
+  emisor ByBusiness hardcoded
+
+### Changed
+
+- **`CRM_19_POST_PROFORMA`**: extendido con soporte para `legacy_numero`, `fecha_maxima_pago`,
+  `iban`, `origen`, `estado` personalizable. VersionId `aff9e784-3724-4d15-a6fa-c31b8b177eea`
+- **`CRM_FACTURA_GENERAR`**: bug de schema `crm_bybusiness.*` → `clientes.*` corregido. Ahora
+  tiene 10 nodos: agregados **Copy Lineas** (de proforma_lineas a factura_lineas),
+  **Update Emisor Receptor** (datos ByBusiness + cliente), **Create Pagos** (fraccionados
+  automáticos). Datos emisor ByBusiness hardcoded. VersionId `bb2910b1-7947-4990-b0d7-10e44fb81e47`
+- **`CRM_PROFORMA_VERIFICAR`**: schema bug arreglado (`crm_bybusiness.proformas` → `clientes.proformas`)
+- **`CRM_70_POST_CONTRATO_DIGITAL`**: schema bug arreglado. Modelo corregido: usa `cliente_id`
+  (no `lead_id`). Campos opcionales: `estado`, `referencia`, `objeto`, `importe_mensual`, `canal_envio`
+- **`CRM_75_POST_CONTRATO_EMAIL`**: schema bug arreglado. Devuelve campos adicionales
+  (`email_estado`, `whatsapp_estado`)
+- **`series_facturacion`**: reset a 0 (series A y R en 2026) para auditoría limpia
+
+### Data
+
+- **Cliente de prueba 1254** (NATALIA MARTI ATELIER) cargado en VPS con 2 proformas legacy
+  y 1 contrato digital pre-generado
+- **1220 clientes, 1478 contratos, 447 proformas, 112 facturas** archivados a `legacy_archive.*`
+- **Tablas auxiliares restauradas selectivamente**: `gbp_audit_history` (774),
+  `series_factura` (6). NO restauradas (cache): `gbp_audit_cache`, `informes_competencia`,
+  `emails_info_leads`, `competencia`, `sector_aggregates`
+
+### Security
+
+- Auditoría del flujo de facturación detectó 6 bugs críticos (todos corregidos): 4 workflows
+  con schema incorrecto, estados React↔DB desincronizados, factura sin líneas/sin emisor/
+  sin pagos fraccionados, modelo `lead_id` obsoleto
+
+### Pending
+
+- **VeriFactu/AEAT (Fix 7)**: STANDBY. Plan diseñado en [`openspec/changes/2026-08-13-verifactu-mock-mode/`](openspec/changes/2026-08-13-verifactu-mock-mode/)
+  con Opción C (híbrido: workflow con flag `verifactu_mode` que switch entre `mock` y `real`).
+  Mock permite testing end-to-end sin riesgo legal. Cambio a `real` = solo cambiar flag, sin reescribir código.
+  Pendiente: certificado digital AEAT (B10577021) y decisión legal/fiscal sobre obligación VeriFactu de ByBusiness.
+- **Modal frontend "Captura de antiguo CRM"** (Fase 5): pendiente
+- **Cliente 1254 proforma 2 (LEGACY-2/2026) vacía (0€)**: usuario consultará mañana el total real
+
+### Backups
+
+- `/opt/fabrica/backups/crm/fase1_pre_modif_20260813_224847.dump` (601KB, pre-schema local)
+- `/opt/fabrica/backups/crm/vps_pre_limpieza_20260813_225715.dump` (963KB, pre-limpieza VPS)
+
+## [Unreleased] — 2026-08-14
+
+### Rediseño ficha cliente — sidebar lateral + drawer ancho completo
+
+Tabs horizontales reemplazados por sidebar vertical 15%, drawer limitado a 1080px → hasta 1800px.
+Aprovecha mejor la zona de trabajo en pantallas grandes.
+
+**Documentación**: [`docs/CLIENTE_DRAWER_REDESIGN.md`](docs/CLIENTE_DRAWER_REDESIGN.md)
+**Spec OpenSpec**: [`openspec/specs/cliente-drawer-redesign/spec.md`](openspec/specs/cliente-drawer-redesign/spec.md)
+**Change OpenSpec**: [`openspec/changes/2026-08-14-cliente-drawer-redesign/`](openspec/changes/2026-08-14-cliente-drawer-redesign/)
+
+### Added
+
+- **`src/modules/admin/cartera/ClienteDrawer.jsx`**: nuevo sidebar lateral vertical (15% del ancho del drawer)
+  con 6 items (Ficha, Facturación, Historial, Google Business, SEO LOCAL, Tarjeta Digital).
+  Item activo con `border-l-2 border-[#D00000]`. Labels con `whitespace-nowrap` para evitar truncado.
+
+### Changed
+
+- **`src/modules/admin/cartera/ClienteDrawer.jsx`**: contenido del tab activo pasa de
+  `flex-1 overflow-y-auto` a `flex-1 overflow-y-auto custom-scrollbar px-[5%] py-5` (padding lateral 5%).
+- **`src/modules/admin/cartera/CarteraPanel.jsx`** (líneas 472 y 495) y
+  **`src/modules/admin/facturacion/FacturacionPanel.jsx`** (línea 90): drawer contenedor cambia de
+  `w-[90vw] max-w-[1080px]` a `w-[95vw] max-w-[1800px]` para aprovechar zona de trabajo completa.
+
+### Iteraciones del rediseño
+
+1. **Iter 1**: Tabs horizontales → sidebar vertical 200px fijo
+2. **Iter 2**: Sidebar 200px → 25% (proporcional)
+3. **Iter 3**: Drawer 1080px → 1800px max (95vw)
+4. **Iter 4**: Sidebar 25% → 15% + `whitespace-nowrap`
+
+## [Unreleased] — 2026-08-13
+
 ### Drive-by auditing: informe competitivo también guarda auditoría GBP
 
 Cuando se genera el informe competitivo para un cliente, los datos de auditoría de su
