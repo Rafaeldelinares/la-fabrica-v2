@@ -64,3 +64,6 @@ __pycache__/
 CRM_ByBusiness-vps-snapshot/
 gentle-sdd-router/
 google-maps-scraper/
+
+# Skill registry (auto-generado, no commitear)
+.atl/
