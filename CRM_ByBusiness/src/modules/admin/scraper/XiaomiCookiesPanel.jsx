@@ -130,7 +130,7 @@ const XiaomiCookiesPanel = () => {
       // Reset so same file can be re-selected
       e.target.value = '';
     },
-    [uploadCookies]
+    [uploadCookies, toast]
   );
 
   if (!rbac.can('admin.system.config')) {
