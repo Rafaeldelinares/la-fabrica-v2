@@ -20,6 +20,8 @@ import EmptyState from '../../../shared/ui/EmptyState';
 import AccessDenied from '../../../shared/ui/AccessDenied';
 import { useRbac } from '../../../shared/auth/useRbac';
 import { useXiaomiCookies } from './useXiaomiCookies';
+import { useToast } from '../../../shared/context/ToastContext';
+import { reportError } from '../../../shared/errors/reportError';
 
 /**
  * Normaliza un array de cookies en cualquiera de los tres formatos conocidos
@@ -35,13 +37,13 @@ const parseCookiesRaw = (raw) => {
     // Wrapped: { cookies: [...] } o { cookies_json: '[...]' }
     if (raw.cookies && Array.isArray(raw.cookies)) return raw.cookies;
     if (raw.cookies_json) {
-      try { return JSON.parse(raw.cookies_json); } catch { /* ignore */ }
+      return JSON.parse(raw.cookies_json);  // parse failure surfaces to caller (XiaomiCookiesPanel handler)
     }
     // Could be single cookie object — wrap in array
     return [raw];
   }
   if (typeof raw === 'string') {
-    try { return JSON.parse(raw); } catch { /* ignore */ }
+    return JSON.parse(raw);  // parse failure surfaces to caller (XiaomiCookiesPanel handler)
   }
   return [];
 };
@@ -62,6 +64,7 @@ const formatDate = (isoString) => {
 
 /**
  * Renderiza un chip de estado con color según urgency.
+ * @param {{ days: number|null|undefined }} props
  */
 const StatusChip = ({ days }) => {
   if (days === null || days === undefined) return null;
@@ -82,9 +85,14 @@ const StatusChip = ({ days }) => {
   );
 };
 
+StatusChip.propTypes = {
+  days: PropTypes.oneOfType([PropTypes.number, PropTypes.oneOf([null, undefined])]),
+};
+
 const XiaomiCookiesPanel = () => {
   const rbac = useRbac();
   const fileInputRef = useRef(null);
+  const toast = useToast();
 
   const {
     status,
@@ -95,7 +103,6 @@ const XiaomiCookiesPanel = () => {
     isUploading,
     uploadResult,
     uploadError,
-    clearUploadResult,
     notification,
   } = useXiaomiCookies();
 
@@ -110,12 +117,13 @@ const XiaomiCookiesPanel = () => {
           const parsed = JSON.parse(ev.target.result);
           const cookies = parseCookiesRaw(parsed);
           if (cookies.length === 0) {
-            alert('El archivo no contiene cookies válidos.');
+            toast.error('El archivo no contiene cookies válidos.');
             return;
           }
           uploadCookies(cookies);
-        } catch {
-          alert('No se pudo parsear el archivo como JSON.');
+        } catch (err) {
+          toast.error('No se pudo parsear el archivo como JSON.');
+          reportError(err, { zoneId: 'XiaomiCookiesPanel.file-upload' });
         }
       };
       reader.readAsText(file);
