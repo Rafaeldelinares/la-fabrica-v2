@@ -4,28 +4,32 @@ alimentador_reputacion.py
 ==========================
 
 Recorre leads con `reputacion_at` viejo en operaciones.leads del VPS,
-los refresca usando el motor Go local (`localhost:8092`) y actualiza la
-base de producción.
+los refresca usando el wrapper ZFold8 (`http://100.79.58.49:8095`) y
+actualiza la base de producción.
 
 Uso:
-    python3 scripts/alimentador_reputacion.py --vps --scraper gosom --batch 100
+    python3 scripts/alimentador_reputacion.py --vps --batch 100
     python3 scripts/alimentador_reputacion.py --dry-run --batch 10
 
 Argumentos:
     --batch N        Procesa hasta N leads (default 100).
     --vps            Escribe en VPS vía SSH (default: dry-run).
-    --scraper TYPE   Tipo de scraper para el motor Go (gosom|nano|heavy).
     --max-age DAYS   Solo leads con reputacion_at más viejos que DAYS (default 180).
     --query-format F Formato de query: "{nombre} {localidad}" (default)
                                   o "nombre" para usar solo el nombre.
     --ssh HOST       Host SSH para VPS (default root@72.60.191.179).
     --psql-cmd CMD   Comando psql dentro del VPS (default
                      `docker exec fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness`).
+    --wrapper URL    URL del wrapper ZFold8. Default http://127.0.0.1:8095 (loopback,
+                   asume script corriendo en el mismo ZFold). Usar
+                   http://100.79.58.49:8095 si corrés desde otra máquina.
+    --depth N        Profundidad del scrape gosom (1-3, default 1).
+    --timeout SEC    Timeout por lead (default 180s).
 
 Variables de entorno (opcionales):
     VpsSSHUser       Usuario SSH (default root).
     VpsSSHHost       Host SSH (default 72.60.191.179).
-    MotorEndpoint    URL del motor Go (default http://localhost:8092).
+    ZfoldWrapper     URL del wrapper ZFold8 (default http://100.79.58.49:8095).
 """
 
 import argparse
@@ -40,7 +44,12 @@ import urllib.error
 
 DEFAULT_VPS_HOST = os.environ.get('VpsSSHHost', '72.60.191.179')
 DEFAULT_VPS_USER = os.environ.get('VpsSSHUser', 'root')
-DEFAULT_MOTOR = os.environ.get('MotorEndpoint', 'http://localhost:8092')
+
+# Por defecto, hablar con el wrapper en loopback (asumiendo que este script corre
+# en el mismo dispositivo ZFold donde vive el wrapper gosom). Para ejecutarlo desde
+# otra máquina (VPS, portátil), pasar --wrapper http://100.79.58.49:8095 o setear
+# la variable de entorno ZfoldWrapper.
+DEFAULT_ZFOLD_WRAPPER = os.environ.get('ZfoldWrapper', 'http://127.0.0.1:8095')
 
 
 def ssh_psql(sql: str, host: str, user: str, psql_cmd: str) -> str:
@@ -91,44 +100,51 @@ def fetch_stale_leads(batch: int, max_age_days: int, host: str, user: str, psql_
     return leads
 
 
-def scrape_via_motor(query: str, motor: str, depth: int = 5, timeout: int = 200) -> dict:
-    payload = json.dumps({
-        'query': {
-            'q': query,
-            'depth': depth,
-            'preload': False,
-            'scraper': 'gosom',
-        }
-    }).encode('utf-8')
+def scrape_via_zfold(query: str, wrapper: str, depth: int = 1, timeout: int = 180) -> dict:
+    """Call ZFold8 gosom wrapper /run endpoint. Returns parsed JSON or {error: ...}.
+
+    Wrapper contract (gosom_wrapper.py v3.1+):
+      POST http://100.79.58.49:8095/run
+      Body: {"query": "Hotel Posada ...", "depth": 1}
+      Returns: {"ok": true, "rows": N, "data": [{...gosom row...}]}
+
+    gosom row schema (subset we care about):
+      {title, address, phone, web_site, review_rating, review_count, ...}
+    """
+    payload = json.dumps({'query': query, 'depth': depth}).encode('utf-8')
     req = urllib.request.Request(
-        f'{motor.rstrip("/")}/webhook/scraper/go',
+        f'{wrapper.rstrip("/")}/run',
         data=payload,
         headers={'Content-Type': 'application/json'},
         method='POST',
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except (urllib.error.URLError, TimeoutError) as e:
+        return {'ok': False, 'error': 'wrapper_unreachable', 'detail': str(e)}
 
 
 def normalize_result(result: dict) -> list:
-    """The motor returns either `items` (list mode) or `data` (detail mode).
+    """Map ZFold8 /run response to a flat list of {name, rating, reviews}.
 
-    We always want a flat list of {name, rating, reviews}.
+    ZFold8 returns: {"ok": true, "rows": N, "data": [<row>, ...]} or {"ok": false, "error": ...}.
+    Each row contains review_rating + review_count (gosom canonical names).
     """
+    if not result.get('ok'):
+        return []
+    data = result.get('data') or []
+    if not data and result.get('rows'):
+        # Backward compatibility if wrapper uses "rows" key instead
+        data = result.get('rows') if isinstance(result.get('rows'), list) else []
     out = []
-    items = result.get('items') or []
-    for it in items:
+    for row in data:
+        if not isinstance(row, dict):
+            continue
         out.append({
-            'name': it.get('name') or it.get('title') or '',
-            'rating': it.get('rating') or 0,
-            'reviews': it.get('reviews') or it.get('review_count') or 0,
-        })
-    data = result.get('data')
-    if isinstance(data, dict) and data:
-        out.append({
-            'name': data.get('name') or data.get('title') or '',
-            'rating': data.get('rating') or 0,
-            'reviews': data.get('reviews') or data.get('review_count') or 0,
+            'name': row.get('title') or row.get('name') or '',
+            'rating': float(row.get('review_rating') or row.get('rating') or 0),
+            'reviews': int(row.get('review_count') or row.get('reviews') or 0),
         })
     return out
 
@@ -155,11 +171,47 @@ def find_best_match(items: list, target_nombre: str) -> dict:
     return max(items, key=score)
 
 
-def update_lead(lead_id: int, rating, reviews: int, host: str, user: str, psql_cmd: str) -> str:
+# Legacy aliases retained for downstream call sites that still pass motor=...
+def scrape_via_motor(query: str, motor: str, depth: int = 5, timeout: int = 200) -> dict:
+    """Deprecated: kept for backward compatibility. Routes old callers to ZFold wrapper."""
+    return scrape_via_zfold(query, motor, depth=min(depth, 3), timeout=timeout)
+
+
+def update_lead(lead_id: int, rating, reviews: int, categoria: str,
+                  place_id: str, google_cid: str, google_maps_link: str,
+                  direccion: str, host: str, user: str, psql_cmd: str) -> str:
+    """Persist a scraped reputation snapshot on the lead.
+
+    Every column is set only when a non-empty value is scraped — using
+    COALESCE-style conditional SETs so we never wipe good existing data.
+
+    Reputation fields are always overwritten (they are the whole point).
+    """
+    def q(value):
+        """Quote a string for SQL; returns '' for empty."""
+        if not value:
+            return ""
+        return "'" + str(value).replace("'", "''") + "'"
+
+    set_parts = []
+    for col, val in [
+        ("categoria", categoria),
+        ("place_id", place_id),
+        ("google_cid", google_cid),
+        ("google_maps_link", google_maps_link),
+        ("direccion", direccion),
+    ]:
+        quoted = q(val)
+        if quoted:
+            set_parts.append("%s = %s" % (col, quoted))
+    extra_sets = ", ".join(set_parts) + (", " if set_parts else "")
+
     sql = (
         "UPDATE operaciones.leads SET "
+        "%s"
         "rating = %.2f, num_reseñas = %d, scoring = %.2f, reputacion_at = NOW() "
         "WHERE id = %d RETURNING id;" % (
+            extra_sets,
             float(rating or 0), int(reviews or 0), float(rating or 0), int(lead_id),
         )
     )
@@ -194,13 +246,12 @@ def log_evento_cron(stats: dict, batch_size: int, max_age: int,
 
 
 def main():
-    p = argparse.ArgumentParser(description='Refresca reputacion_at en leads stale')
+    p = argparse.ArgumentParser(description='Refresca reputacion_at en leads stale vía ZFold8')
     p.add_argument('--batch', type=int, default=100)
     p.add_argument('--vps', action='store_true',
                    help='Aplicar updates en el VPS (sin esto, dry-run).')
     p.add_argument('--dry-run', action='store_true',
                    help='Alias explícito de no --vps. Solo imprime sin escribir.')
-    p.add_argument('--scraper', default='gosom')
     p.add_argument('--max-age', type=int, default=180,
                    help='Solo leads con reputacion_at más viejo que N días (default 180).')
     p.add_argument('--query-format', choices=('full', 'name'),
@@ -209,8 +260,12 @@ def main():
     p.add_argument('--ssh', default=DEFAULT_VPS_HOST)
     p.add_argument('--ssh-user', default=DEFAULT_VPS_USER)
     p.add_argument('--psql-cmd', default='docker exec fabrica-postgres-1 psql -U rafael_admin -d crm_bybusiness')
-    p.add_argument('--motor', default=DEFAULT_MOTOR)
-    p.add_argument('--depth', type=int, default=5)
+    p.add_argument('--wrapper', default=DEFAULT_ZFOLD_WRAPPER,
+                   help='URL del wrapper ZFold8 (default http://100.79.58.49:8095).')
+    p.add_argument('--depth', type=int, default=1,
+                   help='Profundidad gosom (1-3, default 1 — mínimo razonable para leads).')
+    p.add_argument('--timeout', type=int, default=180,
+                   help='Timeout por lead (default 180s).')
     args = p.parse_args()
 
     dry_run = not args.vps
@@ -245,13 +300,17 @@ def main():
 
         try:
             t0 = time.time()
-            result = scrape_via_motor(query, args.motor, depth=args.depth)
-            latency_ms = result.get('response_time', 0)
+            result = scrape_via_zfold(query, args.wrapper, depth=args.depth, timeout=args.timeout)
             items = normalize_result(result)
             elapsed = time.time() - t0
-            print('   scraper %d items (type=%s), latency %.1fs (motor %.0fms) cached=%s' % (
-                len(items), result.get('type'), elapsed, latency_ms, result.get('cached'),
-            ))
+            if not result.get('ok'):
+                print('   ZFold error: %s' % result.get('error', 'unknown'))
+            else:
+                # result['rows'] viene como lista; usamos len() para el count.
+                rows_count = len(result.get('rows') or [])
+                print('   ZFold %d items, %.1fs (rows=%d)' % (
+                    len(items), elapsed, rows_count,
+                ))
 
             match = find_best_match(items, lead['nombre'])
             if not match:
@@ -260,28 +319,19 @@ def main():
                 continue
             rating = float(match.get('rating') or 0)
             reviews = int(match.get('reviews') or 0)
-            print('   match: "%s" rating=%.2f reviews=%d' % (
-                match.get('name'), rating, reviews,
+            categoria = match.get('category') or match.get('categoria') or ''
+            # Golden fields: the data the operator needs and the workflow system reuses.
+            # These come for free from every gosom scrape; we just persist them.
+            place_id = match.get('place_id') or ''
+            google_cid = match.get('cid') or match.get('google_cid') or ''
+            # If gosom didn't include `link`, build a Maps place-URL from the place_id.
+            link = match.get('link') or ''
+            if not link and place_id:
+                link = f'https://www.google.com/maps/place/?q=place_id:{place_id}'
+            direccion = match.get('address') or match.get('direccion') or ''
+            print('   match: "%s" rating=%.2f reviews=%d cat="%s" place_id=%r' % (
+                match.get('name'), rating, reviews, categoria, place_id or None,
             ))
-
-            # FIX cache contamination: si el match viene de cache (cached=True) y
-            # tiene rating=0, es muy probable que el cache esté contaminado (otro
-            # business con key similar). Reintentamos con cache-bust (nonce en q)
-            # para forzar una consulta fresca y detectar el false-negative.
-            if rating <= 0 and result.get('cached'):
-                import uuid as _uuid
-                bust_query = f"{query} __bust={_uuid.uuid4().hex[:8]}"
-                print('   match cached con rating=0 — retry sin cache (nonce)...')
-                result2 = scrape_via_motor(bust_query, args.motor, depth=args.depth)
-                items2 = normalize_result(result2)
-                match2 = find_best_match(items2, lead['nombre'])
-                if match2 and float(match2.get('rating') or 0) > 0:
-                    print(f'   retry OK: match2="{match2.get("name")}" rating={match2.get("rating")} reviews={match2.get("reviews")} cached={result2.get("cached")}')
-                    match = match2
-                    rating = float(match2.get('rating') or 0)
-                    reviews = int(match2.get('reviews') or 0)
-                else:
-                    print(f'   retry sigue rating=0 — genuine, no es cache bug')
 
             if rating <= 0:
                 stats['no_rating'] += 1
@@ -292,7 +342,8 @@ def main():
                 print('   (dry-run) update lead %d' % lead['id'])
                 stats['updated'] += 1
             else:
-                out = update_lead(lead['id'], rating, reviews,
+                out = update_lead(lead['id'], rating, reviews, categoria,
+                                  place_id, google_cid, link, direccion,
                                   args.ssh, args.ssh_user, args.psql_cmd)
                 if out.strip():
                     stats['updated'] += 1

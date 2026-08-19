@@ -18,6 +18,8 @@ import FreshnessConfigCard from './FreshnessConfigCard';
 import CronSistemaDetalle from './CronSistemaDetalle';
 import { useQuery } from '@tanstack/react-query';
 import { n8nGet, n8nPost } from '../../../shared/hooks/useN8n';
+import { useToast } from '../../../shared/context/ToastContext';
+import { reportError } from '../../../shared/errors/reportError';
 
 /** Tipos de evento operador — se distribuyen 10:00–20:00 si llegan a las 00:00. */
 const TIPOS_OPERADOR = new Set(['interaccion', 'llamada_operador', 'callback_operador']);
@@ -385,6 +387,7 @@ const CALENDAR_COMPONENTS = { event: EventoTag };
 const AgendaGlobalPanel = () => {
   const { user } = useAuth();
   const { can } = useRbac();
+  const toast = useToast();
   const [view, setView]           = useState(Views.MONTH);
   // Inicializar en el día actual para que el admin vea los eventos del día
   // y no tenga que navegar. La vista Mes muestra el mes completo del día actual.
@@ -735,7 +738,10 @@ const AgendaGlobalPanel = () => {
                             onClick={async () => {
                               try {
                                 await n8nPost('crm-gbp-alerta-ack', { id: alerta.id });
-                              } catch (_) {}
+                              } catch (err) {
+                                toast.error('No se pudo marcar la alerta como revisada');
+                                reportError(err, { zoneId: 'AgendaGlobalPanel.gbp-alerta-ack' });
+                              }
                             }}
                             className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-amber-700/40 text-amber-400 hover:bg-amber-900/20 transition-colors"
                           >
@@ -753,7 +759,10 @@ const AgendaGlobalPanel = () => {
                             onClick={async () => {
                               try {
                                 await n8nPost('crm-gbp-alerta-resolve', { id: alerta.id });
-                              } catch (_) {}
+                              } catch (err) {
+                                toast.error('No se pudo resolver la alerta');
+                                reportError(err, { zoneId: 'AgendaGlobalPanel.gbp-alerta-resolve' });
+                              }
                             }}
                             className="text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded-sm border border-emerald-700/40 text-emerald-400 hover:bg-emerald-900/20 transition-colors"
                           >
