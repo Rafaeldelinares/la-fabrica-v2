@@ -332,7 +332,7 @@ const TooltipCtx = React.createContext({ set: null, clear: null });
 
 /**
  * Contenido del tooltip flotante de evento — sin lógica de posicionamiento.
- * El posicionamiento se realiza en el padre via ref.current.style.setProperty.
+ * El posicionamiento se realiza en el padre via CSS custom properties (--tt-x, --tt-y).
  * @param {{ evento: Object }} props
  */
 const TooltipContenido = ({ evento }) => {
@@ -397,6 +397,7 @@ const AgendaGlobalPanel = () => {
   const [eventoSel, setEventoSel]         = useState(null);
   const [clienteDrawer, setClienteDrawer] = useState(null);
   const [tooltipEvento, setTooltipEvento] = useState(null);
+  const [tooltipPos, setTooltipPos]       = useState(null);
   const tooltipWrapperRef                 = useRef(null);
 
   // React Query: agenda unificada (2min staleTime)
@@ -483,13 +484,15 @@ const AgendaGlobalPanel = () => {
 
   const tooltipHandlers = useMemo(() => ({
     set: (evento, x, y) => {
-      if (tooltipWrapperRef.current) {
-        tooltipWrapperRef.current.style.left = `${Math.min(x + 14, window.innerWidth - 272)}px`;
-        tooltipWrapperRef.current.style.top = `${Math.min(y + 10, window.innerHeight - 210)}px`;
-      }
+      const clampedX = Math.min(x + 14, window.innerWidth - 272);
+      const clampedY = Math.min(y + 10, window.innerHeight - 210);
+      setTooltipPos({ x: clampedX, y: clampedY });
       setTooltipEvento(evento);
     },
-    clear: () => setTooltipEvento(null),
+    clear: () => {
+      setTooltipEvento(null);
+      setTooltipPos(null);
+    },
   }), []);
 
   const eventosFiltrados = eventos.filter(evento => filtros[evento.tipo_evento]);
@@ -811,7 +814,8 @@ const AgendaGlobalPanel = () => {
         </div>
       )}
       {createPortal(
-        <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}>
+        <div ref={tooltipWrapperRef} className={`fixed z-[9999] pointer-events-none tt-flotante${tooltipEvento ? '' : ' hidden'}`}
+             style={tooltipPos ? { '--tt-x': `${tooltipPos.x}px`, '--tt-y': `${tooltipPos.y}px` } : undefined}>
           {tooltipEvento && <TooltipContenido evento={tooltipEvento} />}
         </div>,
         document.body
