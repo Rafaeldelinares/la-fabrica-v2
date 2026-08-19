@@ -8,6 +8,7 @@ import ModalNuevaProforma from './ModalNuevaProforma';
 import { n8nGet, n8nPost } from '../../../../../shared/hooks/useN8n';
 import ProformaEstadoBadge from '../../../../../shared/ui/badges/ProformaEstadoBadge';
 import EnviarProformaButton from '../../../../../shared/ui/buttons/EnviarProformaButton';
+import AprobarProformaButton from '../../../../../shared/ui/buttons/AprobarProformaButton';
 import ConsolidarButton from '../../../../../shared/ui/buttons/ConsolidarButton';
 import SolicitarFacturaButton from '../../../../../shared/ui/buttons/SolicitarFacturaButton';
 
@@ -392,13 +393,19 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                   <Info
                     size={12}
                     className="text-slate-500 shrink-0"
-                    title={'Acciones de proforma:\n• "Enviar al gestor" — envía o reenvía el PDF al gestor (workflow decide según estado)\n• "Consolidar" (si hay N>=2 proformas) — fusiona en una sola\n• "Solicitar factura" — marca la proforma como solicitada por el cliente\n• "Reabrir" — vuelve la proforma a estado rellenada para edición\n• "Borrar" — elimina la proforma'}
+                    title={'Acciones de proforma:\n• "Enviar al gestor" — envía o reenvía el PDF al gestor (workflow decide según estado)\n• "Aprobar" — marca la proforma como aprobada por el cliente (cambia estado a aprobada)\n• "Consolidar" (si hay N>=2 proformas) — fusiona en una sola\n• "Solicitar factura" — marca la proforma como solicitada por el cliente\n• "Reabrir" — vuelve la proforma a estado rellenada para edición\n• "Borrar" — elimina la proforma'}
                   />
                   <EnviarProformaButton
                     proforma={pf}
                     cliente={cliente}
                     onSuccess={cargar}
                   />
+                  {es !== 'borrador' && es !== 'aprobada' && es !== 'firmada' && (
+                    <AprobarProformaButton
+                      proforma={pf}
+                      onSuccess={cargar}
+                    />
+                  )}
                   {es !== 'borrador' && (
                     <SolicitarFacturaButton
                       proforma={pf}
