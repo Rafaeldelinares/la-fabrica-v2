@@ -230,7 +230,8 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
     if (!pdfUrl && !isLoading) {
       try {
         await fetchInformePDF(clienteId);
-      } catch { // eslint-disable-line no-unused-vars
+      } catch {
+        // eslint-disable-next-line no-unused-vars
         // error state se maneja dentro del hook
       }
     }
@@ -243,7 +244,8 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
   const handleRetry = useCallback(async () => {
     try {
       await fetchInformePDF(clienteId);
-    } catch { // eslint-disable-line no-unused-vars {
+    } catch {
+      // eslint-disable-next-line no-unused-vars
       // error state se maneja dentro del hook
     }
   }, [clienteId, fetchInformePDF]);
