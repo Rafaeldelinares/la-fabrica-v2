@@ -28,14 +28,15 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
       ? proformaEditar.lineas.map(l => ({ ...l, _id: Date.now() + Math.random(), dto_pct: l.dto_pct ?? 0, cantidad: +l.cantidad || 1, precio_unitario: +l.precio_unitario || 0 }))
       : [lineaVacia()]
   );
-  const [productos,     setProductos]     = useState([]);
-  const [saving,        setSaving]        = useState(false);
-  const [error,         setError]         = useState(null);
+  const [productos,         setProductos]         = useState([]);
+  const [productosError,    setProductosError]    = useState(null);
+  const [saving,            setSaving]            = useState(false);
+  const [error,             setError]             = useState(null);
 
   useEffect(() => {
     n8nGet('crm-productos', {}, { baseUrl: n8nUrl })
       .then(d => setProductos(d.productos || []))
-      .catch(() => {});
+      .catch(() => { setProductosError('No se pudo cargar el catálogo de productos. Puedes escribir descripciones manualmente.'); });
   }, [n8nUrl]);
 
   const updLine = (id, field, val) =>
@@ -53,36 +54,40 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
     try {
       let proformaId;
       if (editMode) {
-        const dataE = await n8nPost('crm-proforma-editar', {
+        const dataEdicion = await n8nPost('crm-proforma-crear', {
+          op: 'editar',
           proforma_id:    proformaEditar.id,
           notas,
           fraccionado,
           num_fracciones: fraccionado ? numFracciones : 1,
           iva_pct:        aplicarIva ? ivaPct : null,
         }, { baseUrl: n8nUrl });
-        if (!dataE.ok) throw new Error(dataE.error || 'Error al editar proforma');
+        if (!dataEdicion.ok) throw new Error(dataEdicion.error || 'Error al editar proforma');
         proformaId = proformaEditar.id;
       } else {
-        const dataP = await n8nPost('crm-proforma-crear', {
+        const dataProforma = await n8nPost('crm-proforma-crear', {
+          op: 'crear',
           cliente_id:     cliente.id,
           operador_id:    operadorId,
           notas,
           fraccionado,
           num_fracciones: fraccionado ? numFracciones : 1,
+          requiere_factura: true,
           iva_pct:        aplicarIva ? ivaPct : null,
         }, { baseUrl: n8nUrl });
-        if (!dataP.ok) throw new Error(dataP.error || 'Error al crear proforma');
-        proformaId = dataP.proforma?.id;
+        if (!dataProforma.ok) throw new Error(dataProforma.error || 'Error al crear proforma');
+        proformaId = dataProforma.proforma?.id;
       }
       for (const l of lineas) {
-        const dL = await n8nPost('crm-proforma-linea', {
+        const dataLinea = await n8nPost('crm-proforma-crear', {
+          op: 'linea',
           proforma_id:     proformaId,
           descripcion:     l.descripcion,
           cantidad:        l.cantidad,
           precio_unitario: l.precio_unitario,
           dto_pct:         l.dto_pct,
         }, { baseUrl: n8nUrl });
-        if (!dL.ok) throw new Error(`Error en línea: ${l.descripcion}`);
+        if (!dataLinea.ok) throw new Error(`Error en línea: ${l.descripcion}`);
       }
       onCreated();
     } catch (err) {
@@ -197,7 +202,7 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
                     <input type="number" min={0.01} step={0.01} className={INPUT} value={l.cantidad} onChange={e => updLine(l._id, 'cantidad', +e.target.value)} />
                   </div>
                   <div>
-                    <span className={`${LABEL} text-emerald-600`}>{subtotalLinea(l).toFixed(2)}€</span>
+                    <span className={`${LABEL} text-slate-300`}>{subtotalLinea(l).toFixed(2)}€</span>
                     <input type="number" min={0} step={0.01} className={INPUT} value={l.precio_unitario} onChange={e => updLine(l._id, 'precio_unitario', +e.target.value)} />
                   </div>
                   <div>
