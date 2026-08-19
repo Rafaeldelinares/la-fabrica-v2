@@ -46,11 +46,10 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
 
     // Fetch-on-prop-change: cuando clienteId cambia, se sincroniza loading state y se hace request.
     // Patron canonico para vistas detalle en CRUDs.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => {
-        if (!clienteId) { setLoading(false); return; }
-        setLoading(true);
-        setError('');
+        if (!clienteId) { setLoading(false); return; } // eslint-disable-line react-hooks/set-state-in-effect
+        setLoading(true); // eslint-disable-line react-hooks/set-state-in-effect
+        setError(''); // eslint-disable-line react-hooks/set-state-in-effect
         n8nGet(`crm-cartera-get?cliente_id=${clienteId}`)
             .then(data => {
                 if (data.ok && data.clientes?.length) setCliente(data.clientes[0]);

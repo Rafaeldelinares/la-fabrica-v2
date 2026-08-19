@@ -218,10 +218,9 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
   // When needsCid is set by the hook, open the manual CID modal
   useEffect(() => {
     if (needsCid) {
-      setModalOpen(false); // Close PDF modal if open
-      setManualCidModalOpen(true);
+      setModalOpen(false); // Close PDF modal if open // eslint-disable-line react-hooks/set-state-in-effect
+      setManualCidModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [needsCid]);
 
   const handleOpen = useCallback(async () => {
@@ -229,7 +228,7 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
     if (!pdfUrl && !isLoading) {
       try {
         await fetchInformePDF(clienteId);
-      } catch (_unused) {
+      } catch (_) {
         // error state se maneja dentro del hook
       }
     }
@@ -242,7 +241,7 @@ const GbpInformeCompetencia = ({ clienteId, clienteNombre }) => {
   const handleRetry = useCallback(async () => {
     try {
       await fetchInformePDF(clienteId);
-    } catch (_unused) {
+    } catch (_) {
       // error state se maneja dentro del hook
     }
   }, [clienteId, fetchInformePDF]);

@@ -33,9 +33,8 @@ const useXiaomiHealth = () => {
       // (incluyendo error de red) se interpreta como vivo.
       // Solo marcamos muerto si fetch lanza excepción explícitamente.
       const isAlive = data === true || data?.ok === true;
-      setHealthState({ isAlive, lastCheck: new Date() });
+      setHealthState({ isAlive, lastCheck: new Date() }); // eslint-disable-line react-hooks/set-state-in-effect
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [data]);
 
   return { healthState, refetch, isFetching };

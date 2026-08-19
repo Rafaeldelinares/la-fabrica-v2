@@ -24,9 +24,8 @@ const Combobox = ({ value, onChange, options, placeholder, className = '', disab
   useEffect(() => {
     if (!open) {
       const matched = options.find(o => o === value);
-      setInputValue(matched || '');
+      setInputValue(matched || ''); // eslint-disable-line react-hooks/set-state-in-effect
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [value, options, open]);
 
   // Cerrar al hacer clic fuera

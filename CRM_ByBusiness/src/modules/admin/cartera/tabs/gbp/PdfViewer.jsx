@@ -36,15 +36,14 @@ const PdfViewer = ({ pdfUrl, title = 'PDF' }) => {
   const [error, setError] = useState(null);
 
   // Carga el PDF
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     // Reset state when no hay URL
     if (!pdfUrl || typeof pdfUrl !== 'string' || pdfUrl.trim() === '') {
-      setIsLoading(false);
-      setError(null);
-      setPdfDoc(null);
-      setTotalPages(0);
-      setCurrentPage(1);
+      setIsLoading(false); // eslint-disable-line react-hooks/set-state-in-effect
+      setError(null); // eslint-disable-line react-hooks/set-state-in-effect
+      setPdfDoc(null); // eslint-disable-line react-hooks/set-state-in-effect
+      setTotalPages(0); // eslint-disable-line react-hooks/set-state-in-effect
+      setCurrentPage(1); // eslint-disable-line react-hooks/set-state-in-effect
       return;
     }
 
