@@ -307,12 +307,6 @@ const ProformasSection = ({ cliente, n8nUrl, operadorId }) => {
                       )}
                       disabled={fileTextDisabled} />
                   )}
-                  {showEye && (
-                    <ActionIcon icon={Eye} estado={tieneRespuesta ? 'activo' : 'inactivo'}
-                      title={tieneRespuesta ? 'Ver evidencia de respuesta' : 'Sin respuesta aún'}
-                      onClick={() => tieneRespuesta && setEvidencia(contrato)}
-                      disabled={!tieneRespuesta} />
-                  )}
                   {showFacturar && (
                     <ActionIcon icon={Receipt} estado="activo"
                       title="Generar factura"
