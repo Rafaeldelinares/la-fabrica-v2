@@ -143,7 +143,7 @@ export const useInformeCompetencia = () => {
               msg += `: ${body.slice(0, 200)}`;
             }
           }
-        } catch { // eslint-disable-line no-unused-vars /* ignore */ }
+        } catch { /* ignore */ } // eslint-disable-line no-unused-vars
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
@@ -186,7 +186,6 @@ export const useInformeCompetencia = () => {
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
-      }
       }
 
       // It's a PDF — process it
@@ -246,7 +245,7 @@ export const useInformeCompetencia = () => {
               msg += `: ${body.slice(0, 200)}`;
             }
           }
-        } catch { // eslint-disable-line no-unused-vars /* ignore */ }
+        } catch { /* ignore */ } // eslint-disable-line no-unused-vars
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
@@ -288,7 +287,6 @@ export const useInformeCompetencia = () => {
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
-      }
       }
 
       return processPdfResponse(response);
