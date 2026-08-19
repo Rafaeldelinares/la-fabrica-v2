@@ -2,6 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { Printer, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
+import ProformaEstadoBadge from '../../../shared/ui/badges/ProformaEstadoBadge';
 
 /** Formatea número como precio en euros con dos decimales. */
 const fmtEur = (v) => v != null ? `${parseFloat(v || 0).toFixed(2)} €` : '0,00 €';
@@ -73,9 +74,12 @@ const ProformaViewer = ({ proforma, cliente, onClose }) => {
 
           {/* Barra de acciones */}
           <div className="flex items-center justify-between mb-4 no-print">
-            <span className="text-xs text-slate-400 font-mono uppercase tracking-widest">
-              PROFORMA {referencia}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400 font-mono uppercase tracking-widest">
+                PROFORMA {referencia}
+              </span>
+              <ProformaEstadoBadge estado={proforma.estado} />
+            </div>
             <div className="flex gap-2">
               <button
                 onClick={imprimir}
