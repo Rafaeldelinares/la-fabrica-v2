@@ -139,11 +139,11 @@ export const useInformeCompetencia = () => {
             try {
               const json = JSON.parse(body);
               msg += json?.detail ? `: ${json.detail.slice(0, 200)}` : `: ${body.slice(0, 200)}`;
-            } catch (_) {
+            } catch (__unused) {
               msg += `: ${body.slice(0, 200)}`;
             }
           }
-        } catch (_) { /* ignore */ }
+        } catch (__unused) { /* ignore */ }
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
@@ -160,7 +160,7 @@ export const useInformeCompetencia = () => {
         let needsCidData;
         try {
           needsCidData = await response.json();
-        } catch (_) {
+        } catch (__unused) {
           // Not JSON — treat as unexpected content type
           const msg = `Content-Type inesperado: ${contentType}`;
           setError(msg);
@@ -241,11 +241,11 @@ export const useInformeCompetencia = () => {
             try {
               const json = JSON.parse(body);
               msg += json?.detail ? `: ${json.detail.slice(0, 200)}` : `: ${body.slice(0, 200)}`;
-            } catch (_) {
+            } catch (__unused) {
               msg += `: ${body.slice(0, 200)}`;
             }
           }
-        } catch (_) { /* ignore */ }
+        } catch (__unused) { /* ignore */ }
         setError(msg);
         setIsLoading(false);
         throw new Error(msg);
@@ -262,7 +262,7 @@ export const useInformeCompetencia = () => {
         let needsCidData;
         try {
           needsCidData = await response.json();
-        } catch (_) {
+        } catch (__unused) {
           const msg = `Content-Type inesperado: ${contentType}`;
           setError(msg);
           setIsLoading(false);

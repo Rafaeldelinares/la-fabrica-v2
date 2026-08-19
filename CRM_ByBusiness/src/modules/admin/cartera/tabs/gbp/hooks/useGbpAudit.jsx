@@ -11,7 +11,7 @@ import { useN8nMutation } from '../../../../../../shared/hooks/useN8n';
 /**
  * @param {{ placeId?: string, refresh?: boolean }} [options]
  */
-export const useGbpAudit = (options = {}) => {
+export const useGbpAudit = (_options = {}) => {
   const mutation = useN8nMutation('crm-gbp-ficha-audit');
 
   const runAudit = (placeId, opts = {}) => {
