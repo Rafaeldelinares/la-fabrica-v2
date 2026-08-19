@@ -26,6 +26,7 @@ const Combobox = ({ value, onChange, options, placeholder, className = '', disab
       const matched = options.find(o => o === value);
       setInputValue(matched || '');
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [value, options, open]);
 
   // Cerrar al hacer clic fuera
@@ -81,7 +82,6 @@ const Combobox = ({ value, onChange, options, placeholder, className = '', disab
             `transition-colors appearance-none cursor-pointer pr-6 ` +
             (disabled ? 'opacity-50 cursor-not-allowed' : '')
           }
-          style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
         />
         {/* Chevron indicator */}
         <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">

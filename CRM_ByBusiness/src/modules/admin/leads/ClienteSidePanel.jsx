@@ -44,6 +44,9 @@ const ClienteSidePanel = ({ clienteId, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
+    // Fetch-on-prop-change: cuando clienteId cambia, se sincroniza loading state y se hace request.
+    // Patron canonico para vistas detalle en CRUDs.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => {
         if (!clienteId) { setLoading(false); return; }
         setLoading(true);

@@ -36,6 +36,7 @@ const PdfViewer = ({ pdfUrl, title = 'PDF' }) => {
   const [error, setError] = useState(null);
 
   // Carga el PDF
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     // Reset state when no hay URL
     if (!pdfUrl || typeof pdfUrl !== 'string' || pdfUrl.trim() === '') {
@@ -188,9 +189,10 @@ const PdfViewer = ({ pdfUrl, title = 'PDF' }) => {
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-auto bg-slate-950 flex items-start justify-center p-4">
         {isLoading && (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin" />
-            <p className="text-[10px] font-mono">Cargando PDF...</p>
+          <div className="flex flex-col gap-2 px-5 py-6 w-full">
+            <div className="h-3 w-24 bg-slate-800 rounded-sm animate-pulse" />
+            <div className="h-3 w-32 bg-slate-800 rounded-sm animate-pulse" />
+            <div className="h-3 w-20 bg-slate-800 rounded-sm animate-pulse" />
           </div>
         )}
         {error && (
@@ -200,12 +202,11 @@ const PdfViewer = ({ pdfUrl, title = 'PDF' }) => {
           </div>
         )}
         {!isLoading && !error && (
-          <canvas
-            ref={canvasRef}
-            className="shadow-2xl"
-            style={{ maxWidth: '100%', height: 'auto' }}
-            aria-label={title}
-          />
+<canvas
+          ref={canvasRef}
+          className="shadow-2xl max-w-full h-auto"
+          aria-label={title}
+        />
         )}
       </div>
     </div>
