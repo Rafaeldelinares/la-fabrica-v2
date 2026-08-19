@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense, lazy } from 'react';
 import PropTypes from 'prop-types';
 import { Users, Search, AlertTriangle, CalendarClock, ChevronUp, ChevronDown, ChevronsUpDown, ChevronLeft, ChevronRight, Plus, MapPin, BadgeCheck, X } from 'lucide-react';
 import { fmtFecha } from '../../../utils/dates';
@@ -13,6 +13,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useRbac } from '../../../shared/auth/useRbac';
 import AccessDenied from '../../../shared/ui/AccessDenied';
 import { n8nGet } from '../../../shared/hooks/useN8n';
+import FaltaGestorModal from '../../../shared/ui/modals/FaltaGestorModal';
 
 const PAGE_SIZE = 15;
 
@@ -67,6 +68,7 @@ const CarteraPanel = () => {
   const [busqueda, setBusqueda]         = useState('');
   const [seleccionado, setSeleccionado] = useState(null);
   const [nuevoCliente, setNuevoCliente] = useState(false);
+  const [faltaGestorCliente, setFaltaGestorCliente] = useState(null);
   const [sort, setSort]                 = useState({ field: 'nombre_comercial', dir: 'asc' });
   const [pagina, setPagina]             = useState(1);
   const [error, setError]               = useState('');
@@ -104,6 +106,27 @@ const CarteraPanel = () => {
   useEffect(() => {
     fetchCartera({ provincia: filtroProvincia, localidad: filtroLocalidad, sector: filtroSector });
   }, [filtroProvincia, filtroLocalidad, filtroSector]); // eslint-disable-line react-hooks/set-state-in-effect
+
+  // Global event: open FaltaGestorModal when any Send* button finds a missing gestor
+  useEffect(() => {
+    const handler = (e) => {
+      setFaltaGestorCliente(e.detail?.cliente ?? null);
+    };
+    window.addEventListener('app:open-falta-gestor', handler);
+    return () => window.removeEventListener('app:open-falta-gestor', handler);
+  }, []);
+
+  const handleFaltaGestorAsignar = useCallback((cliente) => {
+    setFaltaGestorCliente(null);
+    // Re-fetch full cliente data and open drawer
+    n8nGet('crm-cartera-get', { cliente_id: cliente.id }, { timeoutMs: 60000 })
+      .then(data => {
+        if (data.ok && data.clientes?.length) {
+          setSeleccionado(data.clientes[0]);
+        }
+      })
+      .catch(() => { setError('Error al abrir la ficha del cliente'); });
+  }, []);
 
   const handleLimpiarFiltros = () => {
     setFiltroProvincia('');
@@ -469,7 +492,7 @@ const CarteraPanel = () => {
       {/* MODAL — ficha cliente existente */}
       {seleccionado && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setSeleccionado(null)}>
-          <div className="w-[90vw] max-w-[1080px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-[95vw] max-w-[1800px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
             <Suspense fallback={<div className="h-full bg-slate-900/50 animate-pulse" />}>
               <ClienteDrawer
                 cliente={seleccionado}
@@ -489,10 +512,17 @@ const CarteraPanel = () => {
         </div>
       )}
 
+      <FaltaGestorModal
+        open={!!faltaGestorCliente}
+        cliente={faltaGestorCliente}
+        onAsignar={handleFaltaGestorAsignar}
+        onClose={() => setFaltaGestorCliente(null)}
+      />
+
       {/* MODAL — alta nueva empresa */}
       {nuevoCliente && (
         <div className="fixed top-16 bottom-10 inset-x-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setNuevoCliente(false)}>
-          <div className="w-[90vw] max-w-[1080px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="w-[95vw] max-w-[1800px] h-full overflow-hidden rounded-sm border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
             <Suspense fallback={<div className="h-full bg-slate-900/50 animate-pulse" />}>
               <NuevoClienteDrawer
                 onClose={() => setNuevoCliente(false)}

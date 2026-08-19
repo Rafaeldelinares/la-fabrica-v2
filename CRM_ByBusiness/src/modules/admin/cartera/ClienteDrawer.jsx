@@ -131,48 +131,54 @@ const ClienteDrawer = ({ cliente, gestorId, onClose, onGestorChanged, onClienteB
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-800 shrink-0">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 py-2.5 text-[10px] font-mono uppercase tracking-widest transition-colors ${
-                activeTab === tab.id
-                  ? 'text-white border-b-2 border-[#D00000] -mb-px'
-                  : 'text-slate-500 hover:text-slate-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Sidebar lateral + Contenido del tab activo */}
+        <div className="flex flex-1 min-h-0">
+          {/* Sidebar */}
+          <nav className="w-[15%] shrink-0 border-r border-slate-800 bg-slate-950/40 overflow-y-auto custom-scrollbar">
+            <ul className="flex flex-col py-2">
+              {TABS.map(tab => (
+                <li key={tab.id}>
+                  <button
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full text-left whitespace-nowrap px-4 py-2.5 text-[11px] font-mono uppercase tracking-widest transition-colors border-l-2 ${
+                      activeTab === tab.id
+                        ? 'text-white bg-slate-800/40 border-[#D00000]'
+                        : 'text-slate-500 hover:text-slate-200 hover:bg-slate-900/40 border-transparent'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
 
-        {/* Contenido del tab activo */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          {activeTab === 'ficha'     && (
-            <TabFicha
-              cliente={cliente}
-              n8nUrl={import.meta.env.VITE_N8N_URL}
-              onGestorChanged={onGestorChanged}
-              onClienteBaja={onClienteBaja}
-            />
-          )}
-          {activeTab === 'facturacion' && <TabFacturacion cliente={cliente} n8nUrl={import.meta.env.VITE_N8N_URL} gestorId={gestorId} />}
-          {activeTab === 'historial' && (
-            <>
-              {errorTimeline && (
-                <p className="text-[10px] text-red-400 font-mono px-5 pt-4">{errorTimeline}</p>
-              )}
-              <TabHistorial
-                timeline={timeline}
-                onDeleteInteraccion={handleDeleteInteraccion}
-                onEditInteraccion={handleEditInteraccion}
+          {/* Contenido */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-[5%] py-5">
+            {activeTab === 'ficha'     && (
+              <TabFicha
+                cliente={cliente}
+                n8nUrl={import.meta.env.VITE_N8N_URL}
+                onGestorChanged={onGestorChanged}
+                onClienteBaja={onClienteBaja}
               />
-            </>
-          )}
-          {activeTab === 'gbp'       && <GbpIndex cliente={cliente} />}
-          {activeTab === 'tarjeta'   && <TabTarjetaDigital cliente={cliente} />}
+            )}
+            {activeTab === 'facturacion' && <TabFacturacion cliente={cliente} n8nUrl={import.meta.env.VITE_N8N_URL} gestorId={gestorId} />}
+            {activeTab === 'historial' && (
+              <>
+                {errorTimeline && (
+                  <p className="text-[10px] text-red-400 font-mono pt-4">{errorTimeline}</p>
+                )}
+                <TabHistorial
+                  timeline={timeline}
+                  onDeleteInteraccion={handleDeleteInteraccion}
+                  onEditInteraccion={handleEditInteraccion}
+                />
+              </>
+            )}
+            {activeTab === 'gbp'       && <GbpIndex cliente={cliente} />}
+            {activeTab === 'tarjeta'   && <TabTarjetaDigital cliente={cliente} />}
+          </div>
         </div>
       </div>
 
