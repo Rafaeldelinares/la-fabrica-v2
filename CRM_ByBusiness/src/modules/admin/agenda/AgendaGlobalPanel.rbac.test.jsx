@@ -10,6 +10,7 @@ import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useRbac } from '../../../shared/auth/useRbac';
 import { useAuth } from '../../auth/AuthContext';
+import { ToastProvider } from '../../../shared/context/ToastContext';
 import AgendaGlobalPanel from './AgendaGlobalPanel';
 
 vi.mock('../../../shared/auth/useRbac', () => ({ useRbac: vi.fn() }));
@@ -18,10 +19,12 @@ vi.mock('../../auth/AuthContext', () => ({ useAuth: vi.fn() }));
 const allowedRbac = { can: vi.fn(() => true), canAll: vi.fn(() => true), canAny: vi.fn(() => true), permisos: ['agenda.read.all'], user: { id: 1, role: 'supervisor' } };
 const deniedRbac  = { can: vi.fn(() => false), canAll: vi.fn(() => false), canAny: vi.fn(() => false), permisos: [], user: { id: 2, role: 'operador' } };
 
-// Wrapper con QueryClient para que useQuery() no falle
+// Wrapper con QueryClient para que useQuery() no falle y ToastProvider para useToast()
 const Wrapper = ({ children }) => (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        {children}
+        <ToastProvider>
+            {children}
+        </ToastProvider>
     </QueryClientProvider>
 );
 

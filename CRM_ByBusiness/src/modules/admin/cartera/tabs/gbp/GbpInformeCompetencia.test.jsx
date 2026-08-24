@@ -40,6 +40,13 @@ vi.mock('./useInformeCompetencia', () => ({
   useInformeCompetencia: vi.fn(),
 }));
 
+// Mock PdfViewer to avoid pdfjs-dist DOMMatrix issues in test environment
+vi.mock('./PdfViewer', () => ({
+  default: function MockPdfViewer({ pdfUrl, title }) {
+    return <iframe title={title} src={pdfUrl} />;
+  },
+}));
+
 // Mock env validation
 vi.mock('../../../../../shared/utils/envValidation', () => ({
   validateEnvVar: vi.fn(() => 'https://n8n.example.com'),

@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { ToastProvider } from '../../../shared/context/ToastContext';
 import { useRbac } from '../../../shared/auth/useRbac';
 import { useN8nQuery, useN8nMutation } from '../../../shared/hooks/useN8n';
 import XiaomiCookiesPanel from './XiaomiCookiesPanel';
@@ -49,13 +50,13 @@ beforeEach(() => {
 describe('XiaomiCookiesPanel RBAC', () => {
   it('muestra "Acceso restringido" cuando el user NO tiene admin.system.config', () => {
     vi.mocked(useRbac).mockReturnValue(deniedRbac);
-    render(<XiaomiCookiesPanel />);
+    render(<ToastProvider><XiaomiCookiesPanel /></ToastProvider>);
     expect(screen.getByText(/acceso restringido/i)).toBeInTheDocument();
   });
 
   it('renderiza el panel cuando el user tiene admin.system.config', () => {
     vi.mocked(useRbac).mockReturnValue(allowedRbac);
-    render(<XiaomiCookiesPanel />);
+    render(<ToastProvider><XiaomiCookiesPanel /></ToastProvider>);
     expect(screen.queryByText(/acceso restringido/i)).not.toBeInTheDocument();
     // Header visible
     expect(screen.getByText(/cookies xiaomi-12/i)).toBeInTheDocument();
@@ -63,7 +64,7 @@ describe('XiaomiCookiesPanel RBAC', () => {
 
   it('verifica que el permiso requerido es admin.system.config', () => {
     vi.mocked(useRbac).mockReturnValue(allowedRbac);
-    render(<XiaomiCookiesPanel />);
+    render(<ToastProvider><XiaomiCookiesPanel /></ToastProvider>);
     expect(useRbac().can).toHaveBeenCalledWith('admin.system.config');
   });
 });
