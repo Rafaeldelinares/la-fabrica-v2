@@ -29,14 +29,13 @@ const ModalNuevaProforma = ({ cliente, operadorId, n8nUrl, onClose, onCreated, p
       : [lineaVacia()]
   );
   const [productos,         setProductos]         = useState([]);
-  const [productosError,    setProductosError]    = useState(null);
   const [saving,            setSaving]            = useState(false);
   const [error,             setError]             = useState(null);
 
   useEffect(() => {
     n8nGet('crm-productos', {}, { baseUrl: n8nUrl })
       .then(d => setProductos(d.productos || []))
-      .catch(() => { setProductosError('No se pudo cargar el catálogo de productos. Puedes escribir descripciones manualmente.'); });
+      .catch(() => { /* catálogo no disponible, el usuario puede escribir descripciones manualmente */ });
   }, [n8nUrl]);
 
   const updLine = (id, field, val) =>
