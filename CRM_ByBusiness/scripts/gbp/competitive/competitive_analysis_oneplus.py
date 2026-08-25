@@ -6,6 +6,8 @@ Runs ON the OnePlus (inside proot-distro Debian). Invoked via SSH from n8n on VP
 Scrapes Google Maps via gms-browser and returns structured JSON to stdout.
 VPS owns all DB writes; this script only outputs JSON.
 
+Concurrency: uses flock-based lock file to prevent parallel executions.
+
 Usage:
     python3 ~/competitive_analysis_oneplus.py --cliente-id 4 --mode cita
     python3 ~/competitive_analysis_oneplus.py --cliente-id 4 --mode mantenimiento
@@ -14,23 +16,58 @@ Exit codes:
     0 = success
     1 = scraping error
     2 = input / validation error
+    3 = another scraper instance already running
 """
 
 import argparse
+import fcntl
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
+import atexit
 from datetime import datetime, timezone
 
-# --- DB config (via SSH tunnel localhost:5433) ---
-DB_USER = "rafael_admin"
-DB_PASS = "Fabrica_Industrial_2026_Secure!"
-DB_HOST = "localhost"
-DB_PORT = 5433
-DB_NAME = "crm_bybusiness"
+LOCK_PATH = os.path.join(os.path.expanduser("~"), "oneplus_scraper.lock")
+_lock_fd = None
+
+
+def _acquire_lock():
+    """Acquire exclusive flock lock or exit with error JSON."""
+    global _lock_fd
+    try:
+        _lock_fd = open(LOCK_PATH, "w")
+        fcntl.flock(_lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _lock_fd.write(f"pid={os.getpid()}\nstarted={time.time()}\n")
+        _lock_fd.flush()
+    except BlockingIOError:
+        print(json.dumps({"success": False, "error": "another_scraper_running"}), file=sys.stdout)
+        sys.exit(3)
+
+
+def _release_lock():
+    """Release flock lock on exit."""
+    global _lock_fd
+    if _lock_fd is not None:
+        try:
+            fcntl.flock(_lock_fd.fileno(), fcntl.LOCK_UN)
+            _lock_fd.close()
+            _lock_fd = None
+        except Exception:
+            pass
+
+
+def _signal_handler(signum, frame):
+    """Handle SIGTERM/SIGINT so atexit cleanup runs."""
+    sys.exit(0)
+
+# --- DB config REMOVED — wrapper does NOT touch DB ---
+# VPS caller is responsible for fetching cliente data and passing it via CLI args.
+# This keeps the wrapper pure (scraping only) and avoids requiring an SSH tunnel
+# from OnePlus → VPS postgres just to read one row.
 
 # --- Proot-distro paths ---
 PROOT_ROOT = "/data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/rootfs"
@@ -167,61 +204,6 @@ def scrape_gms(input_query, output_path, geo, bbox, depth=1, extra_flags=""):
     return []
 
 
-def fetch_cliente_from_db(cliente_id):
-    """Fetch cliente data from VPS DB via pg8000 tunnel."""
-    try:
-        import pg8000.dbapi
-    except ImportError:
-        log("ERROR: pg8000 not installed")
-        return None
-
-    try:
-        conn = pg8000.dbapi.connect(
-            user=DB_USER,
-            password=DB_PASS,
-            host=DB_HOST,
-            port=DB_PORT,
-            database=DB_NAME,
-        )
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT
-                c.id,
-                COALESCE(NULLIF(c.nombre_fiscal, ''), c.nombre_comercial) AS nombre_fiscal,
-                c.actividad,
-                c.localidad,
-                c.provincia,
-                f.gmaps_rating,
-                f.gmaps_reseñas,
-                f.place_id,
-                f.google_cid,
-                f.gmaps_nombre
-            FROM clientes.clientes c
-            LEFT JOIN clientes.gmaps_fichas f ON f.cliente_id = c.id AND f.tipo = 'principal'
-            WHERE c.id = %s
-        """, (cliente_id,))
-        row = cur.fetchone()
-        cur.close()
-        conn.close()
-        if not row:
-            return None
-        return {
-            "id": row[0],
-            "nombre_fiscal": row[1],
-            "actividad": row[2] or "",
-            "localidad": row[3] or "",
-            "provincia": row[4] or "",
-            "gmaps_rating": safe_float(row[5]),
-            "gmaps_reseñas": safe_int(row[6]),
-            "place_id": row[7],
-            "google_cid": row[8],
-            "gmaps_nombre": row[9],
-        }
-    except Exception as e:
-        log(f"DB error: {e}")
-        return None
-
-
 def extract_ficha_metrics(obj):
     """Extract key metrics from a gms-browser ficha result object."""
     return {
@@ -300,42 +282,49 @@ def main():
         required=True,
         help="cita=full scraping (ficha+competitors+rank), mantenimiento=ficha only",
     )
+    parser.add_argument(
+        "--nombre-fiscal",
+        required=True,
+        help="Cliente nombre fiscal (used as primary Google Maps query)",
+    )
+    parser.add_argument(
+        "--actividad",
+        default="",
+        help="Cliente actividad (used for competitor query, optional)",
+    )
+    parser.add_argument(
+        "--localidad",
+        default="",
+        help="Cliente ciudad (used for geo + competitor query)",
+    )
+    parser.add_argument(
+        "--provincia",
+        default="",
+        help="Cliente provincia (used for geo fallback)",
+    )
     args = parser.parse_args()
+
+    # --- Concurrency lock (before any scraping) ---
+    _acquire_lock()
+    atexit.register(_release_lock)
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
 
     started_at = datetime.now(timezone.utc).isoformat()
     log(f"Starting scrape: cliente_id={args.cliente_id}, mode={args.mode}")
 
-    # --- Step 1: fetch cliente data from DB ---
-    cliente = fetch_cliente_from_db(args.cliente_id)
-    if not cliente:
-        result = {
-            "success": False,
-            "cliente_id": args.cliente_id,
-            "mode": args.mode,
-            "started_at": started_at,
-            "duration_seconds": None,
-            "raw_json": None,
-            "rating": None,
-            "num_resenas": None,
-            "sentiment_score": None,
-            "competitive_data": None,
-            "rank_position": None,
-            "error": f"Cliente {args.cliente_id} not found in DB",
-        }
-        print(json.dumps(result), file=sys.stdout)
-        sys.exit(2)
-
-    nombre = cliente["nombre_fiscal"]
-    actividad = cliente["actividad"]
-    localidad = cliente["localidad"]
-    provincia = cliente["provincia"]
+    # --- Step 1: cliente data passed via CLI args (no DB lookup) ---
+    nombre = args.nombre_fiscal
+    actividad = args.actividad
+    localidad = args.localidad
+    provincia = args.provincia
 
     log(f"Cliente: {nombre} | actividad={actividad} | ciudad={localidad}, {provincia}")
 
     # --- Step 2: determine geo ---
     geo, bbox = get_geo(provincia)
-    if cliente["localidad"]:
-        geo, bbox = get_geo(cliente["localidad"])
+    if localidad:
+        geo, bbox = get_geo(localidad)
 
     # --- Step 3: scrape ficha (both modes) ---
     ficha_query = nombre
